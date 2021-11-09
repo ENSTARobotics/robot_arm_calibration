@@ -98,7 +98,7 @@ def drawPose(pose, ax = None, color = None):
     ax.quiver(pose[0],pose[1],pose[2],rotationMatrix[0,1]/10,rotationMatrix[1,1]/10,rotationMatrix[2,1]/10,color='g')
     ax.quiver(pose[0],pose[1],pose[2],rotationMatrix[0,2]/10,rotationMatrix[1,2]/10,rotationMatrix[2,2]/10,color='b')
 
-with open("/home/caroline/Bureau/CalibrationMeasurements_panda/Calibration.csv", newline='') as csvfile:
+with open("Calibration.csv", newline='') as csvfile:
     rowReader = csv.reader(csvfile, delimiter=',', quotechar='|')
     for row in rowReader:
         if(row[0]=="---"):
@@ -223,6 +223,9 @@ for i,position in enumerate(deepcopy(encodersPose)):
 
     markerRotation = R.from_euler("xyz",optiTrackPose[i][3:])*R.from_euler("xyz",[0,np.pi,0])
     optiTrackPose[i][3:] = markerRotation.as_euler("xyz")
+
+    print(optiTrackPose[i])
+    print(position)
 
     currentDelta = np.reshape(optiTrackPose[i] - position,(len(position),1))
     currentDelta[3:] = modAngle(currentDelta[3:])
