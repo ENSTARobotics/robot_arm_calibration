@@ -25,7 +25,8 @@ except:
 
 ### RETRIEVE MEASUREMENTS DATA
 
-Items = calibrationCSVParsing(itemsNames,"Calibration.csv")
+#Items = calibrationCSVParsing(itemsNames,"Calibration.csv")
+Items = calibrationCSVParsing(itemsNames,"GeneratedCalibration.csv")
 
 referencePointsIndices = [int(key[-1]) for key,_ in Items.items() if referencePointsItemsName in key]
 
@@ -33,21 +34,27 @@ N_REFERENCEPOINTS = len(referencePointsIndices)
 
 identificationRatio = 2/3
 N_EXPERIMENTS = int(np.floor(len(Items[itemsNames[0]])*identificationRatio))
+N_TESTS = len(Items[itemsNames[0]]) - N_EXPERIMENTS
 
 ### ROBOT BASE AND REFERENCE POINTS TRANSFORMATIONS ESTIMATIONS
 
-TBase0 = np.dot(robotBaseTransformation(Items,robotBaseMarkersOffset,robotBasePlaneOffset,robotBaseItemsNames),TBaseN)
+#TBase0 = np.dot(robotBaseTransformation(Items,robotBaseMarkersOffset,robotBasePlaneOffset,robotBaseItemsNames),TBaseN)
+TBase0 = np.eye(4)
 TBase0Inv = np.linalg.inv(TBase0)
 
 TTool0 = np.empty((N_REFERENCEPOINTS,4,4))
 for j in range(N_REFERENCEPOINTS):
-    TTool0[j] = np.dot(TToolN,TTool0_optiTrack[j])
+    #TTool0[j] = np.dot(TToolN,TTool0_optiTrack[j])
+    TTool0[j] = TTool0_optiTrack[j]
 
 ### MOVING MEASUREMENTS TO THE ROBOT BASE FRAME
 
 Pij = np.empty((N_EXPERIMENTS,N_REFERENCEPOINTS,3))
+PijTest = np.empty((N_TESTS,N_REFERENCEPOINTS,3))
+
 for referencePointIndex in referencePointsIndices:
-    Pij[:,referencePointIndex,:] = np.dot(TBase0Inv,np.concatenate((Items[referencePointsItemsName+str(referencePointIndex)][:N_EXPERIMENTS,:3].T,np.zeros((1,N_EXPERIMENTS))))).T[:,:3]
+    Pij[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsName+str(referencePointIndex)][:N_EXPERIMENTS,:3].T,np.zeros((1,N_EXPERIMENTS))))).T[:,:3]
+    PijTest[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsName+str(referencePointIndex)][N_EXPERIMENTS:,:3].T,np.zeros((1,N_TESTS))))).T[:,:3]
 
 ### STEP 1 - PBase, RBase & PToolj
 
@@ -101,16 +108,21 @@ def step1(pi):
 ### STEP 2 - pi
 
 def step2(TBase,TTool):
-    JTJ = np.sum(np.sum(np.array([np.array([np.dot(JpiT(Items["jointsAngles"][i],pi0,TBase,TTool[j])[:,:3],Jpi(Items["jointsAngles"][i],pi0,TBase,TTool[j])[:3,:]) for j in range(N_REFERENCEPOINTS)]) for i in range(N_EXPERIMENTS)]),axis=0),axis=0)
-    JTP = np.sum(np.sum(np.array([np.array([np.dot(JpiT(Items["jointsAngles"][i],pi0,TBase,TTool[j])[:,:3],Pij[i,j] - T(Items["jointsAngles"][i],pi0)[:3,-1]) for j in range(N_REFERENCEPOINTS)]) for i in range(N_EXPERIMENTS)]),axis=0),axis=0)
+
+    J = np.vstack([Jpi(Items["jointsAngles"][i],pi0,TBase,TTool[j])[:3,:] for i in range(N_EXPERIMENTS) for j in range(N_REFERENCEPOINTS)])
+    Jplus = np.linalg.pinv(J)
     
-    deltapi = np.dot(np.linalg.inv(JTJ),JTP)
+    deltaP = np.vstack([np.array([deltaPi(i,Items["jointsAngles"][i],pi0)]).T for i in range(N_EXPERIMENTS)])
+
+    deltapi = np.dot(Jplus,deltaP).T
+    print(deltapi)
     return(pi0+deltapi)
 
 ### COMPUTE ERROR
 
 def error(TBase,TTool,pi):
-    return(np.sum(np.sum(np.array([np.array([np.linalg.norm(Pij[i,j] - T(Items["jointsAngles"][i],pi,TBase,TTool[j])[:3,-1]) for j in range(N_REFERENCEPOINTS)]) for i in range(N_EXPERIMENTS)]),axis=0),axis=0))
+    deltapi  = pi - pi0
+    return(np.sum(np.sum(np.array([np.array([np.linalg.norm(PijTest[i,j] - T(Items["jointsAngles"][N_EXPERIMENTS+i],pi0,TBase,TTool[j])[:3,-1] - np.dot(Jpi(Items["jointsAngles"][N_EXPERIMENTS+i],pi0,TBase,TTool[j])[:3,:],deltapi.T)) for j in range(N_REFERENCEPOINTS)]) for i in range(N_TESTS)]),axis=0),axis=0))
 
 ### MAIN LOOP
 
@@ -119,13 +131,19 @@ TBase = np.eye(4)
 TTool = TTool0
 print(error(TBase,TTool,pi))
 
+pi = step2(TBase,TTool)
+print(error(TBase,TTool,pi))
+
+"""
 for i in range(10):
-    TBase,TTool = step1(pi)
-    print(error(TBase,TTool,pi))
+    #TBase,TTool = step1(pi)
+    #print(error(TBase,TTool,pi))
 
     pi = step2(TBase,TTool)
     print(error(TBase,TTool,pi))
+"""
 
+deltapi0 = [0.04341707754820697,0.09459911192543971,0.06425090291770869,0.2944871335579877,0.2645326922696843]
 
 
 
