@@ -2,36 +2,6 @@
 
 import numpy as np
 
-HR = np.array([[[0,0,0,0],
-                [0,0,-1,0],
-                [0,1,0,0],
-                [0,0,0,0]],
-                
-                [[0,0,1,0],
-                [0,0,0,0],
-                [-1,0,0,0],
-                [0,0,0,0]],
-                
-                [[0,-1,0,0],
-                [1,0,0,0],
-                [0,0,0,0],
-                [0,0,0,0]]])
-
-HT = np.array([[[0,0,0,1],
-                [0,0,0,0],
-                [0,0,0,0],
-                [0,0,0,0]],
-                
-                [[0,0,0,0],
-                [0,0,0,1],
-                [0,0,0,0],
-                [0,0,0,0]],
-                
-                [[0,0,0,0],
-                [0,0,0,0],
-                [0,0,0,1],
-                [0,0,0,0]]])
-
 #Number of revolute joints
 JOINTS_NUMBER = 6
 
@@ -78,8 +48,15 @@ TBaseN = np.eye(4)
 TBaseN[2,-1] = d1
 
 #Nominal robot tool transformation
-TToolN = np.eye(4)
-TToolN[0,-1] = d6
+TToolN = np.array([[0,0,1,d6],
+                   [0,-1,0,0],
+                   [1,0,0,0],
+                   [0,0,0,1]])
 
-itemsNames = ["optiTrackPose0","optiTrackPose1","optiTrackPose2","jointsAngles"]
-referencePointsItemsName = "optiTrackPose"
+itemsNames = ["optiTrackPose0","optiTrackPose1","optiTrackPose2","optiTrackPose3","optiTrackPose4","optiTrackPose5","jointsAngles"]
+
+robotBaseMarkersOffset = 0    
+robotBasePlaneOffset = np.array([0,0,0])
+
+robotBaseItemsNames = []
+referencePointsItemsPrefix = "optiTrackPose"

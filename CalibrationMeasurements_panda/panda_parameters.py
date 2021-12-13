@@ -2,36 +2,6 @@
 
 import numpy as np
 
-HR = np.array([[[0,0,0,0],
-                [0,0,-1,0],
-                [0,1,0,0],
-                [0,0,0,0]],
-                
-                [[0,0,1,0],
-                [0,0,0,0],
-                [-1,0,0,0],
-                [0,0,0,0]],
-                
-                [[0,-1,0,0],
-                [1,0,0,0],
-                [0,0,0,0],
-                [0,0,0,0]]])
-
-HT = np.array([[[0,0,0,1],
-                [0,0,0,0],
-                [0,0,0,0],
-                [0,0,0,0]],
-                
-                [[0,0,0,0],
-                [0,0,0,1],
-                [0,0,0,0],
-                [0,0,0,0]],
-                
-                [[0,0,0,0],
-                [0,0,0,0],
-                [0,0,0,1],
-                [0,0,0,0]]])
-
 #Number of revolute joints
 JOINTS_NUMBER = 7
 
@@ -47,7 +17,7 @@ LINKS_TRANSLATIONS = [[1,2],
                       [1,2],
                       [1,3],
                       [1,2],
-                      [1,3],
+                      [1],
                       []]
 
 #Links rotations axis (around x (1), y (2) or z (3))
@@ -68,12 +38,13 @@ d4 = 0.384
 d5 = 0.088
 d6 = 0.107
 
+#Per line : deltaq, T, R
 pi0 = np.array([0,0,0,      #1
                 0,0,d2,0,   #2
                 0,d3,0,0,    #3
                 0,-d3,d4,0,   #4
                 0,0,0,0,    #5
-                0,d5,0,0])  #6
+                0,d5,0])  #6
 
 #Nominal robot base transformation
 TBaseN = np.eye(4)
@@ -82,6 +53,9 @@ TBaseN[2,-1] = d1
 #Nominal robot tool transformation
 TToolN = np.eye(4)
 TToolN[2,-1] = -d6
+TToolN[:3,:3] = np.array([[1,0,0],
+                         [0,-1,0],
+                         [0,0,-1]])
 
 itemsNames = ["optiTrackPose0","robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL","encodersPose","motorsAngles","jointsAngles","desiredJointsAngles","efforts","motorTorques","desiredMotorTorques","externalTroques"]
 
@@ -89,4 +63,4 @@ robotBaseMarkersOffset = 0.016 + 0.00635 - 0.00075
 robotBasePlaneOffset = np.array([0.011+0.127/2,0,0])
 
 robotBaseItemsNames = ["robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL"]
-referencePointsItemsName = "optiTrackPose"
+referencePointsItemsPrefix = "optiTrackPose"
