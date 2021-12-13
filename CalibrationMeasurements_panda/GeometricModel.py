@@ -12,7 +12,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-cmap = plt.cm.get_cmap('hsv', 100)
+cmap = plt.cm.get_cmap('hsv',100)
 
 from random import randint
 from copy import deepcopy
@@ -35,6 +35,36 @@ except:
     exit(1)
 
 ### USEFUL MATRICES AND FUNCTIONS
+
+HR = np.array([[[0,0,0,0],
+                [0,0,-1,0],
+                [0,1,0,0],
+                [0,0,0,0]],
+                
+                [[0,0,1,0],
+                [0,0,0,0],
+                [-1,0,0,0],
+                [0,0,0,0]],
+                
+                [[0,-1,0,0],
+                [1,0,0,0],
+                [0,0,0,0],
+                [0,0,0,0]]])
+
+HT = np.array([[[0,0,0,1],
+                [0,0,0,0],
+                [0,0,0,0],
+                [0,0,0,0]],
+                
+                [[0,0,0,0],
+                [0,0,0,1],
+                [0,0,0,0],
+                [0,0,0,0]],
+                
+                [[0,0,0,0],
+                [0,0,0,0],
+                [0,0,0,1],
+                [0,0,0,0]]])
 
 def size(L):
     if type(L) == list:
@@ -233,12 +263,12 @@ def JpiT(q,pi,TBase=np.eye(4),TTool=np.eye(4)):
 ### DEBUG
 
 #q0 = np.zeros(JOINTS_NUMBER)
-#display(T(q0,pi0))
+#display(T(q0,pi0,TBaseN,TToolN))
 #plotRobot(q0,pi0,TBaseN,TToolN)
 #
 #q1 = np.zeros(JOINTS_NUMBER)
 #q1[0] = np.pi/2
-#display(T(q1,pi0))
+#display(T(q1,pi0,TBaseN,TToolN))
 #plotRobot(q1,pi0,TBaseN,TToolN)
 
 ### PERFORMANCES
