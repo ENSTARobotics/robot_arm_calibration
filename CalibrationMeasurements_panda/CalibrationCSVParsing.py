@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import csv
+import re
 import numpy as np
 from scipy.optimize import leastsq
 from scipy.spatial.transform import Rotation as R
@@ -62,6 +63,9 @@ def modAngle(angle):
 
 def robotBaseTransformation(Items,robotBaseMarkersOffset=0,robotBasePlaneOffset=np.zeros(3),robotBaseItemsNames=["robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL"]):
 
+    if(len(robotBaseItemsNames) == 0):
+        return(np.eye(4))
+
     ### Least-squares method for plane interpolation
     def planeInterpolation(points):
         #P : a*x + b*y + c*z + d = 0
@@ -107,29 +111,27 @@ def robotBaseTransformation(Items,robotBaseMarkersOffset=0,robotBasePlaneOffset=
 
     robotBaseTransformation = np.concatenate((np.concatenate((np.array([x,y,z]),np.array([robotBasePosition]).T),axis=1),np.array([[0,0,0,1]])))
 
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    for i,point in enumerate(robotBase):
-        ax.scatter(point[0],point[1],point[2],label=robotBaseItemsNames[i])
+    #fig = plt.figure()
+    #ax = fig.add_subplot(111, projection='3d')
+    #for i,point in enumerate(robotBase):
+    #    ax.scatter(point[0],point[1],point[2],label=robotBaseItemsNames[i])
 
-    ax.scatter(robotBasePosition[0],robotBasePosition[1],robotBasePosition[2])
+    #ax.scatter(robotBasePosition[0],robotBasePosition[1],robotBasePosition[2])
 
-    extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
-    sz = extents[:,1] - extents[:,0]
-    centers = np.mean(extents, axis=1)
-    maxsize = max(abs(sz))
-    r = maxsize/2
-    for ctr, dim in zip(centers, 'xyz'):
-        getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
+    #extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
+    #sz = extents[:,1] - extents[:,0]
+    #centers = np.mean(extents, axis=1)
+    #maxsize = max(abs(sz))
+    #r = maxsize/2
+    #for ctr, dim in zip(centers, 'xyz'):
+    #    getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
 
-    ax.set_xlabel("x (m)")
-    ax.set_ylabel("y (m)")
-    ax.set_zlabel("z (m)")
+    #ax.set_xlabel("x (m)")
+    #ax.set_ylabel("y (m)")
+    #ax.set_zlabel("z (m)")
 
-    plt.legend()
-    plt.show()
-    """
+    #plt.legend()
+    #plt.show()
     
     return(robotBaseTransformation)
 
