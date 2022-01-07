@@ -36,12 +36,12 @@ for i in range(JOINTS_NUMBER):
 
     #Link translation
     for translation in LINKS_TRANSLATIONS[i]:
-        deltapi0[parametersCounter] = uniform(-1,1)*0.1
+        deltapi0[parametersCounter] = uniform(-1,1)*0.01
         parametersCounter+=1
 
     #Link rotation
     for rotation in LINKS_ROTATIONS[i]:
-        deltapi0[parametersCounter] = uniform(-1,1)*np.pi*0.1
+        deltapi0[parametersCounter] = uniform(-1,1)*np.pi*0.01
         parametersCounter+=1
 
 ### Create joints angles
@@ -58,7 +58,7 @@ print("Creating N = " + str(N) + " measurements")
 
 Q = [sample(list(np.linspace(0,2*np.pi,1000)),JOINTS_NUMBER) for i in range(N)]
 
-with open('GeneratedCalibration.csv', 'w') as f:
+with open('GeneratedCalibration_' + argv[1] + '.csv', 'w') as f:
     writer = csv.writer(f)
 
     for q in Q:
@@ -71,6 +71,6 @@ with open('GeneratedCalibration.csv', 'w') as f:
         writer.writerow(q)
         writer.writerow(['---'])
 
-with open('Generateddeltapi0.csv', 'w') as f:
+with open('Generateddeltapi0_' + argv[1] + '.csv', 'w') as f:
     writer = csv.writer(f)
     writer.writerow(deltapi0)
