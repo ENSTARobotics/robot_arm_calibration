@@ -24,7 +24,10 @@ except:
 
 ### RETRIEVE MEASUREMENTS DATA
 
-Items = calibrationCSVParsing(itemsNames,"Calibration_" + argv[1] +".csv")
+try:
+    Items = calibrationCSVParsing(itemsNames,"Calibration_" + argv[1] +".csv")
+except:
+    Items = calibrationCSVParsing(itemsNames,"GeneratedCalibration_" + argv[1] +".csv")
 
 referencePointsIndices = [int(key[-1]) for key,_ in Items.items() if referencePointsItemsPrefix in key]
 N_REFERENCEPOINTS = len(referencePointsIndices)
@@ -50,8 +53,8 @@ PijTest = np.empty((N_TESTS,N_REFERENCEPOINTS,3))
 randomIndices = np.random.permutation(N_EXPERIMENTS+N_TESTS)
 
 for referencePointIndex in referencePointsIndices:
-    Pij[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][randomIndices[:N_EXPERIMENTS],:3].T,np.zeros((1,N_EXPERIMENTS))))).T[:,:3]
-    PijTest[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][randomIndices[-N_TESTS:],:3].T,np.zeros((1,N_TESTS))))).T[:,:3]
+    Pij[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][randomIndices[:N_EXPERIMENTS],:3].T,np.ones((1,N_EXPERIMENTS))))).T[:,:3]
+    PijTest[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][randomIndices[-N_TESTS:],:3].T,np.ones((1,N_TESTS))))).T[:,:3]
 
 ### STEP 1 - PBase, RBase & PToolj
 
@@ -133,7 +136,7 @@ print("pi = " + str(pi))
 error(TBase,TTool,pi)
 print("Error = " + str(error(TBase,TTool,pi)/N_TESTS) + " m")
 
-for i in range(10):
+for i in range(50):
     TBase,TTool = step1(pi)
     pi = step2(TBase,TTool)
 
