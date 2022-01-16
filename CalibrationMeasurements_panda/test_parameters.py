@@ -37,9 +37,11 @@ TBaseN = np.eye(4)
 TBaseN[2,-1] = d1 + d2
 
 #Nominal robot tool transformation
-TToolN = np.eye(4)
-TToolN[0,-1] = d4
-
+TToolN = np.array([[0,0,1,d4],
+                   [0,-1,0,0],
+                   [1,0,0,0],
+                   [0,0,0,1]])
+                   
 itemsNames = ["optiTrackPose0","optiTrackPose1","optiTrackPose2","optiTrackPose3","optiTrackPose4","optiTrackPose5","jointsAngles"]
 
 robotBaseMarkersOffset = 0    
