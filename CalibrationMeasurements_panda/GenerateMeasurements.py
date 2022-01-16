@@ -31,18 +31,36 @@ for i in range(JOINTS_NUMBER):
 
     #Joint offset
     if (JOINTS_OFFSET[i]==1):
-        deltapi0[parametersCounter] = uniform(-1,1)*np.pi*0.1
+        deltapi0[parametersCounter] = uniform(-1,1)*(np.pi/180)
         parametersCounter+=1
 
     #Link translation
     for translation in LINKS_TRANSLATIONS[i]:
-        deltapi0[parametersCounter] = uniform(-1,1)*0.01
+        deltapi0[parametersCounter] = uniform(-1,1)*0.001
         parametersCounter+=1
 
     #Link rotation
     for rotation in LINKS_ROTATIONS[i]:
-        deltapi0[parametersCounter] = uniform(-1,1)*np.pi*0.01
+        deltapi0[parametersCounter] = uniform(-1,1)*(np.pi/180)
         parametersCounter+=1
+
+### Create Base error
+
+PhiBase = [uniform(-1,1)*(np.pi/180),uniform(-1,1)*(np.pi/180),uniform(-1,1)*(np.pi/180)]
+DeltaBase = [uniform(-1,1)*0.001,uniform(-1,1)*0.001,uniform(-1,1)*0.001]
+TBase = np.array([[0, -PhiBase[2], PhiBase[1], DeltaBase[0]],
+                [PhiBase[2], 0, -PhiBase[0], DeltaBase[1]],
+                [-PhiBase[1], PhiBase[0], 0, DeltaBase[2]],
+                [0,0,0,1]])
+
+### Create markers error
+
+TMarker = []
+for marker in TTool0_optiTrack:
+    TMarker.append(np.array([[0, 0, 0, uniform(-1,1)*0.001],
+                                [0, 0, 0, uniform(-1,1)*0.001],
+                                [0, 0, 0, uniform(-1,1)*0.001],
+                                [0,0,0,1]]))
 
 ### Create joints angles
 
@@ -62,15 +80,23 @@ with open('GeneratedCalibration_' + argv[1] + '.csv', 'w') as f:
     writer = csv.writer(f)
 
     for q in Q:
-        Tdelta = T(q,pi0+deltapi0,TBaseN,TToolN)
+        Tdelta = T(q,pi0+deltapi0,TBaseN + TBase,TToolN)
 
-        for marker in TTool0_optiTrack:
-            TdeltaM = np.dot(Tdelta,marker) 
+        for i,marker in enumerate(TTool0_optiTrack):
+            TdeltaM = np.dot(Tdelta,marker + TMarker[i]) 
             writer.writerow(TdeltaM[:3,-1])
 
         writer.writerow(q)
         writer.writerow(['---'])
 
-with open('Generateddeltapi0_' + argv[1] + '.csv', 'w') as f:
+with open('GeneratedErrors' + argv[1] + '.csv', 'w') as f:
     writer = csv.writer(f)
+    writer.writerow(['deltapi0'])
     writer.writerow(deltapi0)
+    writer.writerow(['TBase'])
+    for row in TBase:
+        writer.writerow(row)
+    for i,marker in enumerate(TTool0_optiTrack):
+        writer.writerow(['TMarker' + str(i+1)])
+        for row in TMarker[i]:
+            writer.writerow(row)
