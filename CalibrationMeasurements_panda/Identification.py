@@ -24,10 +24,12 @@ except:
 
 ### RETRIEVE MEASUREMENTS DATA
 
-try:
-    Items = calibrationCSVParsing(itemsNames,"Calibration_" + argv[1] +".csv")
-except:
+generated = input("Generated measurements ? y/n ")
+if(generated == "y"):
     Items = calibrationCSVParsing(itemsNames,"GeneratedCalibration_" + argv[1] +".csv")
+else:
+    Items = calibrationCSVParsing(itemsNames,"Calibration_" + argv[1] +".csv")
+    
 
 referencePointsIndices = [int(key[-1]) for key,_ in Items.items() if referencePointsItemsPrefix in key]
 N_REFERENCEPOINTS = len(referencePointsIndices)
@@ -113,8 +115,7 @@ def step2(TBase,TTool):
 ### COMPUTE ERROR
 
 def error(TBase,TTool,pi):
-    deltapi  = pi - pi0
-    return(np.sum(np.sum(np.array([np.array([np.linalg.norm(PijTest[-i-1,j] - T(Items["jointsAngles"][-i-1],pi0,TBase,TTool[j])[:3,-1] - np.dot(Jpi(Items["jointsAngles"][-i-1],pi0,TBase,TTool[j])[:3,:],deltapi.T)) for j in range(N_REFERENCEPOINTS)]) for i in range(N_TESTS)]),axis=0),axis=0))
+    return(np.sum(np.sum(np.array([np.array([np.linalg.norm(PijTest[-i-1,j] - T(Items["jointsAngles"][-i-1],pi,TBase,TTool[j])[:3,-1]) for j in range(N_REFERENCEPOINTS)]) for i in range(N_TESTS)]),axis=0),axis=0))
 
 ### MAIN LOOP
 
@@ -134,7 +135,7 @@ for i,M in enumerate(TTool0):
 print("pi = " + str(pi))
 
 error(TBase,TTool,pi)
-print("Error = " + str(error(TBase,TTool,pi)/N_TESTS) + " m")
+print("Error = " + str(error(TBase,TTool,pi)) + " m")
 
 for i in range(50):
     TBase,TTool = step1(pi)
@@ -151,7 +152,7 @@ for i in range(50):
 
     print("pi = " + str(pi))
 
-    print("Error = " + str(error(TBase,TTool,pi)/N_TESTS) + " m")
+    print("Error = " + str(error(TBase,TTool,pi)) + " m")
 
 
 
