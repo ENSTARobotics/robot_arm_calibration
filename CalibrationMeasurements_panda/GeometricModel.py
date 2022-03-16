@@ -1,3 +1,4 @@
+from tkinter import Tk
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy.lib.function_base import disp
@@ -73,7 +74,7 @@ def size(L):
         return(1) 
 
 def display(M):
-    Mdisplay = pd.DataFrame(np.round(M,3))
+    Mdisplay = pd.DataFrame(np.round(M,5))
     print(Mdisplay)
 
 def plotRobot(q,pi,TBase=np.eye(4),TTool=np.eye(4),ax=None,color=None):
@@ -90,7 +91,9 @@ def plotRobot(q,pi,TBase=np.eye(4),TTool=np.eye(4),ax=None,color=None):
     T = np.dot(T,TBase)
     currentJointPosition = T[:3,-1]
 
+    ax.scatter(0,0,0,color=color)
     ax.scatter(currentJointPosition[0],currentJointPosition[1],currentJointPosition[2],color=color)
+    ax.plot([0,currentJointPosition[0]],[0,currentJointPosition[1]],[0,currentJointPosition[2]],color='k',linestyle='--')
 
     lastJointPosition = deepcopy(currentJointPosition)
 
@@ -185,6 +188,8 @@ def T(q,pi,TBase=np.eye(4),TTool=np.eye(4)):
 
 def dTk(k,q,pi,TBase=np.eye(4),TTool=np.eye(4)):
 
+    #print("Parameter index = " + str(k))
+
     dTk = np.eye(4)
     i = np.argwhere(PARAMETERS_INDEX<=k)[-1][0] 
     #print("Concerned joint = " + str(i+1))
@@ -205,14 +210,16 @@ def dTk(k,q,pi,TBase=np.eye(4),TTool=np.eye(4)):
         dTk = np.dot(dTk,HR[np.abs(JOINTS_AXIS[i])-1])
 
     elif(k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i] - size(LINKS_TRANSLATIONS[i]) < 0):
-        #print("Link translation :\n" + str(HT[k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i]]))
-        #print("axis : "+str(k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i] + 1))
-        dTk = np.dot(dTk,HT[k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i]])
+        translationIndex = LINKS_TRANSLATIONS[i][k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i]]
+        #print("Link translation :\n" + str(HT[translationIndex - 1]))
+        #print("axis : " + str(translationIndex))
+        dTk = np.dot(dTk,HT[translationIndex - 1])
     
     else:
-        #print("Link rotation :\n" + str(HR[k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i] - size(LINKS_TRANSLATIONS[i])]))
-        #print("axis : "+str(k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i] - size(LINKS_TRANSLATIONS[i]) + 1))
-        dTk = np.dot(dTk,HR[k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i] - size(LINKS_TRANSLATIONS[i])])
+        rotationIndex = LINKS_ROTATIONS[i][k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i] - size(LINKS_TRANSLATIONS[i])]
+        #print("Link rotation :\n" + str(HR[rotationIndex - 1]))
+        #print("axis : "+str(rotationIndex))
+        dTk = np.dot(dTk,HR[rotationIndex - 1])
 
     for m in sTi[k-PARAMETERS_INDEX[i]+2:]:
         #print("Following transformation matrix :\n" + str(m))
@@ -267,7 +274,7 @@ def JpiT(q,pi,TBase=np.eye(4),TTool=np.eye(4)):
 #plotRobot(q0,pi0,TBaseN,TToolN)
 #
 #q1 = np.zeros(JOINTS_NUMBER)
-#q1[0] = np.pi/2
+#q1[0] = np.pi/4
 #display(T(q1,pi0,TBaseN,TToolN))
 #plotRobot(q1,pi0,TBaseN,TToolN)
 
@@ -277,10 +284,6 @@ def JpiT(q,pi,TBase=np.eye(4),TTool=np.eye(4)):
 #from random import sample
 
 #q = np.zeros(JOINTS_NUMBER)
-#q[0] = np.pi/4
-#q[1] = np.pi/2
-#q[4] = np.pi/2
-#q[6] = np.pi
 
 #tic = time.perf_counter()
 #Ti(0,q,pi0)
