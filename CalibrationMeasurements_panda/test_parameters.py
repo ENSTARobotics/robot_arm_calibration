@@ -3,7 +3,7 @@
 import numpy as np
 
 #Number of revolute joints
-JOINTS_NUMBER = 2
+JOINTS_NUMBER = 3
 
 #Joints axis index (x (1), y (2) or z (3))
 JOINTS_AXIS = [3,2,2]
@@ -29,8 +29,8 @@ d3 = 0.2
 d4 = 0.1
 
 #deltaq,T,R
-pi0 = np.array([0,0,0,
-                0,d3,0,0])
+pi0 = np.array([0,0,0,  #1
+                0,d3,0,0])  #2
 
 #Nominal robot base transformation
 TBaseN = np.eye(4)
