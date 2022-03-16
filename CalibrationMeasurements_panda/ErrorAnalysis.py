@@ -2,7 +2,6 @@
 
 from CalibrationCSVParsing import calibrationCSVParsing,robotBaseTransformation
 from GeometricModel import *
-from optiTrack_parameters import *
 
 from importlib import import_module
 from sys import argv
@@ -21,6 +20,20 @@ except:
     print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
+### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
+try:
+    module = import_module(argv[2]+"_parameters")
+
+    if "__all__" in module.__dict__:
+        names = module.__dict__["__all__"]
+    else:
+        names = [x for x in module.__dict__ if not x.startswith("_")]
+
+    globals().update({k: getattr(module, k) for k in names})
+except:
+    print("INVALID MARKER NAME FOR PARAMETERS IMPORTATION !")
+    exit(1)
+
 ### RETRIEVE MEASUREMENTS DATA
 
 Items = calibrationCSVParsing(itemsNames,"Calibration1.csv")
@@ -37,7 +50,7 @@ TBase0Inv = np.linalg.inv(TBase0)
 
 TTool0 = np.empty((N_REFERENCEPOINTS,4,4))
 for j in range(N_REFERENCEPOINTS):
-    TTool0[j] = np.dot(TToolN,TTool0_optiTrack[j])
+    TTool0[j] = np.dot(TToolN,TTool0_marker[j])
 
 def plotMarkersError(configurationIndex,pi=pi0):
     fig = plt.figure()
