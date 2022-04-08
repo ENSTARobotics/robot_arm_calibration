@@ -53,9 +53,7 @@ N_DELTAPI = len(pi0)
 referencePointsIndices = [int(key[-1]) for key,_ in Items.items() if referencePointsItemsPrefix in key]
 N_REFERENCEPOINTS = len(referencePointsIndices)
 
-identificationRatio = 4/5
-N_EXPERIMENTS = int(np.floor(len(Items[itemsNames[0]])*identificationRatio))
-N_TESTS = len(Items[itemsNames[0]]) - N_EXPERIMENTS
+N_EXPERIMENTS = len(Items[itemsNames[0]])
 
 ### ROBOT BASE AND REFERENCE POINTS TRANSFORMATIONS ESTIMATIONS
 
@@ -72,80 +70,73 @@ for j in range(N_REFERENCEPOINTS):
 ### MOVING MEASUREMENTS TO THE ROBOT BASE FRAME
 
 Pij = np.empty((N_EXPERIMENTS,N_REFERENCEPOINTS,3))
-PijTest = np.empty((N_TESTS,N_REFERENCEPOINTS,3))
-
-randomIndices = np.random.permutation(N_EXPERIMENTS+N_TESTS)
-#randomIndices = []
-#with open("random.npy","rb") as f:
-#    randomIndices = np.load(f)
-
-indexExperiments = randomIndices[:N_EXPERIMENTS]
-indexTest = randomIndices[-N_TESTS:]
 
 for referencePointIndex in referencePointsIndices:
-    #Pij[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3].T,np.ones((1,N_EXPERIMENTS))))).T[:,:3]
-    #PijTest[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3].T,np.ones((1,N_TESTS))))).T[:,:3]
-    #Pij[:,referencePointIndex,:] = np.dot(Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3],RBase0)
-    #PijTest[:,referencePointIndex,:] = np.dot(Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3],RBase0)
-    Pij[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3],np.ones((len(indexExperiments),1)))),np.linalg.inv(TBase0Rot))[:,:3]
-    PijTest[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3],np.ones((len(indexTest),1)))),np.linalg.inv(TBase0Rot))[:,:3]
+    Pij[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][:,:3],np.ones((N_EXPERIMENTS,1)))),np.linalg.inv(TBase0Rot))[:,:3]
 
-Jointi = Items["jointsAngles"][indexExperiments]
-JointiTest = Items["jointsAngles"][indexTest]
+Jointi = Items["jointsAngles"]
 
-### STEP 1 - BUILD IDENTIFICATION MATRIX
-#Pij = PBase + PRobot(qi,pi0) + [~PhiBase]*Probot(qi,pi0) + Jpi(p)(qi)*deltapi + [~PhiBase]*Jpi(p)(qi)*deltapi + RRobot(qi,pi0)*PToolj + [~PhiBase]*RRobot(qi,pi0)*PToolj + [~Jpi(r)(qi)*deltapi]*PToolj + [~PhiBase]*[~Jpi(r)(qi)*deltapi]*PToolj
-# => Pij = IdMatrix * (PBase PhiBase deltapi 
-#               PhiBaseX*deltapi PhiBaseY*deltapi PhiBaseZ*deltapi 
-#               PToolj PhiBaseX*PToolj PhiBaseY*PToolj PhiBaseZ*PToolj 
-#               PTooljX*deltapi PTooljY*deltapi PTooljZ*deltapi 
-#               PhiBaseX*PTooljX*deltapi PhiBaseY*PTooljY*deltapi PhiBaseZ*PTooljZ*deltapi
-#               PhiBaseX*PTooljY*deltapi PhiBaseX*PTooljZ*deltapi 
-#               PhiBaseY*PTooljX*deltapi PhiBaseY*PTooljZ*deltapi
-#               PhiBaseZ*PTooljX*deltapi PhiBaseZ*PTooljY*deltapi) + PRobot(qi,pi0)
+def fromVector(v):
+    TBase = np.array([[1,-v[5],v[4],v[0]],
+                      [v[5],1,-v[3],v[1]],
+                      [-v[4],v[3],1,v[2]],
+                      [0,0,0,1]])
 
-N_ID_PARAMETERS = 3 + 3 + N_DELTAPI + 3*N_DELTAPI + N_REFERENCEPOINTS*3 + 3*N_REFERENCEPOINTS*3 + 3*N_DELTAPI*N_REFERENCEPOINTS + N_DELTAPI*N_REFERENCEPOINTS*9
-
-def skewVector(v):
-    return(np.array([[0,-v[2],v[1]],[v[2],0,-v[0]],[-v[1],v[0],0]]))
-
-def skewMatrix(M):
-    L = np.shape(M)[1]
-    return(np.vstack((np.hstack((np.zeros(L),-M[2],M[1])),
-                      np.hstack((M[2],np.zeros(L),-M[0])),
-                      np.hstack((-M[1],M[0],np.zeros(L))))))
-
-def doubleSkewMatrix(M):
-    L = np.shape(M)[1]
-    return(np.vstack((np.hstack((np.zeros(L),M[0],M[0],np.zeros(2*L),-M[1],np.zeros(L),-M[2],np.zeros(L))),
-                      np.hstack((M[1],np.zeros(L),M[1],-M[0],np.zeros(4*L),-M[2])),
-                      np.hstack((M[2],M[2],np.zeros(2*L),-M[0],np.zeros(L),-M[1],np.zeros(2*L))))))
-
-def IdMatrix(q,pi,jTool):
-    TRobot = T(q,pi)
-    RRobot = TRobot[:3,:3]
-    PRobot = TRobot[:3,-1]
-    J = Jpi(q,pi)
-
-    IdMatrix = np.zeros((3,N_ID_PARAMETERS))
-    IdMatrix[:,:3] = np.eye(3)
-    IdMatrix[:,3:6] = -skewVector(PRobot)
-    IdMatrix[:,6:6 + N_DELTAPI] = J[:3]
-    IdMatrix[:,6 + N_DELTAPI:6 + 4*N_DELTAPI] = -skewMatrix(J[:3])
-
-    IdMatrix[:,6 + 4*N_DELTAPI + 3*jTool:6 + 4*N_DELTAPI + 3*jTool + 3] = RRobot 
-    IdMatrix[:,6 + 4*N_DELTAPI + 3*N_REFERENCEPOINTS + 9*jTool:6 + 4*N_DELTAPI + 3*N_REFERENCEPOINTS + 9*jTool + 9] = -skewMatrix(RRobot)
-    IdMatrix[:,6 + 4*N_DELTAPI + 3*N_REFERENCEPOINTS + 9*N_REFERENCEPOINTS + 3*N_DELTAPI*jTool:6 + 4*N_DELTAPI + 3*N_REFERENCEPOINTS + 9*N_REFERENCEPOINTS + 3*N_DELTAPI*jTool + 3*N_DELTAPI] = skewMatrix(J[3:])
-    IdMatrix[:,6 + 4*N_DELTAPI + 3*N_REFERENCEPOINTS + 9*N_REFERENCEPOINTS + 3*N_DELTAPI*N_REFERENCEPOINTS + N_DELTAPI*9*jTool:6 + 4*N_DELTAPI + 3*N_REFERENCEPOINTS + 9*N_REFERENCEPOINTS + 3*N_DELTAPI*N_REFERENCEPOINTS + N_DELTAPI*9*jTool + N_DELTAPI*9] = doubleSkewMatrix(J[3:])
-
-    return(IdMatrix)
-
-M = np.empty((3,N_ID_PARAMETERS))
-P = np.empty((1,3))
-
-for q in Jointi:
+    TTool = np.empty((N_REFERENCEPOINTS,4,4))
     for j in range(N_REFERENCEPOINTS):
-        M = np.vstack((M,IdMatrix(q,pi0,j)))
-        P = np.vstack((P, T(q,pi0)[:3,-1]))
+        TTool[j] = np.eye(4)
+        TTool[j][:3,-1] = v[6+j*3:6+j*3+3]
 
-delta = np.dot(np.linalg.pinv(M),P-Pij.flatten())
+    deltaPi = v[6+3*N_REFERENCEPOINTS:]
+
+    return(TBase,TTool,deltaPi)
+
+def toVector(TBase,TTool,deltaPi):
+    v = TBase[:3,-1]
+    v = np.append(v,TBase[2,1])
+    v = np.append(v,TBase[0,2])
+    v = np.append(v,TBase[1,0])
+
+    for j in range(N_REFERENCEPOINTS):
+        v = np.append(v,TTool[j][:3,-1])
+    
+    v = np.append(v,deltaPi)
+    return(v)
+    
+def error(v):
+    TBase,TTool,deltaPi = fromVector(v)
+    return(np.sum(np.sum(np.array([np.array([np.linalg.norm(Pij[i,j] - T(Jointi[i],pi0+deltaPi,TBase,TTool[j])[:3,-1]) for j in range(N_REFERENCEPOINTS)]) for i in range(N_EXPERIMENTS)]),axis=0),axis=0))
+
+def gradError(v):
+    initialVector = deepcopy(v)
+    initialError = error(initialVector)
+    gradient = np.zeros(len(initialVector))
+
+    for i,_ in enumerate(gradient):
+        newVector = v
+        newVector[i] += 10e-6
+        e = error(newVector)
+        print(i)
+        print(newVector)
+        print(e)
+        gradient[i] = (e - initialError)/10e-6
+        v = initialVector
+
+    return(gradient)
+
+deltaPi = np.zeros(len(pi0))
+TBase = TBase0
+TTool = TTool0
+
+def gradDescent(initialVector,learnRate,iterationsNumber):
+    v = initialVector
+    for i in range(iterationsNumber):
+        v -= learnRate*gradError(v)
+    return(v)
+
+e = error(toVector(TBase,TTool,deltaPi))
+print(e)
+
+finalV = gradDescent(toVector(TBase,TTool,deltaPi),10e-6,5)
+e = error(finalV)
+print(e)
