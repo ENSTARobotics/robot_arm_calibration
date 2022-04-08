@@ -85,8 +85,8 @@ for referencePointIndex in referencePointsIndices:
     #PijTest[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3].T,np.ones((1,N_TESTS))))).T[:,:3]
     #Pij[:,referencePointIndex,:] = np.dot(Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3],RBase0)
     #PijTest[:,referencePointIndex,:] = np.dot(Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3],RBase0)
-    Pij[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3],np.ones((len(indexExperiments),1)))),np.linalg.inv(TBase0Rot))[:,:3]
-    PijTest[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3],np.ones((len(indexTest),1)))),np.linalg.inv(TBase0Rot))[:,:3]
+    Pij[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3],np.ones((N_EXPERIMENTS,1)))),np.linalg.inv(TBase0Rot))[:,:3]
+    PijTest[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3],np.ones((N_TESTS,1)))),np.linalg.inv(TBase0Rot))[:,:3]
 
 Jointi = Items["jointsAngles"][indexExperiments]
 JointiTest = Items["jointsAngles"][indexTest]
@@ -126,10 +126,10 @@ def step1(pi, mode = "L"):
     else:
         raise NotImplementedError("Unknown regression mode")
 
-    TBase = np.eye(4) + np.array([[0,-output[5],output[4],output[0]],
-                                  [output[5],0,-output[3],output[1]],
-                                  [-output[4],output[3],0,output[2]],
-                                  [0,0,0,0]])
+    TBase = np.array([[1,-output[5],output[4],output[0]],
+                      [output[5],1,-output[3],output[1]],
+                      [-output[4],output[3],1,output[2]],
+                      [0,0,0,1]])
 
     TTool = np.empty((N_REFERENCEPOINTS,4,4))
     for j in range(N_REFERENCEPOINTS):
