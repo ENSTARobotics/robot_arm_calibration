@@ -1,7 +1,6 @@
-from os import dup
-import numpy as np
+#!/usr/bin/python3
 
-markerRadius = 0.0127/2
+import numpy as np
 
 toolDepth = 0.0112
 
