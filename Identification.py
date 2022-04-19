@@ -1,7 +1,5 @@
 #!/usr/bin/python3
 
-from http.client import LineTooLong
-from random import betavariate
 from CalibrationCSVParsing import calibrationCSVParsing,robotBaseTransformation
 from GeometricModel import *
 
@@ -9,7 +7,6 @@ from importlib import import_module
 from sys import argv
 
 from scipy.odr import *
-from random import sample,uniform
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
@@ -41,12 +38,17 @@ except:
 
 ### RETRIEVE MEASUREMENTS DATA
 
+referencePointsItemsPrefix = "optiTrackPose"
+
 generated = input("Generated measurements ? y/n ")
 if(generated == "y"):
+    itemsNames = ["optiTrackPose" + str(i) for i in range(len(TTool0_marker))] + ["jointsAngles"]
     Items = calibrationCSVParsing(itemsNames,"GeneratedMeasurements_" + argv[1] +".csv")
+    TRobotBase = np.eye(4)
 else:
+    itemsNames = ["optiTrackPose" + str(i) for i in range(len(TTool0_marker))] + robotBaseItemsNames + ["jointsAngles"]
     Items = calibrationCSVParsing(itemsNames,"Calibration_" + argv[1] +".csv")
-    
+    TRobotBase = robotBaseTransformation(Items,robotBaseMarkersOffset,robotBasePlaneOffset,robotBaseItemsNames)
 
 referencePointsIndices = [int(key[-1]) for key,_ in Items.items() if referencePointsItemsPrefix in key]
 N_REFERENCEPOINTS = len(referencePointsIndices)
@@ -57,7 +59,6 @@ N_TESTS = len(Items[itemsNames[0]]) - N_EXPERIMENTS
 
 ### ROBOT BASE AND REFERENCE POINTS TRANSFORMATIONS ESTIMATIONS
 
-TRobotBase = robotBaseTransformation(Items,robotBaseMarkersOffset,robotBasePlaneOffset,robotBaseItemsNames)
 TBase0 = np.dot(TRobotBase,TBaseN)
 TBase0Rot = np.eye(4)
 TBase0Rot[:3,:3] = TBase0[:3,:3]
@@ -81,10 +82,6 @@ indexExperiments = randomIndices[:N_EXPERIMENTS]
 indexTest = randomIndices[-N_TESTS:]
 
 for referencePointIndex in referencePointsIndices:
-    #Pij[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3].T,np.ones((1,N_EXPERIMENTS))))).T[:,:3]
-    #PijTest[:,referencePointIndex,:] = np.dot(TBase0Inv,np.vstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3].T,np.ones((1,N_TESTS))))).T[:,:3]
-    #Pij[:,referencePointIndex,:] = np.dot(Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3],RBase0)
-    #PijTest[:,referencePointIndex,:] = np.dot(Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3],RBase0)
     Pij[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3],np.ones((N_EXPERIMENTS,1)))),np.linalg.inv(TBase0Rot))[:,:3]
     PijTest[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3],np.ones((N_TESTS,1)))),np.linalg.inv(TBase0Rot))[:,:3]
 
