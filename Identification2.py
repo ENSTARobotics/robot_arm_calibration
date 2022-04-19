@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
-from http.client import LineTooLong
-from random import betavariate
+from xml.etree.ElementTree import PI
+from numpy import vstack
 from CalibrationCSVParsing import calibrationCSVParsing,robotBaseTransformation
 from GeometricModel import *
 
@@ -9,7 +9,9 @@ from importlib import import_module
 from sys import argv
 
 from scipy.odr import *
-from random import sample,uniform
+
+def skewMatrix(V):
+    return(np.array([[0,-V[2],V[1]],[V[2],0,-V[0]],[-V[1],V[0],0]]))
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
@@ -41,27 +43,28 @@ except:
 
 ### RETRIEVE MEASUREMENTS DATA
 
+referencePointsItemsPrefix = "optiTrackPose"
+
 generated = input("Generated measurements ? y/n ")
 if(generated == "y"):
+    itemsNames = ["optiTrackPose" + str(i) for i in range(len(TTool0_marker))] + ["jointsAngles"]
     Items = calibrationCSVParsing(itemsNames,"GeneratedMeasurements_" + argv[1] +".csv")
+    TRobotBase = np.eye(4)
 else:
+    itemsNames = ["optiTrackPose" + str(i) for i in range(len(TTool0_marker))] + robotBaseItemsNames + ["jointsAngles"]
     Items = calibrationCSVParsing(itemsNames,"Calibration_" + argv[1] +".csv")
-    
-
-N_DELTAPI = len(pi0)
+    TRobotBase = robotBaseTransformation(Items,robotBaseMarkersOffset,robotBasePlaneOffset,robotBaseItemsNames)
 
 referencePointsIndices = [int(key[-1]) for key,_ in Items.items() if referencePointsItemsPrefix in key]
 N_REFERENCEPOINTS = len(referencePointsIndices)
 
-N_EXPERIMENTS = len(Items[itemsNames[0]])
+identificationRatio = 4/5
+N_EXPERIMENTS = int(np.floor(len(Items[itemsNames[0]])*identificationRatio))
+N_TESTS = len(Items[itemsNames[0]]) - N_EXPERIMENTS
 
 ### ROBOT BASE AND REFERENCE POINTS TRANSFORMATIONS ESTIMATIONS
 
-TRobotBase = robotBaseTransformation(Items,robotBaseMarkersOffset,robotBasePlaneOffset,robotBaseItemsNames)
 TBase0 = np.dot(TRobotBase,TBaseN)
-TBase0Rot = np.eye(4)
-TBase0Rot[:3,:3] = TBase0[:3,:3]
-TBase0 = np.dot(np.linalg.inv(TBase0Rot),TBase0)
 
 TTool0 = np.empty((N_REFERENCEPOINTS,4,4))
 for j in range(N_REFERENCEPOINTS):
@@ -70,73 +73,89 @@ for j in range(N_REFERENCEPOINTS):
 ### MOVING MEASUREMENTS TO THE ROBOT BASE FRAME
 
 Pij = np.empty((N_EXPERIMENTS,N_REFERENCEPOINTS,3))
+PijTest = np.empty((N_TESTS,N_REFERENCEPOINTS,3))
+
+randomIndices = np.random.permutation(N_EXPERIMENTS+N_TESTS)
+#randomIndices = []
+#with open("random.npy","rb") as f:
+#    randomIndices = np.load(f)
+
+indexExperiments = randomIndices[:N_EXPERIMENTS]
+indexTest = randomIndices[-N_TESTS:]
 
 for referencePointIndex in referencePointsIndices:
-    Pij[:,referencePointIndex,:] = np.dot(np.hstack((Items[referencePointsItemsPrefix+str(referencePointIndex)][:,:3],np.ones((N_EXPERIMENTS,1)))),np.linalg.inv(TBase0Rot))[:,:3]
+    Pij[:,referencePointIndex,:] = Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments,:3]
+    PijTest[:,referencePointIndex,:] = Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest,:3]
 
-Jointi = Items["jointsAngles"]
+Jointi = Items["jointsAngles"][indexExperiments]
+JointiTest = Items["jointsAngles"][indexTest]
 
-def fromVector(v):
-    TBase = np.array([[1,-v[5],v[4],v[0]],
-                      [v[5],1,-v[3],v[1]],
-                      [-v[4],v[3],1,v[2]],
-                      [0,0,0,1]])
+### LINEAR MODEL - Order 0 and order 1 terms
 
-    TTool = np.empty((N_REFERENCEPOINTS,4,4))
-    for j in range(N_REFERENCEPOINTS):
-        TTool[j] = np.eye(4)
-        TTool[j][:3,-1] = v[6+j*3:6+j*3+3]
+# Usefull matrices
 
-    deltaPi = v[6+3*N_REFERENCEPOINTS:]
+#Robot base
+PBase0 = TBase0[:3,-1]
+RBase0 = TBase0[:3,:3]
 
-    return(TBase,TTool,deltaPi)
+#Tool
+PTool0 = TTool0[:,:3,-1]
 
-def toVector(TBase,TTool,deltaPi):
-    v = TBase[:3,-1]
-    v = np.append(v,TBase[2,1])
-    v = np.append(v,TBase[0,2])
-    v = np.append(v,TBase[1,0])
+# Initial solution vector
 
-    for j in range(N_REFERENCEPOINTS):
-        v = np.append(v,TTool[j][:3,-1])
-    
-    v = np.append(v,deltaPi)
-    return(v)
-    
-def error(v):
-    TBase,TTool,deltaPi = fromVector(v)
-    return(np.sum(np.sum(np.array([np.array([np.linalg.norm(Pij[i,j] - T(Jointi[i],pi0+deltaPi,TBase,TTool[j])[:3,-1]) for j in range(N_REFERENCEPOINTS)]) for i in range(N_EXPERIMENTS)]),axis=0),axis=0))
+Vinit = np.zeros(6+3*N_REFERENCEPOINTS+len(pi0))
 
-def gradError(v):
-    initialVector = deepcopy(v)
-    initialError = error(initialVector)
-    gradient = np.zeros(len(initialVector))
+def M(q,pi):
+    TRobot = T(q,pi)
+    RRobot = TRobot[:3,:3]
+    PRobot = TRobot[:3,-1]
 
-    for i,_ in enumerate(gradient):
-        newVector = v
-        newVector[i] += 10e-6
-        e = error(newVector)
-        print(i)
-        print(newVector)
-        print(e)
-        gradient[i] = (e - initialError)/10e-6
-        v = initialVector
+    J = Jpi(q,pi)
 
-    return(gradient)
+    M = np.hstack([np.vstack([np.eye(3)]*N_REFERENCEPOINTS), #deltaPBase
+                   np.vstack([-np.dot(RBase0,(skewMatrix(PRobot)+np.dot(RRobot,skewMatrix(PTool)))) for PTool in PTool0]), #phiBase
+                   np.kron(np.eye(N_REFERENCEPOINTS,dtype=int),np.dot(RBase0,RRobot)), #deltaPTool
+                   np.vstack([np.dot(RBase0,(J[:3,:] - np.dot(skewMatrix(PTool),J[3:,:]))) for PTool in PTool0])])  #deltapi
 
-deltaPi = np.zeros(len(pi0))
-TBase = TBase0
-TTool = TTool0
+    return(M)
 
-def gradDescent(initialVector,learnRate,iterationsNumber):
-    v = initialVector
-    for i in range(iterationsNumber):
-        v -= learnRate*gradError(v)
-    return(v)
+def V(q,pi):
+    TRobot = T(q,pi)
+    RRobot = TRobot[:3,:3]
+    PRobot = TRobot[:3,-1]
 
-e = error(toVector(TBase,TTool,deltaPi))
-print(e)
+    V = np.hstack([PBase0 + np.dot(RBase0,PRobot) + np.dot(np.dot(RBase0,RRobot),PTool) for PTool in PTool0])
 
-finalV = gradDescent(toVector(TBase,TTool,deltaPi),10e-6,5)
-e = error(finalV)
-print(e)
+    return(V)
+
+def displayResults(V):
+    print("BASE") 
+    print("TBase = ")
+    TBase = np.dot(TBase0,np.array([[1, -V[5], V[4], V[0]],
+                                    [V[5], 1, -V[3], V[1]],
+                                    [-V[4], V[3], 1, V[2]],
+                                    [0,0,0,1]]))
+    print(TBase)
+    display(TBase)
+    print("TOOLS")
+    for i,tool in enumerate(TTool0):
+        TTool = np.dot(tool,np.array([[1, 0, 0, V[6+3*i]],
+                                      [0, 1, 0, V[6+3*i+1]],
+                                      [0, 0, 1, V[6+3*i+2]],
+                                      [0,0,0,1]]))
+        print("TTool"+str(i+1)+" = ")
+        display(TTool)
+    print("DELTAPI")
+    print("deltapi = ")
+    display(V[6+3*N_REFERENCEPOINTS:])
+
+# Initial error
+Einit = np.linalg.norm(PijTest.flatten() - np.hstack([V(q,pi0) for q in JointiTest]) - np.dot(np.vstack([M(q,pi0) for q in JointiTest]),Vinit))
+
+Mtot = np.vstack([M(q,pi0) for q in Jointi])
+Delta = (Pij.flatten() - np.hstack([V(q,pi0) for q in Jointi])).T
+
+Vsol = np.dot(np.linalg.pinv(Mtot),Delta)
+
+# Final error
+Efinal = np.linalg.norm(PijTest.flatten() - np.hstack([V(q,pi0) for q in JointiTest]) - np.dot(np.vstack([M(q,pi0) for q in JointiTest]),Vsol))
