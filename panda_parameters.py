@@ -57,10 +57,6 @@ TToolN[:3,:3] = np.array([[1,0,0],
                          [0,-1,0],
                          [0,0,-1]])
 
-itemsNames = ["optiTrackPose0","robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL","encodersPose","motorsAngles","jointsAngles","desiredJointsAngles","efforts","motorTorques","desiredMotorTorques","externalTroques"]
-
 robotBaseMarkersOffset = 0.016 + 0.00635 - 0.00075
 robotBasePlaneOffset = np.array([0.011+0.127/2,0,0])
-
 robotBaseItemsNames = ["robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL"]
-referencePointsItemsPrefix = "optiTrackPose"

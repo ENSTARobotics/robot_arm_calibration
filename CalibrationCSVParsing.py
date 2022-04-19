@@ -63,9 +63,6 @@ def modAngle(angle):
 
 def robotBaseTransformation(Items,robotBaseMarkersOffset=0,robotBasePlaneOffset=np.zeros(3),robotBaseItemsNames=["robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL"]):
 
-    if(len(robotBaseItemsNames) == 0):
-        return(np.eye(4))
-
     ### Least-squares method for plane interpolation
     def planeInterpolation(points):
         #P : a*x + b*y + c*z + d = 0
