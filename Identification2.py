@@ -1,14 +1,12 @@
 #!/usr/bin/python3
 
-from xml.etree.ElementTree import PI
-from numpy import vstack
 from CalibrationCSVParsing import calibrationCSVParsing,robotBaseTransformation
 from GeometricModel import *
 
 from importlib import import_module
-from sys import argv
+from sys import argv,exit
 
-from scipy.odr import *
+import sympy as sp
 
 def skewMatrix(V):
     return(np.array([[0,-V[2],V[1]],[V[2],0,-V[0]],[-V[1],V[0],0]]))
@@ -92,20 +90,9 @@ JointiTest = Items["jointsAngles"][indexTest]
 
 ### LINEAR MODEL - Order 0 and order 1 terms
 
-# Usefull matrices
+# Usefull matrices/vectors
 
-#Robot base
-PBase0 = TBase0[:3,-1]
-RBase0 = TBase0[:3,:3]
-
-#Tool
-PTool0 = TTool0[:,:3,-1]
-
-# Initial solution vector
-
-Vinit = np.zeros(6+3*N_REFERENCEPOINTS+len(pi0))
-
-def M(q,pi):
+def M(q,RBase,PTool,pi):
     TRobot = T(q,pi)
     RRobot = TRobot[:3,:3]
     PRobot = TRobot[:3,-1]
@@ -113,49 +100,189 @@ def M(q,pi):
     J = Jpi(q,pi)
 
     M = np.hstack([np.vstack([np.eye(3)]*N_REFERENCEPOINTS), #deltaPBase
-                   np.vstack([-np.dot(RBase0,(skewMatrix(PRobot)+np.dot(RRobot,skewMatrix(PTool)))) for PTool in PTool0]), #phiBase
-                   np.kron(np.eye(N_REFERENCEPOINTS,dtype=int),np.dot(RBase0,RRobot)), #deltaPTool
-                   np.vstack([np.dot(RBase0,(J[:3,:] - np.dot(skewMatrix(PTool),J[3:,:]))) for PTool in PTool0])])  #deltapi
+                   np.vstack([-np.dot(RBase,(skewMatrix(PRobot)+np.dot(RRobot,skewMatrix(P)))) for P in PTool]), #phiBase
+                   np.kron(np.eye(N_REFERENCEPOINTS,dtype=int),np.dot(RBase,RRobot)), #deltaPTool
+                   np.vstack([np.dot(RBase,(J[:3,:] - np.dot(skewMatrix(P),J[3:,:]))) for P in PTool])])  #deltapi
 
     return(M)
 
-def V(q,pi):
+def V(q,PBase,RBase,PTool,pi):
     TRobot = T(q,pi)
     RRobot = TRobot[:3,:3]
     PRobot = TRobot[:3,-1]
 
-    V = np.hstack([PBase0 + np.dot(RBase0,PRobot) + np.dot(np.dot(RBase0,RRobot),PTool) for PTool in PTool0])
+    V = np.hstack([PBase + np.dot(RBase,PRobot) + np.dot(np.dot(RBase,RRobot),P) for P in PTool])
 
     return(V)
 
-def displayResults(V):
+def displayResults(PBase0,RBase0,PTool0,pi0,epsilon):
     print("BASE") 
     print("TBase = ")
-    TBase = np.dot(TBase0,np.array([[1, -V[5], V[4], V[0]],
-                                    [V[5], 1, -V[3], V[1]],
-                                    [-V[4], V[3], 1, V[2]],
+    TBase = np.vstack([np.hstack([RBase0,np.array([PBase0]).T]),np.array([[0,0,0,1]])])
+    TBase = np.dot(TBase,np.array([[1, -epsilon[5], epsilon[4], epsilon[0]],
+                                    [epsilon[5], 1, -epsilon[3], epsilon[1]],
+                                    [-epsilon[4], epsilon[3], 1, epsilon[2]],
                                     [0,0,0,1]]))
-    print(TBase)
     display(TBase)
+
     print("TOOLS")
-    for i,tool in enumerate(TTool0):
-        TTool = np.dot(tool,np.array([[1, 0, 0, V[6+3*i]],
-                                      [0, 1, 0, V[6+3*i+1]],
-                                      [0, 0, 1, V[6+3*i+2]],
-                                      [0,0,0,1]]))
+    for i,P in enumerate(PTool0):
         print("TTool"+str(i+1)+" = ")
+        TTool = np.eye(4)
+        TTool[:3,-1] = P
+        TTool = np.dot(TTool,np.array([[1, 0, 0, epsilon[6+3*i]],
+                                      [0, 1, 0, epsilon[6+3*i+1]],
+                                      [0, 0, 1, epsilon[6+3*i+2]],
+                                      [0,0,0,1]]))
+
         display(TTool)
-    print("DELTAPI")
-    print("deltapi = ")
-    display(V[6+3*N_REFERENCEPOINTS:])
 
-# Initial error
-Einit = np.linalg.norm(PijTest.flatten() - np.hstack([V(q,pi0) for q in JointiTest]) - np.dot(np.vstack([M(q,pi0) for q in JointiTest]),Vinit))
+    print("PI")
+    print("pi = ")
+    display(pi0 + epsilon[6+3*N_REFERENCEPOINTS:])
 
-Mtot = np.vstack([M(q,pi0) for q in Jointi])
-Delta = (Pij.flatten() - np.hstack([V(q,pi0) for q in Jointi])).T
+def computeError(PBase0,RBase0,PTool0,pi0,epsilon):
+    return(np.linalg.norm(PijTest.flatten() - np.hstack([V(q,PBase0,RBase0,PTool0,pi0) for q in JointiTest]) - np.dot(np.vstack([M(q,RBase0,PTool0,pi0) for q in JointiTest]),epsilon)))
 
-Vsol = np.dot(np.linalg.pinv(Mtot),Delta)
+def updateModel(PBase0,RBase0,PTool0,pi0,epsilon):
 
-# Final error
-Efinal = np.linalg.norm(PijTest.flatten() - np.hstack([V(q,pi0) for q in JointiTest]) - np.dot(np.vstack([M(q,pi0) for q in JointiTest]),Vsol))
+    #Update robot model
+    TBase = np.vstack([np.hstack([RBase0,np.array([PBase0]).T]),np.array([[0,0,0,1]])])
+    TBase = np.dot(TBase,np.array([[1, -epsilon[5], epsilon[4], epsilon[0]],
+                                    [epsilon[5], 1, -epsilon[3], epsilon[1]],
+                                    [-epsilon[4], epsilon[3], 1, epsilon[2]],
+                                    [0,0,0,1]]))
+    newPBase0 = TBase0[:3,-1]
+    newRBase0 = TBase0[:3,:3]
+
+    newPTool0 = np.empty(np.shape(PTool0))
+
+    for i,P in enumerate(PTool0):
+        TTool = np.eye(4)
+        TTool[:3,-1] = P
+        TTool = np.dot(TTool,np.array([[1, 0, 0, epsilon[6+3*i]],
+                                    [0, 1, 0, epsilon[6+3*i+1]],
+                                    [0, 0, 1, epsilon[6+3*i+2]],
+                                    [0,0,0,1]]))
+        newPTool0[i] = TTool[:3,-1]
+
+    newpi0 = pi0 + epsilon[6+3*N_REFERENCEPOINTS:]
+
+    return(newPBase0,newRBase0,newPTool0,newpi0)
+
+def LLS(PBase0,RBase0,PTool0,pi0,epsilon0,N):
+
+    print("LINEAR LEAST SQUARES")
+
+    Einit = computeError(PBase0,RBase0,PTool0,pi0,epsilon0)
+    Eprev = Einit
+    print("Initial error : ")
+    print(Einit)
+
+    PBase = PBase0
+    RBase = RBase0
+    PTool = PTool0
+    pi = pi0
+    epsilon = epsilon0
+
+    for i in range(N):
+
+        PBasePrev,RBasePrev,PToolPrev,piPrev,epsilonPrev = PBase,RBase,PTool,pi,epsilon
+        PBase,RBase,PTool,pi = updateModel(PBase,RBase,PTool,pi,epsilon)
+
+        Mtot = np.vstack([M(q,RBase,PTool,pi) for q in Jointi])
+        Delta = (Pij.flatten() - np.hstack([V(q,PBase,RBase,PTool,pi) for q in Jointi])).T
+
+        epsilon = np.dot(np.linalg.pinv(Mtot),Delta)
+
+        #displayResults(PBase,RBase,PTool,pi,epsilon)
+
+        #Intermediate error
+        Einter = computeError(PBase,RBase,PTool,pi,epsilon)
+        print("Intermediate error : ")
+        print(Einter)
+        if(Einter > Eprev):
+            print("Optimization method does not converge !")
+            return(PBasePrev,RBasePrev,PToolPrev,piPrev,epsilonPrev)
+        else:
+            Eprev = Einter
+
+    #Final error
+    Efinal = computeError(PBase,RBase,PTool,pi,epsilon)
+    print("Final error : ")
+    print(Efinal)
+
+    return(PBase,RBase,PTool,pi,epsilon)
+
+def GD(PBase0,RBase0,PTool0,pi0,epsilon0,N):
+
+    print("GRADIENT DESCENT")
+
+    Einit = computeError(PBase0,RBase0,PTool0,pi0,epsilon0)
+    Eprev = Einit
+    print("Initial error : ")
+    print(Einit)
+
+    PBase = PBase0
+    RBase = RBase0
+    PTool = PTool0
+    pi = pi0
+    epsilon = epsilon0
+
+    counter = 0
+
+    for i in range(N):
+
+        PBasePrev,RBasePrev,PToolPrev,piPrev,epsilonPrev = PBase,RBase,PTool,pi,epsilon
+        PBase,RBase,PTool,pi = updateModel(PBase,RBase,PTool,pi,epsilon)
+
+        Mtot = np.vstack([M(q,RBase,PTool,pi) for q in Jointi])
+        Delta = (Pij.flatten() - np.hstack([V(q,PBase,RBase,PTool,pi) for q in Jointi])).T
+
+        for j in range(N):
+
+            gradient = 2*np.dot(Mtot.T,np.dot(Mtot,epsilon) - Delta)
+
+            MtM = np.dot(Mtot,Mtot.T)
+            MeD = np.dot(Mtot,epsilon) - Delta
+
+            alpha = np.dot(np.dot(MeD.T,MtM),MeD)/(2*np.dot(np.dot(MeD.T,np.dot(MtM,MtM)),MeD))
+            print("alpha = ")
+            print(alpha)
+
+            epsilon = epsilon - alpha*gradient
+
+            #displayResults(PBase,RBase,PTool,pi,epsilon)
+
+            #Intermediate error
+            Einter = computeError(PBase,RBase,PTool,pi,epsilon)
+            print("Intermediate error : ")
+            print(Einter)
+
+            if(Einter > Eprev):
+                print("Optimization method does not converge !")
+                return(PBasePrev,RBasePrev,PToolPrev,piPrev,epsilonPrev)  
+            else:
+                Eprev = Einter
+
+    #Final error
+    Efinal = computeError(PBase,RBase,PTool,pi,epsilon)
+    print(Efinal)
+
+    return(PBase,RBase,PTool,pi,epsilon)
+
+#Initial values
+
+PBase0 = TBase0[:3,-1]
+RBase0 = TBase0[:3,:3]
+PTool0 = TTool0[:,:3,-1]
+pi0 = pi0
+epsilon0 = np.zeros(6 + 3*N_REFERENCEPOINTS + len(pi0))
+
+PBase,RBase,PTool,pi,epsilon = LLS(PBase0,RBase0,PTool0,pi0,epsilon0,2)
+print(computeError(PBase,RBase,PTool,pi,epsilon))
+
+PBase,RBase,PTool,pi = updateModel(PBase,RBase,PTool,pi,epsilon)
+print(epsilon)
+print(epsilon0)
+print(computeError(PBase,RBase,PTool,pi,epsilon))
