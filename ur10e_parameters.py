@@ -47,12 +47,12 @@ pi0 = np.array([0,d2,0,      #1
 TBaseN = np.eye(4)
 TBaseN[2,-1] = d1
 
-#Nominal robot tool transformation => To match the optitrack frame
-TToolN = np.array([[-1/np.sqrt(2),-1/np.sqrt(2),0,0],
+#Nominal robot tool transformation => To match the real tool frame
+TToolN = np.array([[-1,0,0,0],
                    [0,0,1,d6],
-                   [-1/np.sqrt(2),1/np.sqrt(2),0,0],
+                   [0,1,0,0],
                    [0,0,0,1]])
 
 robotBaseMarkersOffset = 0.025 + np.sqrt((0.127/2)**2 - (0.008/2)**2)    #TODO
 robotBasePlaneOffset = np.array([0,0,0])
-robotBaseItemsNames = ["robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL"]
+robotBaseItemsNames = ["robotBaseDR","robotBaseUL","robotBaseDL","robotBaseUR"]

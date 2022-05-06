@@ -51,11 +51,10 @@ TBaseN = np.eye(4)
 TBaseN[2,-1] = d1
 
 #Nominal robot tool transformation
-TToolN = np.eye(4)
-TToolN[2,-1] = -d6
-TToolN[:3,:3] = np.array([[1,0,0],
-                         [0,-1,0],
-                         [0,0,-1]])
+TToolN = np.array([[1,0,0,0],
+                   [0,-1,0,0],
+                   [0,0,1,-d6],
+                   [0,0,0,1]])
 
 robotBaseMarkersOffset = 0.016 + 0.00635 - 0.00075
 robotBasePlaneOffset = np.array([0.011+0.127/2,0,0])
