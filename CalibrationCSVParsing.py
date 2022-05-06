@@ -11,6 +11,8 @@ from collections import OrderedDict
 from copy import deepcopy
 import matplotlib.pyplot as plt
 
+import pandas as pd
+
 ### USEFULL FUNCTIONS
 
 def csvRowToArray(csvRow):
@@ -61,7 +63,7 @@ def modAngle(angle):
 
 ### CSV PARSING
 
-def robotBaseTransformation(Items,robotBaseMarkersOffset=0,robotBasePlaneOffset=np.zeros(3),robotBaseItemsNames=["robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL"]):
+def robotBaseTransformation(Items,robotBaseMarkersOffset=0,robotBasePlaneOffset=np.zeros(3)):
 
     ### Least-squares method for plane interpolation
     def planeInterpolation(points):
@@ -86,25 +88,25 @@ def robotBaseTransformation(Items,robotBaseMarkersOffset=0,robotBasePlaneOffset=
         return(vector - (np.dot(vector,normal)/np.linalg.norm(normal)**2)*normal)
 
     #Retrieve the robot base markers positions
-    robotBase = np.array([filteredMean(Items[robotBaseItemsNames[0]],axis=0),
-                        filteredMean(Items[robotBaseItemsNames[1]],axis=0),
-                        filteredMean(Items[robotBaseItemsNames[2]],axis=0),
-                        filteredMean(Items[robotBaseItemsNames[3]],axis=0)])
+    robotBase = np.array([filteredMean(Items["robotBaseUR"],axis=0),
+                        filteredMean(Items["robotBaseUL"],axis=0),
+                        filteredMean(Items["robotBaseDR"],axis=0),
+                        filteredMean(Items["robotBaseDL"],axis=0)])
 
     #Interpolate a plane passing through the 4 robot base marker points
-    P = planeInterpolation(robotBase[:,:3].T)
+    P = planeInterpolation(robotBase.T)
 
     #Remove the screws vertical offset
     z = P[:3]
     robotBase[:,:3] -= robotBaseMarkersOffset*z
 
     #Compute the robot base frame x,y,z
-    y = planeProjection(z,(robotBase[1]-robotBase[0]+robotBase[3]-robotBase[2])[:3])
+    y = planeProjection(z,robotBase[1]-robotBase[0]+robotBase[3]-robotBase[2])
     y /= np.linalg.norm(y)
     x = np.cross(y,z)
 
     #Compute the robot base position, based on the average of all robot base markers positions + an eventual user defined offset
-    robotBasePosition = np.average(robotBase[:,:3],axis=0) + np.dot(np.array([x,y,z]),robotBasePlaneOffset)
+    robotBasePosition = np.average(robotBase,axis=0) + np.dot(np.array([x,y,z]),robotBasePlaneOffset)
 
     robotBaseTransformation = np.concatenate((np.concatenate((np.array([x,y,z]),np.array([robotBasePosition]).T),axis=1),np.array([[0,0,0,1]])))
 
@@ -151,7 +153,25 @@ def calibrationCSVParsing(itemsNames,calibrationCSVPath):
 
     return(Items)
 
+def errorsCSVParsing(errorsCSVPath):
 
-    
+    parametersDict = {}
+    parametersDict["TTool"] = []
 
+    with open(errorsCSVPath, "r") as csvfile:
+        rowReader = list(csv.reader(csvfile, delimiter=',', quotechar='|'))
+        for i,row in enumerate(rowReader):
+            if(row[0] == "pi"):
+                parametersDict["pi"] = csvRowToArray(rowReader[i+1])
+            elif(row[0] == "TBase"):
+                parametersDict["TBase"] = np.array([csvRowToArray(rowReader[i+k]) for k in range(1,5)])
+            elif("TTool" in row[0]):
+                parametersDict["TTool"].append(np.array([csvRowToArray(rowReader[i+k]) for k in range(1,5)]))
     
+    PBaseTH = parametersDict["TBase"][:3,-1]
+    RBaseTH = R.from_matrix(parametersDict["TBase"][:3,:3])
+
+    parametersDict["TTool"] = np.array(parametersDict["TTool"])
+    
+    parametersTH = np.hstack((PBaseTH,R.as_euler(RBaseTH,"xyz"),parametersDict["pi"],parametersDict["TTool"][:,:3,-1].flatten()))
+    return(parametersTH)
