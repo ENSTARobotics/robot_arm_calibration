@@ -7,6 +7,8 @@ from sys import argv
 
 from GeometricModel import T
 
+from scipy.spatial.transform import Rotation as R
+
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
     module = import_module(argv[1]+"_parameters")
@@ -35,35 +37,32 @@ except:
     print("INVALID MARKER NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
-### Create deltapi0
-deltapi0 = np.zeros(len(pi0))
+### Create deltapi
+deltapi = np.zeros(len(pi0))
 parametersCounter = 0
 
 for i in range(JOINTS_NUMBER):
 
     #Joint offset
     if (JOINTS_OFFSET[i]==1):
-        deltapi0[parametersCounter] = uniform(-1,1)*(np.pi/180)
+        deltapi[parametersCounter] = uniform(-1,1)*(np.pi/180)
         parametersCounter+=1
 
     #Link translation
     for translation in LINKS_TRANSLATIONS[i]:
-        deltapi0[parametersCounter] = uniform(-1,1)*0.001
+        deltapi[parametersCounter] = uniform(-1,1)*0.001
         parametersCounter+=1
 
     #Link rotation
     for rotation in LINKS_ROTATIONS[i]:
-        deltapi0[parametersCounter] = uniform(-1,1)*(np.pi/180)
+        deltapi[parametersCounter] = uniform(-1,1)*(np.pi/180)
         parametersCounter+=1
 
 ### Create Base error
 
-PhiBase = [uniform(-1,1)*(np.pi/180),uniform(-1,1)*(np.pi/180),uniform(-1,1)*(np.pi/180)]
-DeltaBase = [uniform(-1,1)*0.001,uniform(-1,1)*0.001,uniform(-1,1)*0.001]
-TBase = np.array([[1, -PhiBase[2], PhiBase[1], DeltaBase[0]],
-                  [PhiBase[2], 1, -PhiBase[0], DeltaBase[1]],
-                  [-PhiBase[1], PhiBase[0], 1, DeltaBase[2]],
-                  [0,0,0,1]])
+RBase = R.from_euler('xyz',[uniform(-1,1)*(np.pi/180),uniform(-1,1)*(np.pi/180),uniform(-1,1)*(np.pi/180)]).as_matrix()
+PBase = np.array([[uniform(-1,1)*0.001],[uniform(-1,1)*0.001],[uniform(-1,1)*0.001]])
+TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
 #TBase = np.eye(4)
 
 ### Create markers error
@@ -90,11 +89,11 @@ print("Creating N = " + str(N) + " measurements")
 
 Q = [sample(list(np.linspace(0,2*np.pi,1000)),JOINTS_NUMBER) for i in range(N)]
 
-with open('GeneratedMeasurements_' + argv[1] + '.csv', 'w') as f:
+with open('GeneratedMeasurements_' + argv[1] + '_' + argv[2] + '.csv', 'w') as f:
     writer = csv.writer(f)
 
     for q in Q:
-        Tdelta = T(q,pi0+deltapi0,np.dot(TBaseN,TBase),TToolN)
+        Tdelta = T(q,pi0+deltapi,np.dot(TBaseN,TBase),TToolN)
 
         for i,marker in enumerate(TTool0_marker):
             TdeltaM = np.dot(Tdelta,np.dot(marker,TMarker[i])) 
@@ -103,10 +102,10 @@ with open('GeneratedMeasurements_' + argv[1] + '.csv', 'w') as f:
         writer.writerow(q)
         writer.writerow(['---'])
 
-with open('GeneratedErrors_' + argv[1] + '.csv', 'w') as f:
+with open('GeneratedErrors_' + argv[1] + '_' + argv[2] + '.csv', 'w') as f:
     writer = csv.writer(f)
-    writer.writerow(['deltapi0'])
-    writer.writerow(deltapi0)
+    writer.writerow(['pi'])
+    writer.writerow(pi0 + deltapi)
     writer.writerow(['TBase'])
     for row in np.dot(TBaseN,TBase):
         writer.writerow(row)
