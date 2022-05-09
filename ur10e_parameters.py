@@ -55,4 +55,4 @@ TToolN = np.array([[-1,0,0,0],
 
 robotBaseMarkersOffset = 0.025 + np.sqrt((0.127/2)**2 - (0.008/2)**2)    #TODO
 robotBasePlaneOffset = np.array([0,0,0])
-robotBaseItemsNames = ["robotBaseDR","robotBaseUL","robotBaseDL","robotBaseUR"]
+robotBaseItemsNames = ["robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL"]
