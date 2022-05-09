@@ -6,10 +6,8 @@ import numpy as np
 import yaml
 from scipy.spatial.transform import Rotation as R
 
-from GeometricModel import PARAMETERS_INDEX
+from GeometricModel import *
 from CalibrationCSVParsing import calibrationCSVParsing,robotBaseTransformation,errorsCSVParsing
-from marker3D_parameters import TTool0_body, TTool0_marker
-from ur10e_parameters import TBaseN
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
@@ -115,11 +113,9 @@ calibratedModel["baseReference"] = TRobotBase.flatten().tolist()
 
 calibratedModel["toolReferences"] = {}
 for i,tool in enumerate(TTool0_marker):
-    calibratedModel["toolReferences"][str(i+1)] = tool.flatten().tolist()
+    calibratedModel["toolReferences"][str(i+1)] = np.dot(np.linalg.inv(TTool0_body),tool).flatten().tolist()
 
 calibratedModel["toolReferencesNumber"] = len(TTool0_marker)
 
 with open("CalibratedModel_" + argv[1] + "_" + argv[2] + ".yaml",'w') as file:
     yaml.dump(calibratedModel, file)
-
-
