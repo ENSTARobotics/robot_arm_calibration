@@ -71,6 +71,15 @@ for j in range(N_REFERENCEPOINTS):
 
 ### MOVING MEASUREMENTS TO THE ROBOT BASE FRAME
 
+print("Test on first measurement :")
+for referencePointIndex in referencePointsIndices:
+    print("Reference point " + str(referencePointIndex+1))
+    print(Items[referencePointsItemsPrefix+str(referencePointIndex)][0])
+    print(T(Items["jointsAngles"][0],pi0,TBase0,TTool0[referencePointIndex])[:3,-1])
+
+print("Press any key to continue")
+a = input()
+
 Pij = np.empty((N_EXPERIMENTS,N_REFERENCEPOINTS,3))
 PijTest = np.empty((N_TESTS,N_REFERENCEPOINTS,3))
 
