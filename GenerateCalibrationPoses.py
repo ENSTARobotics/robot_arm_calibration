@@ -1,0 +1,169 @@
+from hashlib import new
+from importlib import import_module
+from sys import argv, float_info
+import os
+import numpy as np
+
+from AnalyticGeometricModel import Jfunc
+from GeometricModel import display
+from copy import deepcopy
+
+from scipy.spatial.transform import Rotation as R
+
+### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
+try:
+    module = import_module(argv[1]+"_parameters")
+
+    if "__all__" in module.__dict__:
+        names = module.__dict__["__all__"]
+    else:
+        names = [x for x in module.__dict__ if not x.startswith("_")]
+
+    globals().update({k: getattr(module, k) for k in names})
+except:
+    print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
+    exit(1)
+
+### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
+try:
+    module = import_module(argv[2]+"_parameters")
+
+    if "__all__" in module.__dict__:
+        names = module.__dict__["__all__"]
+    else:
+        names = [x for x in module.__dict__ if not x.startswith("_")]
+
+    globals().update({k: getattr(module, k) for k in names})
+except:
+    print("INVALID MARKER NAME FOR PARAMETERS IMPORTATION !")
+    exit(1)
+
+### RETREIVE SAMPLING NUMBER
+N = 10
+try:
+    N = int(argv[3])
+except:
+    print("No sampling value given, defaulting to " + str(N))
+
+TBase0 = TBaseN
+
+TTool0 = np.empty((len(TTool0_marker),4,4))
+for j in range(len(TTool0_marker)):
+    TTool0[j] = np.dot(TToolN,TTool0_marker[j])
+
+PBase0 = TBase0[:3,-1]
+RBase0 = R.from_matrix(TBase0[:3,:3])
+PTool0 = TTool0[:,:3,-1]
+pi0 = pi0
+
+parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
+
+if(not os.path.exists("SampledPoses_" + argv[1] + "_" + str(N) + ".npy")):
+    print("Computing sampled calibration poses...")
+    Q = np.empty(((N,JOINTS_NUMBER)))
+    InitialCalibrationPoses = np.empty((N**JOINTS_NUMBER,JOINTS_NUMBER))
+    for i in range(N):
+        for j in range(JOINTS_NUMBER):
+            Q[i,j] = jointsLowerLimits[j] + (jointsUpperLimits[j] - jointsLowerLimits[j])*i/(N-1)
+
+    for i in range(N**JOINTS_NUMBER):
+        InitialCalibrationPoses[i] = deepcopy(Q[0])
+        for j in range(JOINTS_NUMBER):
+            if((i+1)%N**(j) == 0):
+                Q[:,j] = np.roll(Q[:,j],-1)
+
+    print("Saving sampled calibration poses...")
+    with open("SampledPoses_" + argv[1] + "_" + str(N) + ".npy","wb") as f:
+        np.save(f,InitialCalibrationPoses)
+    print("Done !")
+
+InitialCalibrationPoses = np.empty((0,0))
+print("Loading sampled calibration poses...")
+with open("SampledPoses_" + argv[1] + "_" + str(N) + ".npy","rb") as f:
+        InitialCalibrationPoses = np.load(f)
+print("Done !")
+
+randomIndices = np.random.permutation(N**JOINTS_NUMBER)
+
+CalibrationIndices = randomIndices[:N]
+NotRemovedIndices = deepcopy(CalibrationIndices)
+RemainingIndices = randomIndices[N:]
+
+CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]
+J = np.vstack([Jfunc(parameters0,q) for q in CalibrationPoses])
+SVD = np.linalg.svd(J)[1]
+newScore = SVD[0]/SVD[-1]
+prevScore = float_info.max
+
+print("Initial poses indices : ")
+print(CalibrationIndices)
+print("Initial score : " + str(newScore))
+
+count = 0
+flagAdd = False
+flagDel = False
+
+while(newScore < prevScore or count < 20):
+
+    flagAdd = False
+    flagDel = False
+
+    if(newScore == prevScore):
+        count += 1
+    else:
+        count = 0
+
+    prevScore = newScore
+
+    addIndex = np.random.choice(RemainingIndices)
+    CalibrationIndices = np.append(CalibrationIndices,addIndex)
+    RemainingIndices = np.delete(RemainingIndices,np.where(RemainingIndices == addIndex)[0][0])
+
+    CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationPoses])
+    SVD = np.linalg.svd(J)[1]
+    score = SVD[0]/SVD[-1]
+
+    if(score > newScore):
+        CalibrationIndices = np.delete(CalibrationIndices,-1)
+        CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]
+    else:
+        flagAdd = True
+        NotRemovedIndices = np.append(NotRemovedIndices,addIndex)
+        newScore = score
+        
+    if(len(NotRemovedIndices) != 0):
+        delIndex = np.random.choice(NotRemovedIndices)
+        CalibrationIndices = np.delete(CalibrationIndices,np.where(CalibrationIndices == delIndex)[0][0])
+        NotRemovedIndices = np.delete(NotRemovedIndices,np.where(NotRemovedIndices == delIndex)[0][0])
+
+        CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]
+        J = np.vstack([Jfunc(parameters0,q) for q in CalibrationPoses])
+        SVD = np.linalg.svd(J)[1]
+        score = SVD[0]/SVD[-1]
+
+        if(score > newScore):
+            CalibrationIndices = np.append(CalibrationIndices,delIndex)
+            CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]  
+        else:
+            flagDel = True
+            newScore = score
+
+    if(flagAdd and flagDel):
+        print("Exchanging pose " + str(delIndex) + " with pose " + str(addIndex))
+    elif(flagAdd and not flagDel):
+        print("Adding pose " + str(addIndex))
+    elif(flagDel and not flagAdd):
+        print("Deleting pose " + str(delIndex))
+    else:
+        print("No changes")
+        continue
+
+    print("New poses indices : ")
+    print(CalibrationIndices)
+    print("New score : " + str(newScore))
+
+print("Saving optimized calibration poses...")
+with open("CalibrationPoses_" + argv[1] + "_" + str(N) + ".npy","wb") as f:
+    np.save(f,CalibrationPoses)
+print("Done !")
