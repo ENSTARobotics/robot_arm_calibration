@@ -3,10 +3,14 @@ from importlib import import_module
 from sys import argv, float_info
 import os
 import numpy as np
+import numpy
 
 from AnalyticGeometricModel import Jfunc
 from GeometricModel import display
 from copy import deepcopy
+from panda_parameters import JOINTS_NUMBER
+
+from pygad import GA
 
 from scipy.spatial.transform import Rotation as R
 
@@ -38,13 +42,6 @@ except:
     print("INVALID MARKER NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
-### RETREIVE SAMPLING NUMBER
-N = 10
-try:
-    N = int(argv[3])
-except:
-    print("No sampling value given, defaulting to " + str(N))
-
 TBase0 = TBaseN
 
 TTool0 = np.empty((len(TTool0_marker),4,4))
@@ -58,6 +55,13 @@ pi0 = pi0
 
 parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
 
+### RETREIVE SAMPLING NUMBER
+N = 10
+try:
+    N = int(argv[3])
+except:
+    print("No sampling value given, defaulting to " + str(N))
+  
 if(not os.path.exists("SampledPoses_" + argv[1] + "_" + str(N) + ".npy")):
     print("Computing sampled calibration poses...")
     Q = np.empty(((N,JOINTS_NUMBER)))
@@ -85,9 +89,10 @@ print("Done !")
 
 randomIndices = np.random.permutation(N**JOINTS_NUMBER)
 
-CalibrationIndices = randomIndices[:N]
+targetPoseNumber = 2*len(parameters0)
+CalibrationIndices = randomIndices[:targetPoseNumber]
 NotRemovedIndices = deepcopy(CalibrationIndices)
-RemainingIndices = randomIndices[N:]
+RemainingIndices = randomIndices[targetPoseNumber:]
 
 CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]
 J = np.vstack([Jfunc(parameters0,q) for q in CalibrationPoses])
@@ -163,7 +168,34 @@ while(newScore < prevScore or count < 20):
     print(CalibrationIndices)
     print("New score : " + str(newScore))
 
+def fitnessFunction(solution,index):
+    solution = solution.reshape((-1,JOINTS_NUMBER))
+    print(solution)
+    J = np.vstack([Jfunc(parameters0,q) for q in solution])
+    SVD = np.linalg.svd(J)[1]
+    score = SVD[-1]/SVD[0]
+    print(1/score)
+    return(score)
+
+initialPopulation = CalibrationPoses.flatten()
+
+instanceGA = GA(num_generations=100,
+                num_parents_mating=4,
+                fitness_func=fitnessFunction,
+                initial_population=initialPopulation,
+                gene_type=float,
+                gene_space=np.vstack([np.linspace(jointsLowerLimits,jointsUpperLimits,N).T]*len(CalibrationPoses)),
+                parent_selection_type="sss",
+                keep_parents=1,
+                crossover_type="single_point",
+                mutation_type="random",
+                mutation_percent_genes=10)
+
+instanceGA.run()
+CalibrationPoses = instanceGA.best_solution()[0].reshape((-1,JOINTS_NUMBER))
+print(CalibrationPoses)
+
 print("Saving optimized calibration poses...")
-with open("CalibrationPoses_" + argv[1] + "_" + str(N) + ".npy","wb") as f:
+with open("CalibrationPoses_" + argv[1] + ".npy","wb") as f:
     np.save(f,CalibrationPoses)
 print("Done !")
