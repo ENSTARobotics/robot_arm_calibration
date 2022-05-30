@@ -177,7 +177,7 @@ def fitnessFunction(solution,index):
     print(1/score)
     return(score)
 
-initialPopulation = CalibrationPoses.flatten()
+initialPopulation = np.vstack([CalibrationPoses.flatten()]*N)
 
 instanceGA = GA(num_generations=100,
                 num_parents_mating=4,
