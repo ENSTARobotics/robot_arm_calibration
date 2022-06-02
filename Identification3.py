@@ -11,6 +11,7 @@ from scipy.spatial.transform import Rotation as R
 from AnalyticGeometricModel import Pfunc,Jfunc
 
 from copy import deepcopy
+import yaml
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
@@ -84,10 +85,6 @@ Pij = np.empty((N_EXPERIMENTS,N_REFERENCEPOINTS,3))
 PijTest = np.empty((N_TESTS,N_REFERENCEPOINTS,3))
 
 randomIndices = np.random.permutation(N_EXPERIMENTS+N_TESTS)
-#randomIndices = np.arange(0,N_EXPERIMENTS+N_TESTS)
-#randomIndices = []
-#with open("random.npy","rb") as f:
-#    randomIndices = np.load(f)
 
 indexExperiments = randomIndices[:N_EXPERIMENTS]
 indexTest = randomIndices[-N_TESTS:]
@@ -137,6 +134,8 @@ def LLS(parameters,Niterations):
 
     for i in range(Niterations):
 
+        print("Iteration " + str(i+1) + "/" + str(Niterations))
+
         J = np.vstack([Jfunc(parameters,q) for q in Jointi])
         Delta = (Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
 
@@ -170,6 +169,8 @@ def GD(parameters,Niterations):
     print(Einit)
 
     for i in range(Niterations):
+
+        print("Iteration " + str(i+1) + "/" + str(Niterations))
 
         J = np.vstack([Jfunc(parameters,q) for q in Jointi])
         Delta = (Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
@@ -206,6 +207,8 @@ def LM(parameters,Niterations):
     print(Einit)
 
     for i in range(Niterations):
+
+        print("Iteration " + str(i+1) + "/" + str(Niterations))
 
         J = np.vstack([Jfunc(parameters,q) for q in Jointi])
         Delta = (Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
@@ -246,6 +249,8 @@ def BFGS(parameters,Niterations):
     gradient = -2*np.dot(J.T,Delta)
 
     for i in range(Niterations):
+
+        print("Iteration " + str(i+1) + "/" + str(Niterations))
 
         #Find direction
         d = -np.dot(np.linalg.inv(B),gradient)
@@ -305,8 +310,78 @@ if(generated == "y"):
     print("Theorical test error")
     print(computeErrorTest(parametersTH))
 
-parameters = LLS(parameters0,5)
+Niterations = 5
+try : 
+    Niterations = int(argv[3])
+except:
+    print("No iterations number given, defaulting to " + str(Niterations))
 
-with open("parameters_" + argv[1] + "_" + argv[2] + ".npy","wb") as f:
-    np.save(f,parameters)
+parameters = LLS(parameters0,Niterations)
+
+### FILL ROBOT CALIBRATED MODEL
+
+print("Saving robot calibrated model...")
+
+calibratedModel = {}
+
+#Joints axis
+calibratedModel["jointsAxis"] = JOINTS_AXIS
+
+#Robot base
+PBase = np.array([parameters[:3]]).T
+RBase = R.from_euler("xyz",parameters[3:6]).as_matrix()
+TBase = np.dot(np.linalg.inv(TRobotBase),np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]]))))
+
+calibratedModel["robotBase"] = TBase.flatten().tolist()
+
+#Robot geometric parameters
+pi = parameters[6:6+len(pi0)]
+
+piFull = np.zeros(JOINTS_NUMBER*7)
+
+for i,jointAxis in enumerate(JOINTS_AXIS):
+    localParameters = pi[PARAMETERS_INDEX[i]:PARAMETERS_INDEX[i+1]]
+    currentIndex = 0
+
+    #Joint offset
+    if(JOINTS_OFFSET[i] == 1):
+        piFull[i*7] = localParameters[0]
+        currentIndex += 1
+
+    #Link translations
+    for k,axis in enumerate(LINKS_TRANSLATIONS[i]):
+        piFull[i*7+1:i*7+4][np.abs(axis)-1] = localParameters[currentIndex]
+        currentIndex += 1
+
+    #Link rotations
+    for k,axis in enumerate(LINKS_ROTATIONS[i]):
+        piFull[i*7+4:i*7+7][np.abs(axis)-1] = localParameters[currentIndex]
+        currentIndex += 1
+
+calibratedModel["robotParameters"] = piFull.tolist()
+
+#Robot flange
+
+TTool = np.empty(np.shape(TTool0_marker))
+for i,P in enumerate(np.reshape(parameters[6+len(pi0):],(-1,3))):
+    TTool[i] = np.eye(4)
+    TTool[i][:3,:3] = np.dot(TToolN[:3,:3],TTool0_marker[i][:3,:3])
+    TTool[i][:3,-1] = P - np.dot(TToolN[:3,:3],TTool0_marker[i][:3,-1])
+TTool = np.average(TTool,axis=0)
+
+calibratedModel["robotFlange"] = TTool.flatten().tolist()
+
+### FILL SETUP CONFIGURATION
+
+calibratedModel["baseReference"] = TRobotBase.flatten().tolist()
+
+calibratedModel["toolReferences"] = {}
+for i,tool in enumerate(TTool0_marker):
+    calibratedModel["toolReferences"][str(i+1)] = np.dot(np.linalg.inv(TTool0_body),tool).flatten().tolist()
+
+calibratedModel["toolReferencesNumber"] = len(TTool0_marker)
+
+with open("CalibratedModel_" + argv[1] + "_" + argv[2] + ".yaml",'w') as file:
+    yaml.dump(calibratedModel, file)
+print("Done !")
 
