@@ -1,14 +1,11 @@
-from hashlib import new
 from importlib import import_module
 from sys import argv, float_info
 import os
 import numpy as np
-import numpy
 
 from AnalyticGeometricModel import Jfunc
-from GeometricModel import display
 from copy import deepcopy
-from panda_parameters import JOINTS_NUMBER
+import yaml
 
 from pygad import GA
 
@@ -42,6 +39,7 @@ except:
     print("INVALID MARKER NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
+### RETREIVE NOMINAL PARAMETERS
 TBase0 = TBaseN
 
 TTool0 = np.empty((len(TTool0_marker),4,4))
@@ -55,37 +53,42 @@ pi0 = pi0
 
 parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
 
-### RETREIVE SAMPLING NUMBER
+### SAMPLE ALL JOINTS RANGES
 N = 10
 try:
     N = int(argv[3])
 except:
     print("No sampling value given, defaulting to " + str(N))
   
-if(not os.path.exists("SampledPoses_" + argv[1] + "_" + str(N) + ".npy")):
-    print("Computing sampled calibration poses...")
+if(not os.path.exists("SampledConfigurations_" + argv[1] + "_" + str(N) + ".npy")):
+    print("Computing sampled calibration configurations...")
     Q = np.empty(((N,JOINTS_NUMBER)))
-    InitialCalibrationPoses = np.empty((N**JOINTS_NUMBER,JOINTS_NUMBER))
+    SampledCalibrationConfigurations = np.empty((N**JOINTS_NUMBER,JOINTS_NUMBER))
     for i in range(N):
         for j in range(JOINTS_NUMBER):
             Q[i,j] = jointsLowerLimits[j] + (jointsUpperLimits[j] - jointsLowerLimits[j])*i/(N-1)
 
     for i in range(N**JOINTS_NUMBER):
-        InitialCalibrationPoses[i] = deepcopy(Q[0])
+        SampledCalibrationConfigurations[i] = deepcopy(Q[0])
         for j in range(JOINTS_NUMBER):
             if((i+1)%N**(j) == 0):
                 Q[:,j] = np.roll(Q[:,j],-1)
 
-    print("Saving sampled calibration poses...")
-    with open("SampledPoses_" + argv[1] + "_" + str(N) + ".npy","wb") as f:
-        np.save(f,InitialCalibrationPoses)
+    print("Saving sampled calibration configurations...")
+    with open("SampledConfigurations_" + argv[1] + "_" + str(N) + ".npy","wb") as f:
+        np.save(f,SampledCalibrationConfigurations)
     print("Done !")
 
-InitialCalibrationPoses = np.empty((0,0))
-print("Loading sampled calibration poses...")
-with open("SampledPoses_" + argv[1] + "_" + str(N) + ".npy","rb") as f:
-        InitialCalibrationPoses = np.load(f)
+SampledCalibrationConfigurations = np.empty((0,0))
+print("Loading sampled calibration configurations...")
+with open("SampledConfigurations_" + argv[1] + "_" + str(N) + ".npy","rb") as f:
+        SampledCalibrationConfigurations = np.load(f)
 print("Done !")
+
+
+### FIRST STEP : GREEDY ALGORITHM
+
+print("Greedy algorithm...")
 
 randomIndices = np.random.permutation(N**JOINTS_NUMBER)
 
@@ -94,13 +97,13 @@ CalibrationIndices = randomIndices[:targetPoseNumber]
 NotRemovedIndices = deepcopy(CalibrationIndices)
 RemainingIndices = randomIndices[targetPoseNumber:]
 
-CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]
-J = np.vstack([Jfunc(parameters0,q) for q in CalibrationPoses])
+CalibrationConfigurations = SampledCalibrationConfigurations[CalibrationIndices]
+J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
 SVD = np.linalg.svd(J)[1]
 newScore = SVD[0]/SVD[-1]
 prevScore = float_info.max
 
-print("Initial poses indices : ")
+print("Initial configurations indices : ")
 print(CalibrationIndices)
 print("Initial score : " + str(newScore))
 
@@ -124,14 +127,14 @@ while(newScore < prevScore or count < 20):
     CalibrationIndices = np.append(CalibrationIndices,addIndex)
     RemainingIndices = np.delete(RemainingIndices,np.where(RemainingIndices == addIndex)[0][0])
 
-    CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]
-    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationPoses])
+    CalibrationConfigurations = SampledCalibrationConfigurations[CalibrationIndices]
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
     SVD = np.linalg.svd(J)[1]
     score = SVD[0]/SVD[-1]
 
     if(score > newScore):
         CalibrationIndices = np.delete(CalibrationIndices,-1)
-        CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]
+        CalibrationConfigurations = SampledCalibrationConfigurations[CalibrationIndices]
     else:
         flagAdd = True
         NotRemovedIndices = np.append(NotRemovedIndices,addIndex)
@@ -142,14 +145,14 @@ while(newScore < prevScore or count < 20):
         CalibrationIndices = np.delete(CalibrationIndices,np.where(CalibrationIndices == delIndex)[0][0])
         NotRemovedIndices = np.delete(NotRemovedIndices,np.where(NotRemovedIndices == delIndex)[0][0])
 
-        CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]
-        J = np.vstack([Jfunc(parameters0,q) for q in CalibrationPoses])
+        CalibrationConfigurations = SampledCalibrationConfigurations[CalibrationIndices]
+        J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
         SVD = np.linalg.svd(J)[1]
         score = SVD[0]/SVD[-1]
 
         if(score > newScore):
             CalibrationIndices = np.append(CalibrationIndices,delIndex)
-            CalibrationPoses = InitialCalibrationPoses[CalibrationIndices]  
+            CalibrationConfigurations = SampledCalibrationConfigurations[CalibrationIndices]  
         else:
             flagDel = True
             newScore = score
@@ -164,9 +167,20 @@ while(newScore < prevScore or count < 20):
         print("No changes")
         continue
 
-    print("New poses indices : ")
+    print("New configurations indices : ")
     print(CalibrationIndices)
     print("New score : " + str(newScore))
+
+print("Done !")
+
+print("Saving optimized calibration configurations...")
+with open("CalibrationConfigurations_" + argv[1] + "_" + argv[2] + "_Greedy.yaml",'w') as file:
+    yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
+print("Done !")
+
+### SECOND STEP : GENETIC ALGORITHM
+
+print("Genetic algorithm...")
 
 def fitnessFunction(solution,index):
     solution = solution.reshape((-1,JOINTS_NUMBER))
@@ -177,14 +191,21 @@ def fitnessFunction(solution,index):
     print(1/score)
     return(score)
 
-initialPopulation = np.vstack([CalibrationPoses.flatten()]*N)
+initialPopulation = np.vstack([CalibrationConfigurations.flatten()]*(N//2))
+
+targetPoseNumber = len(CalibrationConfigurations)
+randomIndices = np.random.permutation(N**JOINTS_NUMBER)
+
+for i in range(N//2):
+    CalibrationConfigurations = SampledCalibrationConfigurations[randomIndices[targetPoseNumber*i:targetPoseNumber*(i+1)]]
+    initialPopulation = np.vstack((initialPopulation,CalibrationConfigurations.flatten()))
 
 instanceGA = GA(num_generations=100,
                 num_parents_mating=4,
                 fitness_func=fitnessFunction,
                 initial_population=initialPopulation,
                 gene_type=float,
-                gene_space=np.vstack([np.linspace(jointsLowerLimits,jointsUpperLimits,N).T]*len(CalibrationPoses)),
+                gene_space=np.vstack([np.linspace(jointsLowerLimits,jointsUpperLimits,N).T]*len(CalibrationConfigurations)),
                 parent_selection_type="sss",
                 keep_parents=1,
                 crossover_type="single_point",
@@ -192,10 +213,13 @@ instanceGA = GA(num_generations=100,
                 mutation_percent_genes=10)
 
 instanceGA.run()
-CalibrationPoses = instanceGA.best_solution()[0].reshape((-1,JOINTS_NUMBER))
-print(CalibrationPoses)
+CalibrationConfigurations = instanceGA.best_solution()[0].reshape((-1,JOINTS_NUMBER))
+print("Final calibration configurations : ")
+print(CalibrationConfigurations)
 
-print("Saving optimized calibration poses...")
-with open("CalibrationPoses_" + argv[1] + ".npy","wb") as f:
-    np.save(f,CalibrationPoses)
+print("Done !")
+
+print("Saving optimized calibration configurations...")
+with open("GACalibrationConfigurations_" + argv[1] + "_" + argv[2] + "Genetic.yaml",'w') as file:
+    yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
 print("Done !")
