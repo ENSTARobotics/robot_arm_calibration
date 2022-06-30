@@ -68,14 +68,17 @@ print("Done !")
 
 print('Number of configurations : ' + str(len(CalibrationConfigurations)))
 
-print("Identifiability score :")
-J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
-SVD = np.linalg.svd(J)[1]
+identifiability = input("Compute identifiability score ? y/n")
 
-print("Singular values : " + str(SVD))
+if(identifiability == "y" or identifiability == "Y"):
+    print("Identifiability score :")
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    SVD = np.linalg.svd(J)[1]
 
-score = SVD[0]/SVD[-1]
-print("score : " + str(score))
+    print("Singular values : " + str(SVD))
+
+    score = SVD[0]/SVD[-1]
+    print("score : " + str(score))
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
