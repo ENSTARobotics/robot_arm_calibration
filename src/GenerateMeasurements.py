@@ -1,17 +1,27 @@
-import csv
-from random import sample,uniform
-import numpy as np
+#!/usr/bin/python3
 
+#System packages
 from importlib import import_module
-from sys import argv
+import sys
+import os
+import csv
 
-from GeometricModel import T
-
+#Utility packages
+import numpy as np
 from scipy.spatial.transform import Rotation as R
+
+### GET CONFIG DIRECTORY PATH
+configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/"
+sys.path.append(configPath)
+
+### RETRIEVE PARAMETERS FROM DIRECTORY NAME
+import re
+currentParameters = np.array(re.split('/|_',os.getcwd()))
+currentParameters = currentParameters[np.where(currentParameters == "measurements")[0][0] + 1:]
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
-    module = import_module(argv[1]+"_parameters")
+    module = import_module(currentParameters[0]+"_parameters")
 
     if "__all__" in module.__dict__:
         names = module.__dict__["__all__"]
@@ -25,7 +35,7 @@ except:
 
 ### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
 try:
-    module = import_module(argv[2]+"_parameters")
+    module = import_module(currentParameters[1]+"_parameters")
 
     if "__all__" in module.__dict__:
         names = module.__dict__["__all__"]
@@ -37,6 +47,9 @@ except:
     print("INVALID MARKER NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
+#Custom packages
+from NumericGeometricModel import T
+
 ### Create deltapi
 deltapi = np.zeros(len(pi0))
 parametersCounter = 0
@@ -45,23 +58,23 @@ for i in range(JOINTS_NUMBER):
 
     #Joint offset
     if (JOINTS_OFFSET[i]==1):
-        deltapi[parametersCounter] = uniform(-1,1)*(np.pi/180)
+        deltapi[parametersCounter] = np.random.uniform(-1,1)*(np.pi/180)
         parametersCounter+=1
 
     #Link translation
     for translation in LINKS_TRANSLATIONS[i]:
-        deltapi[parametersCounter] = uniform(-1,1)*0.001
+        deltapi[parametersCounter] = np.random.uniform(-1,1)*0.001
         parametersCounter+=1
 
     #Link rotation
     for rotation in LINKS_ROTATIONS[i]:
-        deltapi[parametersCounter] = uniform(-1,1)*(np.pi/180)
+        deltapi[parametersCounter] = np.random.uniform(-1,1)*(np.pi/180)
         parametersCounter+=1
 
 ### Create Base error
 
-RBase = R.from_euler('xyz',[uniform(-1,1)*(np.pi/180),uniform(-1,1)*(np.pi/180),uniform(-1,1)*(np.pi/180)]).as_matrix()
-PBase = np.array([[uniform(-1,1)*0.001],[uniform(-1,1)*0.001],[uniform(-1,1)*0.001]])
+RBase = R.from_euler('xyz',[np.random.uniform(-1,1)*(np.pi/180),np.random.uniform(-1,1)*(np.pi/180),np.random.uniform(-1,1)*(np.pi/180)]).as_matrix()
+PBase = np.array([[np.random.uniform(-1,1)*0.001],[np.random.uniform(-1,1)*0.001],[np.random.uniform(-1,1)*0.001]])
 TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
 #TBase = np.eye(4)
 
@@ -69,9 +82,9 @@ TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
 
 TMarker = []
 for marker in TTool0_marker:
-    TMarker.append(np.array([[1, 0, 0, uniform(-1,1)*0.001],
-                             [0, 1, 0, uniform(-1,1)*0.001],
-                             [0, 0, 1, uniform(-1,1)*0.001],
+    TMarker.append(np.array([[1, 0, 0, np.random.uniform(-1,1)*0.001],
+                             [0, 1, 0, np.random.uniform(-1,1)*0.001],
+                             [0, 0, 1, np.random.uniform(-1,1)*0.001],
                              [0,0,0,1]]))
     #TMarker.append(np.eye(4))
 
@@ -81,15 +94,15 @@ for marker in TTool0_marker:
 N = 100
 
 try:
-    N = int(argv[3])
+    N = int(sys.argv[3])
 except:
     print("Switching to default value : N = 100")
 
 print("Creating N = " + str(N) + " measurements")
 
-Q = [sample(list(np.linspace(0,2*np.pi,1000)),JOINTS_NUMBER) for i in range(N)]
+Q = [np.random.sample(list(np.linspace(0,2*np.pi,1000)),JOINTS_NUMBER) for i in range(N)]
 
-with open('GeneratedMeasurements_' + argv[1] + '_' + argv[2] + '.csv', 'w') as f:
+with open('GeneratedMeasurements.csv', 'w') as f:
     writer = csv.writer(f)
 
     for q in Q:
@@ -102,7 +115,7 @@ with open('GeneratedMeasurements_' + argv[1] + '_' + argv[2] + '.csv', 'w') as f
         writer.writerow(q)
         writer.writerow(['---'])
 
-with open('GeneratedErrors_' + argv[1] + '_' + argv[2] + '.csv', 'w') as f:
+with open('GeneratedErrors.csv', 'w') as f:
     writer = csv.writer(f)
     writer.writerow(['pi'])
     writer.writerow(pi0 + deltapi)

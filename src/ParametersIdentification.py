@@ -1,21 +1,27 @@
 #!/usr/bin/python3
 
-from CalibrationCSVParsing import calibrationCSVParsing,robotBaseTransformation,errorsCSVParsing
-from GeometricModel import *
-
+#System packages
 from importlib import import_module
-from sys import argv
-
-from scipy.spatial.transform import Rotation as R
-
-from AnalyticGeometricModel import Pfunc,Jfunc
-
+import sys
+import os
 from copy import deepcopy
 import yaml
 
+#Utility packages
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+
+### GET CONFIG DIRECTORY PATH
+configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/"
+sys.path.append(configPath)
+
+### RETRIEVE PARAMETERS FROM DIRECTORY NAME
+currentParameters = np.array(re.split('/|_',os.getcwd()))
+    currentParameters = currentParameters[np.where(currentParameters == "measurements")[0][0] + 1:]
+
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
-    module = import_module(argv[1]+"_parameters")
+    module = import_module(currentParameters[0] + "_parameters")
 
     if "__all__" in module.__dict__:
         names = module.__dict__["__all__"]
@@ -29,7 +35,7 @@ except:
 
 ### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
 try:
-    module = import_module(argv[2]+"_parameters")
+    module = import_module(currentParameters[1] + "_parameters")
 
     if "__all__" in module.__dict__:
         names = module.__dict__["__all__"]
@@ -41,59 +47,65 @@ except:
     print("INVALID MARKER NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
-### RETRIEVE MEASUREMENTS DATA
+#Custom packages
+from CalibrationCSVParsing import calibrationCSVParsing,robotBaseTransformation,errorsCSVParsing
+from AnalyticGeometricModel import Pfunc,Jfunc
+from NumericGeometricModel import display
 
-referencePointsItemsPrefix = "optiTrackPose"
+### RETRIEVE MEASUREMENTS DATA
+itemsNames = robotBaseItemsNames + markerItemsNames + ["jointsAngles"]
 
 generated = input("Generated measurements ? y/n ")
 if(generated == "y"):
-    itemsNames = ["optiTrackPose" + str(i) for i in range(len(TTool0_marker))] + ["jointsAngles"]
-    Items = calibrationCSVParsing(itemsNames,"GeneratedMeasurements_" + argv[1] + "_" + argv[2] + ".csv")
-    TRobotBase = np.eye(4)
+    Items = calibrationCSVParsing(itemsNames,"GeneratedMeasurements_" + sys.argv[1] + "_" + sys.argv[2] + "/Calibration.csv")
 else:
-    itemsNames = ["optiTrackPose" + str(i) for i in range(len(TTool0_marker))] + robotBaseItemsNames + ["jointsAngles"]
-    Items = calibrationCSVParsing(itemsNames,"Calibration_" + argv[1] + "_" + argv[2] + ".csv")
-    TRobotBase = robotBaseTransformation(Items,robotBaseMarkersOffset,robotBasePlaneOffset)
+    Items = calibrationCSVParsing(itemsNames,"CalibrationMeasurements_" + sys.argv[1] + "_" + sys.argv[2] + "_" + sys.argv[3] + "/Calibration.csv")
 
-referencePointsIndices = [int(key[-1]) for key,_ in Items.items() if referencePointsItemsPrefix in key]
-N_REFERENCEPOINTS = len(referencePointsIndices)
+TRobotBase = robotBaseTransformation(Items)
 
 identificationRatio = 3/4
-N_EXPERIMENTS = int(np.floor(len(Items[itemsNames[0]])*identificationRatio))
-N_TESTS = len(Items[itemsNames[0]]) - N_EXPERIMENTS
+N_MEASUREMENTS = len(Items["jointsAngles"])
+N_LEARNING = int(np.floor(N_MEASUREMENTS*identificationRatio))
+N_TESTS = N_MEASUREMENTS - N_LEARNING
 
 ### ROBOT BASE AND REFERENCE POINTS TRANSFORMATIONS ESTIMATIONS
-
 TBase0 = np.dot(TRobotBase,TBaseN)
 
 TTool0 = np.empty((N_REFERENCEPOINTS,4,4))
 for j in range(N_REFERENCEPOINTS):
     TTool0[j] = np.dot(TToolN,TTool0_marker[j])
 
-### MOVING MEASUREMENTS TO THE ROBOT BASE FRAME
+PBase0 = TBase0[:3,-1]
+RBase0 = R.from_matrix(TBase0[:3,:3])
+PTool0 = TTool0[:,:3,-1]
+pi0 = pi0
+
+parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
+
+### CREATING LEARNING AND TESTING SUBSETS
 
 print("Test on first measurement :")
 for referencePointIndex in referencePointsIndices:
     print("Reference point " + str(referencePointIndex+1))
     print(Items[referencePointsItemsPrefix+str(referencePointIndex)][0])
-    print(T(Items["jointsAngles"][0],pi0,TBase0,TTool0[referencePointIndex])[:3,-1])
+    print(Pfunc(parameters0,Items["jointsAngles"][0]))
 
 print("Press any key to continue")
 a = input()
 
-Pij = np.empty((N_EXPERIMENTS,N_REFERENCEPOINTS,3))
+PijLear = np.empty((N_LEARNING,N_REFERENCEPOINTS,3))
 PijTest = np.empty((N_TESTS,N_REFERENCEPOINTS,3))
 
-randomIndices = np.random.permutation(N_EXPERIMENTS+N_TESTS)
+randomIndices = np.random.permutation(N_LEARNING+N_TESTS)
 
-indexExperiments = randomIndices[:N_EXPERIMENTS]
+indexLear = randomIndices[:N_LEARNING]
 indexTest = randomIndices[-N_TESTS:]
 
-for referencePointIndex in referencePointsIndices:
-    Pij[:,referencePointIndex,:] = Items[referencePointsItemsPrefix+str(referencePointIndex)][indexExperiments]
-    PijTest[:,referencePointIndex,:] = Items[referencePointsItemsPrefix+str(referencePointIndex)][indexTest]
+for i,item in enumerate(markerItemsNames):
+    PijLear[:,i,:] = Items[item][indexLear]
+    PijTest[:,i,:] = Items[item][indexTest]
 
-Jointi = Items["jointsAngles"][indexExperiments]
+JointiLear = Items["jointsAngles"][indexLear]
 JointiTest = Items["jointsAngles"][indexTest]
 
 def displayResults(parameters):
@@ -118,7 +130,7 @@ def computeErrorTest(parameters):
     return(np.linalg.norm(PijTest.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiTest])))
 
 def computeError(parameters):  
-    return(np.linalg.norm(Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi])))
+    return(np.linalg.norm(PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear])))
 
 def LLS(parameters,Niterations):
 
@@ -136,8 +148,8 @@ def LLS(parameters,Niterations):
 
         print("Iteration " + str(i+1) + "/" + str(Niterations))
 
-        J = np.vstack([Jfunc(parameters,q) for q in Jointi])
-        Delta = (Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
+        J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
+        Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
 
         parameters += np.dot(np.linalg.pinv(J),Delta)
 
@@ -172,8 +184,8 @@ def GD(parameters,Niterations):
 
         print("Iteration " + str(i+1) + "/" + str(Niterations))
 
-        J = np.vstack([Jfunc(parameters,q) for q in Jointi])
-        Delta = (Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
+        J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
+        Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
 
         gradient = -2*np.dot(J.T,Delta)
         gradient /= np.linalg.norm(gradient)
@@ -210,8 +222,8 @@ def LM(parameters,Niterations):
 
         print("Iteration " + str(i+1) + "/" + str(Niterations))
 
-        J = np.vstack([Jfunc(parameters,q) for q in Jointi])
-        Delta = (Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
+        J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
+        Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
 
         JtJ = np.dot(J,J.T)
         alpha = np.dot(np.dot(Delta.T,JtJ),Delta)/(2*np.dot(np.dot(Delta.T,np.dot(JtJ,JtJ)),Delta))
@@ -243,8 +255,8 @@ def BFGS(parameters,Niterations):
     print(Einit)
 
     B = np.eye(len(parameters))
-    J = np.vstack([Jfunc(parameters,q) for q in Jointi])
-    Delta = (Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
+    J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
+    Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
 
     gradient = -2*np.dot(J.T,Delta)
 
@@ -262,8 +274,8 @@ def BFGS(parameters,Niterations):
         deltaParameters = alpha*d
         parameters += deltaParameters
 
-        J = np.vstack([Jfunc(parameters,q) for q in Jointi])
-        Delta = (Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
+        J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
+        Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
 
         prevGradient = deepcopy(gradient)
         gradient = -2*np.dot(J.T,Delta)
@@ -284,16 +296,9 @@ def BFGS(parameters,Niterations):
 
     return(parameters)
 
-#Initial values
+### MAIN LOOP
 
-PBase0 = TBase0[:3,-1]
-RBase0 = R.from_matrix(TBase0[:3,:3])
-PTool0 = TTool0[:,:3,-1]
-pi0 = pi0
-
-parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
-
-print("Number of experiments : " + str(N_EXPERIMENTS))
+print("Number of experiments : " + str(N_LEARNING))
 print("Number of tests : " + str(N_TESTS))
 
 print("Nominal values : ")
@@ -302,7 +307,7 @@ displayResults(parameters0)
 #Theorical values
 
 if(generated == "y"):
-    parametersTH = errorsCSVParsing('GeneratedErrors_' + argv[1] + '_' + argv[2] + '.csv')
+    parametersTH = errorsCSVParsing('GeneratedErrors.csv')
     print("Theorical values")
     displayResults(parametersTH)
     print("Theorical error")
@@ -312,11 +317,17 @@ if(generated == "y"):
 
 Niterations = 5
 try : 
-    Niterations = int(argv[3])
+    Niterations = int(sys.argv[1])
 except:
     print("No iterations number given, defaulting to " + str(Niterations))
 
-parameters = LLS(parameters0,Niterations)
+optimizationMethod = "LLS"
+try : 
+    optimizationMethod = sys.argv[2]
+except:
+    print("No optimization method given, defaulting to LLS")
+
+parameters = locals()[optimizationMethod.upper()](parameters0,Niterations)
 
 ### FILL ROBOT CALIBRATED MODEL
 
@@ -381,7 +392,7 @@ for i,tool in enumerate(TTool0_marker):
 
 calibratedModel["toolReferencesNumber"] = len(TTool0_marker)
 
-with open("CalibratedModel_" + argv[1] + "_" + argv[2] + ".yaml",'w') as file:
+with open("CalibratedModel_" + optimizationMethod.lower() + "_" + str(Niterations) + ".yaml",'w') as file:
     yaml.dump(calibratedModel, file)
 print("Done !")
 

@@ -1,17 +1,32 @@
-from genericpath import exists
+#!/usr/bin/python3
+
+#System packages
+from importlib import import_module
+import sys
+import os
+import dill
+
+#Utility packages
 import sympy as sp
 import numpy as np
 
-from importlib import import_module
-from sys import argv
-import os
+### GET CONFIG DIRECTORY PATH
+configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/"
+sys.path.append(configPath)
 
-import pickle
-import dill
+if __name__ == "__main__":
+    robotName = sys.argv[1]
+    markerName = sys.argv[2]
+else:
+    import re
+    currentParameters = np.array(re.split('/|_',os.getcwd()))
+    currentParameters = currentParameters[np.where(currentParameters == "measurements")[0][0] + 1:]
+    robotName = currentParameters[0]
+    markerName = currentParameters[1]
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
-    module = import_module(argv[1]+"_parameters")
+    module = import_module(robotName+"_parameters")
 
     if "__all__" in module.__dict__:
         names = module.__dict__["__all__"]
@@ -20,12 +35,12 @@ try:
 
     globals().update({k: getattr(module, k) for k in names})
 except:
-    #print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
+    print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
 ### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
 try:
-    module = import_module(argv[2]+"_parameters")
+    module = import_module(markerName+"_parameters")
 
     if "__all__" in module.__dict__:
         names = module.__dict__["__all__"]
@@ -53,7 +68,7 @@ def rot_axis(angle,axisIndex):
     else:
         return(sp.Identity(3))
 
-if(not os.path.exists("Jacobian_" + argv[1] + "_" + argv[2] + ".pickle") or not os.path.exists("GeometricModel_" + argv[1] + "_" + argv[2] + ".pickle")):
+if(not os.path.exists(configPath + "Jacobian_" + robotName + "_" + markerName + ".pickle") or not os.path.exists(configPath + "GeometricModel_" + robotName + "_" + markerName + ".pickle")):
 
     ### GLOBAL SYMBOLS
 
@@ -132,29 +147,26 @@ if(not os.path.exists("Jacobian_" + argv[1] + "_" + argv[2] + ".pickle") or not 
     pi = sp.Matrix(pi)
     parameters = sp.Matrix.vstack(PBase,PhiBase,pi,TTool[:3,:].T.reshape(3*len(TTool0_marker),1))
 
-    if(not os.path.exists("Jacobian_" + argv[1] + "_" + argv[2] + ".pickle")):
-        print("Computing jacobian...")
-        J = P.jacobian(parameters)
-        print("Computation done !")
+    print("Computing jacobian...")
+    J = P.jacobian(parameters)
+    print("Computation done !")
 
     dill.settings['recurse'] = True
 
     print("Turning sympy expressions to lambda functions...")
 
-    if(not os.path.exists("GeometricModel_" + argv[1] + "_" + argv[2] + ".pickle")):
-        Pfunc = sp.lambdify((parameters,q),P,modules=["numpy","scipy"])
-        with open("GeometricModel_" + argv[1] + "_" + argv[2] + ".pickle", "wb") as file:
-            dill.dump(Pfunc, file)
-    if(not os.path.exists("Jacobian_" + argv[1] + "_" + argv[2] + ".pickle")):
-        Jfunc = sp.lambdify((parameters,q),J,modules=["numpy","scipy"])
-        with open("Jacobian_" + argv[1] + "_" + argv[2] + ".pickle", "wb") as file:
-            dill.dump(Jfunc, file)
+    Pfunc = sp.lambdify((parameters,q),P,modules=["numpy","scipy"])
+    with open(configPath + "GeometricModel_" + robotName + "_" + markerName + ".pickle", "wb") as file:
+        dill.dump(Pfunc, file)
+    Jfunc = sp.lambdify((parameters,q),J,modules=["numpy","scipy"])
+    with open(configPath + "Jacobian_" + robotName + "_" + markerName + ".pickle", "wb") as file:
+        dill.dump(Jfunc, file)
 
     print("Done !")   
 
 print("Loading geometric model and jacobian...")
-rawJfunc = dill.load(open("Jacobian_" + argv[1] + "_" + argv[2] + ".pickle", "rb"))
-rawPfunc = dill.load(open("GeometricModel_" + argv[1] + "_" + argv[2] + ".pickle", "rb"))
+rawJfunc = dill.load(open(configPath + "Jacobian_" + robotName + "_" + markerName + ".pickle", "rb"))
+rawPfunc = dill.load(open(configPath + "GeometricModel_" + robotName + "_" + markerName + ".pickle", "rb"))
 print("Done !")
 
 PARAMETERS_NUMBER = 6 + 3*len(TTool0_marker) + len(pi0)

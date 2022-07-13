@@ -21,3 +21,6 @@ TTool0_marker = np.array([np.dot(TTool0_body,np.array([[1,0,0,item[0]],
                                     [0,1,0,item[1]],
                                     [0,0,1,toolDepth+item[2]],
                                     [0,0,0,1]])) for item in d])
+
+N_REFERENCEPOINTS = len(d)
+markerItemsNames = ["optiTrackPose" + str(i) for i in range(N_REFERENCEPOINTS)]

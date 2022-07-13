@@ -1,29 +1,34 @@
-from tkinter import Tk
-import numpy as np
-import matplotlib.pyplot as plt
-from numpy.lib.function_base import disp
+#!/usr/bin/python3
 
-from scipy.spatial.transform import Rotation as R
-
+#System packages
+from importlib import import_module
 import sys
-
-np.set_printoptions(threshold=sys.maxsize)
-
-import pandas as pd
-
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-cmap = plt.cm.get_cmap('hsv',100)
-
-from random import randint
+import os
 from copy import deepcopy
 
-from importlib import import_module
-from sys import argv
+#Utility packages
+import pandas as pd
+import numpy as np
+np.set_printoptions(threshold=sys.maxsize)
+import matplotlib.pyplot as plt
+cmap = plt.cm.get_cmap('hsv',100)
+from scipy.spatial.transform import Rotation as R
+
+### GET CONFIG DIRECTORY PATH
+configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/"
+sys.path.append(configPath)
+
+if __name__ == "__main__":
+    robotName = sys.argv[1]
+else:
+    import re
+    currentParameters = np.array(re.split('/|_',os.getcwd()))
+    currentParameters = currentParameters[np.where(currentParameters == "measurements")[0][0] + 1:]
+    robotName = currentParameters[0]
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
-    module = import_module(argv[1]+"_parameters")
+    module = import_module(robotName + "_parameters")
 
     if "__all__" in module.__dict__:
         names = module.__dict__["__all__"]
@@ -32,7 +37,7 @@ try:
 
     globals().update({k: getattr(module, k) for k in names})
 except:
-    #print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
+    print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
 ### USEFUL MATRICES AND FUNCTIONS
@@ -83,7 +88,7 @@ def plotRobot(q,pi,TBase=np.eye(4),TTool=np.eye(4),ax=None,color=None):
         ax = fig.add_subplot(111, projection='3d')
 
     if(color is None):
-        color = cmap(randint(1,100) - 1)
+        color = cmap(np.random.randint(1,100) - 1)
 
     T = np.eye(4)
     lastJointPosition = np.array([0,0,0])

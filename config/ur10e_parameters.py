@@ -53,9 +53,9 @@ TToolN = np.array([[-1,0,0,0],
                    [0,1,0,0],
                    [0,0,0,1]])
 
-robotBaseMarkersOffset = 0.025 + np.sqrt((0.127/2)**2 - (0.008/2)**2)    #TODO
-robotBasePlaneOffset = np.array([0,0,0])
-robotBaseItemsNames = ["robotBaseUR","robotBaseUL","robotBaseDR","robotBaseDL"]
+robotBasePlaneOffset = 0.00565
+robotBaseCenterOffset = np.array([0,0,0])
+robotBaseItemsNames = ["robotBase1","robotBase2","robotBase3","robotBase4","robotBase5","robotBase6"]
 
 #Joints angles limits
 jointsLowerLimits = np.array([-np.pi, -np.pi, -3*np.pi/4, -np.pi, -3*np.pi/4, -np.pi])

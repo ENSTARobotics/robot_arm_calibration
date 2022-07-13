@@ -1,17 +1,41 @@
 #!/usr/bin/python3
 
+#System packages
+from importlib import import_module
+import sys
+import os
 import csv
-import re
-import numpy as np
-from scipy.optimize import leastsq
-from scipy.spatial.transform import Rotation as R
-
 from collections import OrderedDict
 
-from copy import deepcopy
-import matplotlib.pyplot as plt
+#Utility packages
+import numpy as np
+from scipy.spatial.transform import Rotation as R
 
-import pandas as pd
+### GET CONFIG DIRECTORY PATH
+configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/"
+sys.path.append(configPath)
+
+if __name__ == "__main__":
+    robotName = sys.argv[1]
+else:
+    import re
+    currentParameters = np.array(re.split('/|_',os.getcwd()))
+    currentParameters = currentParameters[np.where(currentParameters == "measurements")[0][0] + 1:]
+    robotName = currentParameters[0]
+
+### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
+try:
+    module = import_module(robotName + "_parameters")
+
+    if "__all__" in module.__dict__:
+        names = module.__dict__["__all__"]
+    else:
+        names = [x for x in module.__dict__ if not x.startswith("_")]
+
+    globals().update({k: getattr(module, k) for k in names})
+except:
+    print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
+    exit(1)
 
 ### USEFULL FUNCTIONS
 
@@ -63,74 +87,39 @@ def modAngle(angle):
 
 ### CSV PARSING
 
-def robotBaseTransformation(Items,robotBaseMarkersOffset=0,robotBasePlaneOffset=np.zeros(3)):
-
-    ### Least-squares method for plane interpolation
-    def planeInterpolation(points):
-        #P : a*x + b*y + c*z + d = 0
-        P0 = [0.0,0.0,1.0,0.0]
-
-        def f_min(X,p):
-            plane_xyz = p[0:3]
-            distance = (plane_xyz*X.T).sum(axis=1) + p[3]
-            return distance / np.linalg.norm(plane_xyz)
-
-        def residuals(params, signal, X):
-            return f_min(X, params)
-
-        P = leastsq(residuals, P0, args=(None, points))[0]
-        P /= np.linalg.norm(P[:3])
-
-        return(P)
-
-    ### Vector on plane projection
-    def planeProjection(normal,vector):
-        return(vector - (np.dot(vector,normal)/np.linalg.norm(normal)**2)*normal)
+def robotBaseTransformation(Items):
 
     #Retrieve the robot base markers positions
-    robotBase = np.array([filteredMean(Items["robotBaseUR"],axis=0),
-                        filteredMean(Items["robotBaseUL"],axis=0),
-                        filteredMean(Items["robotBaseDR"],axis=0),
-                        filteredMean(Items["robotBaseDL"],axis=0)])
+    robotBase = np.array([filteredMean(Items[item],axis=0) for item in robotBaseItemsNames])
+    baseCentroid = np.mean(robotBase,axis=0)
 
-    #Interpolate a plane passing through the 4 robot base marker points
-    P = planeInterpolation(robotBase.T)
+    #Find the plane normal
+    z = np.dot(np.linalg.pinv(robotBase),np.ones(len(robotBase)))
+    z/=np.linalg.norm(z)
+    if(z[2] < 0):
+        z*=-1
 
-    #Remove the screws vertical offset
-    z = P[:3]
-    robotBase[:,:3] -= robotBaseMarkersOffset*z
+    #Find the other axis
+    x = np.dot(np.linalg.pinv(robotBase[:3] + robotBase[3:]),np.ones(len(robotBase)//2))
+    x = x/np.linalg.norm(x)
+    if((np.dot(robotBase[:3] - baseCentroid,x) > 0).all()):
+        print((np.dot(robotBase[:3] - baseCentroid,x) > 0).all())
+        y = np.cross(z,x)
+    elif((np.dot(robotBase[:3] - baseCentroid,x) < 0).all()):
+        x*=-1
+        y = np.cross(z,x)
+    else:
+        y = x
+        if((np.dot(robotBase[[0,4,5]] - baseCentroid,x) > 0).all()):
+            x = np.cross(y,z)
+        else:
+            y*=-1
+            x = np.cross(y,z)
 
-    #Compute the robot base frame x,y,z
-    y = planeProjection(z,robotBase[1]-robotBase[0]+robotBase[3]-robotBase[2])
-    y /= np.linalg.norm(y)
-    x = np.cross(y,z)
-
-    #Compute the robot base position, based on the average of all robot base markers positions + an eventual user defined offset
-    robotBasePosition = np.average(robotBase,axis=0) + np.dot(np.array([x,y,z]),robotBasePlaneOffset)
-
-    robotBaseTransformation = np.concatenate((np.concatenate((np.array([x,y,z]),np.array([robotBasePosition]).T),axis=1),np.array([[0,0,0,1]])))
-
-    #fig = plt.figure()
-    #ax = fig.add_subplot(111, projection='3d')
-    #for i,point in enumerate(robotBase):
-    #    ax.scatter(point[0],point[1],point[2],label=robotBaseItemsNames[i])
-
-    #ax.scatter(robotBasePosition[0],robotBasePosition[1],robotBasePosition[2])
-
-    #extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
-    #sz = extents[:,1] - extents[:,0]
-    #centers = np.mean(extents, axis=1)
-    #maxsize = max(abs(sz))
-    #r = maxsize/2
-    #for ctr, dim in zip(centers, 'xyz'):
-    #    getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
-
-    #ax.set_xlabel("x (m)")
-    #ax.set_ylabel("y (m)")
-    #ax.set_zlabel("z (m)")
-
-    #plt.legend()
-    #plt.show()
+    #Retreive robot base transformation
+    robotBaseTransformation = np.eye(4)
+    robotBaseTransformation[:3,:3] = np.array([x,y,z])
+    robotBaseTransformation[:3,-1] = -np.dot(robotBaseTransformation[:3,:3],baseCentroid)
     
     return(robotBaseTransformation)
 

@@ -1,4 +1,8 @@
 .vscode/
 __pycache__/
 Generated*.csv
-
+*.png
+*.pdf
+*.pickle
+*.npy
+*.PDF
