@@ -80,6 +80,8 @@ def random(sampledConfigurations,targetConfigurationsNumber):
     print("Done !")
 
     print("Saving optimized calibration configurations...")
+    if(not os.path.isdir(os.getcwd() + "/random/")):
+        os.mkdir(os.getcwd() + "/random/")
     with open(os.getcwd() + "/random/CalibrationConfigurations.yaml",'w') as file:
         yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
     print("Done !")
@@ -97,6 +99,8 @@ def naive(sampledConfigurations,targetConfigurationsNumber):
     print("Done !")
 
     print("Saving optimized calibration configurations...")
+    if(not os.path.isdir(os.getcwd() + "/naive/")):
+        os.mkdir(os.getcwd() + "/naive/")
     with open(os.getcwd() + "/naive/alibrationConfigurations.yaml",'w') as file:
         yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
     print("Done !")
@@ -156,6 +160,8 @@ def greedy(sampledConfigurations,targetConfigurationsNumber):
     print("Done !")
 
     print("Saving optimized calibration configurations...")
+    if(not os.path.isdir(os.getcwd() + "/greedy/")):
+        os.mkdir(os.getcwd() + "/greedy/")
     with open(os.getcwd() + "/greedy/CalibrationConfigurations.yaml",'w') as file:
         yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
     print("Done !")
@@ -163,6 +169,7 @@ def greedy(sampledConfigurations,targetConfigurationsNumber):
 def genetic(sampledConfigurations,targetConfigurationsNumber):
     print("Genetic algorithm...")
 
+    global counter
     counter = 0
     maxIterations = 20
     num_parents_mating = 4
@@ -201,6 +208,8 @@ def genetic(sampledConfigurations,targetConfigurationsNumber):
     print("Done !")
 
     print("Saving optimized calibration configurations...")
+    if(not os.path.isdir(os.getcwd() + "/genetic/")):
+        os.mkdir(os.getcwd() + "/genetic/")
     with open(os.getcwd() + "/genetic/CalibrationConfigurations.yaml",'w') as file:
         yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
     print("Done !")
@@ -238,6 +247,8 @@ def annealing(sampledConfigurations,targetConfigurationsNumber):
     print("Done !")
 
     print("Saving optimized calibration configurations...")
+    if(not os.path.isdir(os.getcwd() + "/annealing/")):
+        os.mkdir(os.getcwd() + "/annealing/")
     with open(os.getcwd() + "/annealing/CalibrationConfigurations.yaml",'w') as file:
         yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
     print("Done !")
