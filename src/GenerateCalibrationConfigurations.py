@@ -83,7 +83,7 @@ def random(sampledConfigurations,targetConfigurationsNumber):
     if(not os.path.isdir(os.getcwd() + "/random/")):
         os.mkdir(os.getcwd() + "/random/")
     with open(os.getcwd() + "/random/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
+        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
 
 def naive(sampledConfigurations,targetConfigurationsNumber):
@@ -101,8 +101,8 @@ def naive(sampledConfigurations,targetConfigurationsNumber):
     print("Saving optimized calibration configurations...")
     if(not os.path.isdir(os.getcwd() + "/naive/")):
         os.mkdir(os.getcwd() + "/naive/")
-    with open(os.getcwd() + "/naive/alibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
+    with open(os.getcwd() + "/naive/CalibrationConfigurations.yaml",'w') as file:
+        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
 
 def greedy(sampledConfigurations,targetConfigurationsNumber):
@@ -163,7 +163,7 @@ def greedy(sampledConfigurations,targetConfigurationsNumber):
     if(not os.path.isdir(os.getcwd() + "/greedy/")):
         os.mkdir(os.getcwd() + "/greedy/")
     with open(os.getcwd() + "/greedy/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
+        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
 
 def genetic(sampledConfigurations,targetConfigurationsNumber):
@@ -203,7 +203,7 @@ def genetic(sampledConfigurations,targetConfigurationsNumber):
                     allow_duplicate_genes=False)
 
     instanceGA.run()
-    CalibrationConfigurations = instanceGA.best_solution()[0].reshape((-1,JOINTS_NUMBER))
+    CalibrationConfigurations = sampledConfigurations[instanceGA.best_solution()[0].reshape((-1,JOINTS_NUMBER))]
 
     print("Done !")
 
@@ -211,7 +211,7 @@ def genetic(sampledConfigurations,targetConfigurationsNumber):
     if(not os.path.isdir(os.getcwd() + "/genetic/")):
         os.mkdir(os.getcwd() + "/genetic/")
     with open(os.getcwd() + "/genetic/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
+        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
     
 def annealing(sampledConfigurations,targetConfigurationsNumber):
@@ -250,7 +250,7 @@ def annealing(sampledConfigurations,targetConfigurationsNumber):
     if(not os.path.isdir(os.getcwd() + "/annealing/")):
         os.mkdir(os.getcwd() + "/annealing/")
     with open(os.getcwd() + "/annealing/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.flatten().tolist()}, file)
+        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
 
 ### LOAD SAMPLED CONFIGURATIONS
