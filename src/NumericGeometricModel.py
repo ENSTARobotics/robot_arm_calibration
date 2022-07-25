@@ -23,7 +23,7 @@ if __name__ == "__main__":
 else:
     import re
     currentParameters = np.array(re.split('/|_',os.getcwd()))
-    currentParameters = currentParameters[np.where(currentParameters == "measurements")[0][0] + 1:]
+    currentParameters = currentParameters[np.where(currentParameters == "calibration")[0][0] + 1:]
     robotName = currentParameters[0]
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
