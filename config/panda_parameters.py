@@ -56,6 +56,7 @@ TToolN = np.array([[1,0,0,0],
                    [0,0,1,-d6],
                    [0,0,0,1]])
 
+#TODO REVIEW
 robotBasePlaneOffset = 0.00565
 robotBaseCenterOffset = np.array([0.011+0.127/2,0,0])
-robotBaseItemsNames = ["robotBase1","robotBase2","robotBase3","robotBase4","robotBase5","robotBase6"]
+robotBaseItemsNames = ["robotBase1","robotBase2","robotBase3","robotBase4","robotBase5","robotBase6","robotBase7"]
