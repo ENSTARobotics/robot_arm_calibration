@@ -59,9 +59,9 @@ from AnalyticGeometricModel import Jfunc
 ### RETREIVE NOMINAL PARAMETERS
 TBase0 = TBaseN
 
-TTool0 = np.empty((len(TTool0_marker),4,4))
-for j in range(len(TTool0_marker)):
-    TTool0[j] = np.dot(TToolN,TTool0_marker[j])
+TTool0 = np.empty((len(TToolN_marker),4,4))
+for j in range(len(TToolN_marker)):
+    TTool0[j] = np.dot(TToolN,TToolN_marker[j])
 
 PBase0 = TBase0[:3,-1]
 RBase0 = R.from_matrix(TBase0[:3,:3])
@@ -75,7 +75,7 @@ def random(sampledConfigurations,targetConfigurationsNumber):
 
     randomIndices = np.random.permutation(len(sampledConfigurations))
     CalibrationIndices = randomIndices[:targetConfigurationsNumber]
-    CalibrationConfigurations = sampledConfigurations[CalibrationIndices]
+    CalibrationConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
 
     print("Done !")
 
@@ -110,11 +110,9 @@ def greedy(sampledConfigurations,targetConfigurationsNumber):
 
     randomIndices = np.random.permutation(len(sampledConfigurations))
     CalibrationIndices = randomIndices[:targetConfigurationsNumber]
-    CalibrationConfigurations = sampledConfigurations[CalibrationIndices]
-
-    NotRemovedIndices = deepcopy(CalibrationIndices)
     RemainingIndices = randomIndices[targetConfigurationsNumber:]
 
+    CalibrationConfigurations = sampledConfigurations[CalibrationIndices]
     J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
     SVD = np.linalg.svd(J)[1]
     newScore = SVD[0]/SVD[-1]
@@ -149,7 +147,6 @@ def greedy(sampledConfigurations,targetConfigurationsNumber):
         if(score > prevScore):
             CalibrationIndices = np.delete(CalibrationIndices,-1)
             CalibrationIndices = np.append(CalibrationIndices,delIndex)
-            CalibrationConfigurations = sampledConfigurations[CalibrationIndices]
             RemainingIndices = np.delete(RemainingIndices,-1)
             RemainingIndices = np.append(RemainingIndices,addIndex)
         else:
@@ -158,6 +155,8 @@ def greedy(sampledConfigurations,targetConfigurationsNumber):
         print("New score : " + str(newScore))
 
     print("Done !")
+
+    CalibrationConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
 
     print("Saving optimized calibration configurations...")
     if(not os.path.isdir(os.getcwd() + "/greedy/")):
@@ -203,7 +202,7 @@ def genetic(sampledConfigurations,targetConfigurationsNumber):
                     allow_duplicate_genes=False)
 
     instanceGA.run()
-    CalibrationConfigurations = sampledConfigurations[instanceGA.best_solution()[0].reshape((-1,JOINTS_NUMBER))]
+    CalibrationConfigurations = sampledConfigurations[np.sort(instanceGA.best_solution()[0])].reshape((-1,JOINTS_NUMBER))
 
     print("Done !")
 
@@ -242,7 +241,7 @@ def annealing(sampledConfigurations,targetConfigurationsNumber):
     CCP.updates = 5
     result,_ = CCP.anneal()
 
-    CalibrationConfigurations = sampledConfigurations[result].reshape((-1,JOINTS_NUMBER))
+    CalibrationConfigurations = sampledConfigurations[np.sort(result)].reshape((-1,JOINTS_NUMBER))
 
     print("Done !")
 
@@ -273,12 +272,12 @@ selectionMethod = "random"
 try:
     selectionMethod = sys.argv[1]
 except:
-    print("No selection method given, defaulting to random")
+    print("No selection method given, defaulting to " + selectionMethod)
 
-targetConfigurationsNumber = 2*len(parameters0)
+targetConfigurationsNumber = int(2*len(parameters0)*(4/3))
 try:
     selectionMethod = sys.argv[2]
 except:
-    print("No target configurations number given, defaulting to " + str(2*len(parameters0)))
+    print("No target configurations number given, defaulting to " + str(targetConfigurationsNumber))
 
 locals()[selectionMethod.lower()](SampledCalibrationConfigurations,targetConfigurationsNumber)
