@@ -81,7 +81,7 @@ TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
 ### Create markers error
 
 TMarker = []
-for marker in TTool0_marker:
+for marker in TToolN_marker:
     TMarker.append(np.array([[1, 0, 0, np.random.uniform(-1,1)*0.001],
                              [0, 1, 0, np.random.uniform(-1,1)*0.001],
                              [0, 0, 1, np.random.uniform(-1,1)*0.001],
@@ -108,7 +108,7 @@ with open('GeneratedMeasurements.csv', 'w') as f:
     for q in Q:
         Tdelta = T(q,pi0+deltapi,np.dot(TBaseN,TBase),TToolN)
 
-        for i,marker in enumerate(TTool0_marker):
+        for i,marker in enumerate(TToolN_marker):
             TdeltaM = np.dot(Tdelta,np.dot(marker,TMarker[i])) 
             writer.writerow(TdeltaM[:3,-1])
 
@@ -122,7 +122,7 @@ with open('GeneratedErrors.csv', 'w') as f:
     writer.writerow(['TBase'])
     for row in np.dot(TBaseN,TBase):
         writer.writerow(row)
-    for i,marker in enumerate(TTool0_marker):
+    for i,marker in enumerate(TToolN_marker):
         writer.writerow(['TTool' + str(i+1)])
         for row in np.dot(TToolN,np.dot(marker,TMarker[i])):
             writer.writerow(row)

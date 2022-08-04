@@ -124,13 +124,13 @@ if(not os.path.exists(configPath + "Jacobian_" + robotName + "_" + markerName + 
     TBase[:3,3] = PBase
 
     TTool = []
-    for i,_ in enumerate(TTool0_marker):
+    for i,_ in enumerate(TToolN_marker):
         TTooli = sp.ones(4,1).as_mutable()
         TTooli[:3,0] = sp.MatrixSymbol("PTool"+str(i),3,1).as_mutable()
         TTool.append(TTooli)
 
     TTool = sp.Matrix.hstack(*TTool)
-    PTool = TTool[:3,:].T.reshape(3*len(TTool0_marker),1)
+    PTool = TTool[:3,:].T.reshape(3*len(TToolN_marker),1)
 
     pi = []
 
@@ -141,11 +141,11 @@ if(not os.path.exists(configPath + "Jacobian_" + robotName + "_" + markerName + 
         T = T*Tii
         pi.extend(pii)
     T = T*TTool
-    P = T[:3,:].T.reshape(3*len(TTool0_marker),1)
+    P = T[:3,:].T.reshape(3*len(TToolN_marker),1)
     print("Computation done !")
 
     pi = sp.Matrix(pi)
-    parameters = sp.Matrix.vstack(PBase,PhiBase,pi,TTool[:3,:].T.reshape(3*len(TTool0_marker),1))
+    parameters = sp.Matrix.vstack(PBase,PhiBase,pi,TTool[:3,:].T.reshape(3*len(TToolN_marker),1))
 
     print("Computing jacobian...")
     J = P.jacobian(parameters)
@@ -169,7 +169,7 @@ rawJfunc = dill.load(open(configPath + "Jacobian_" + robotName + "_" + markerNam
 rawPfunc = dill.load(open(configPath + "GeometricModel_" + robotName + "_" + markerName + ".pickle", "rb"))
 print("Done !")
 
-PARAMETERS_NUMBER = 6 + 3*len(TTool0_marker) + len(pi0)
+PARAMETERS_NUMBER = 6 + 3*len(TToolN_marker) + len(pi0)
 
 def Jfunc(parameters,q):
     J = rawJfunc(parameters,q)
