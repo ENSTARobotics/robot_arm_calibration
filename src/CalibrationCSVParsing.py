@@ -91,7 +91,7 @@ def robotBaseTransformation(Items):
 
     #Retrieve the robot base markers positions
     robotBase = np.array([filteredMean(Items[item],axis=0) for item in robotBaseItemsNames])
-    baseCentroid = np.mean(robotBase,axis=0)
+    baseCentroid = np.mean(robotBase[:-2],axis=0)
 
     #Find the plane normal
     z = np.dot(np.linalg.pinv(robotBase),np.ones(len(robotBase)))
@@ -100,28 +100,16 @@ def robotBaseTransformation(Items):
         z*=-1
 
     #Find the other axis
-    x = np.dot(np.linalg.pinv(robotBase[:3] + robotBase[3:]),np.ones(len(robotBase)//2))
+    x = (robotBase[-1] - robotBase[-2])
     x = x/np.linalg.norm(x)
-    if((np.dot(robotBase[:3] - baseCentroid,x) > 0).all()):
-        print((np.dot(robotBase[:3] - baseCentroid,x) > 0).all())
-        y = np.cross(z,x)
-    elif((np.dot(robotBase[:3] - baseCentroid,x) < 0).all()):
-        x*=-1
-        y = np.cross(z,x)
-    else:
-        y = x
-        if((np.dot(robotBase[[0,4,5]] - baseCentroid,x) > 0).all()):
-            x = np.cross(y,z)
-        else:
-            y*=-1
-            x = np.cross(y,z)
+    y = np.cross(z,x)
 
     #Retreive robot base transformation
     robotBaseTransformation = np.eye(4)
     robotBaseTransformation[:3,:3] = np.array([x,y,z])
     robotBaseTransformation[:3,-1] = -np.dot(robotBaseTransformation[:3,:3],baseCentroid)
     
-    return(robotBaseTransformation)
+    return(np.linalg.inv(robotBaseTransformation))
 
 def calibrationCSVParsing(itemsNames,calibrationCSVPath):
 
@@ -134,12 +122,12 @@ def calibrationCSVParsing(itemsNames,calibrationCSVPath):
             if(row[0]=="---"):
                 rowCounter = 0
             else:
+                currentRow = csvRowToArray(row)
                 if(np.shape(Items[itemsNames[rowCounter]]) == (0,0)):
-                    Items[itemsNames[rowCounter]] = np.array([csvRowToArray(row)])
+                    Items[itemsNames[rowCounter]] = np.array([currentRow])
                 else:
-                    Items[itemsNames[rowCounter]] = np.append(Items[itemsNames[rowCounter]],np.array([csvRowToArray(row)]),axis=0)
+                    Items[itemsNames[rowCounter]] = np.append(Items[itemsNames[rowCounter]],np.array([currentRow]),axis=0)
                 rowCounter+=1
-
     return(Items)
 
 def errorsCSVParsing(errorsCSVPath):
