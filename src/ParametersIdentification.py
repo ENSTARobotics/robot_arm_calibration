@@ -60,17 +60,12 @@ Items = calibrationCSVParsing(itemsNames,"Calibration.csv")
     
 TRobotBase = robotBaseTransformation(Items)
 
-identificationRatio = 2/3
-N_MEASUREMENTS = len(Items["jointsAngles"])
-N_LEARNING = int(np.floor(N_MEASUREMENTS*identificationRatio))
-N_TESTS = N_MEASUREMENTS - N_LEARNING
-
 ### ROBOT BASE AND REFERENCE POINTS TRANSFORMATIONS ESTIMATIONS
 TBase0 = np.dot(TRobotBase,TBaseN)
 
 TTool0 = np.empty((N_REFERENCEPOINTS,4,4))
 for j in range(N_REFERENCEPOINTS):
-    TTool0[j] = np.dot(TToolN,TToolN_marker[j])
+    TTool0[j] = np.dot(TFlangeN,TToolN_marker[j])
 
 PBase0 = TBase0[:3,-1]
 RBase0 = R.from_matrix(TBase0[:3,:3])
@@ -79,7 +74,18 @@ pi0 = pi0
 
 parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
 
+#print("Nominal values : ")
+#displayResults(parameters0)
+
 ### CREATING LEARNING AND TESTING SUBSETS
+
+identificationRatio = 3/4
+N_MEASUREMENTS = len(Items["jointsAngles"])
+N_LEARNING = max(int(np.floor(N_MEASUREMENTS*identificationRatio)),2*len(parameters0))
+N_TESTS = N_MEASUREMENTS - N_LEARNING
+
+print("Number of experiments : " + str(N_LEARNING))
+print("Number of tests : " + str(N_TESTS))
 
 print("Test on first measurement :")
 for i,item in enumerate(markerItemsNames):
@@ -300,12 +306,6 @@ def BFGS(parameters,Niterations):
 
 ### MAIN LOOP
 
-print("Number of experiments : " + str(N_LEARNING))
-print("Number of tests : " + str(N_TESTS))
-
-#print("Nominal values : ")
-#displayResults(parameters0)
-
 #Theorical values
 
 generated = input("Generated measurements ?")
@@ -380,7 +380,7 @@ calibratedModel["robotParameters"] = piFull.tolist()
 
 TTool = np.empty(np.shape(TToolN_marker))
 for i,P in enumerate(np.reshape(parameters[6+len(pi0):],(-1,3))):
-    TTool[i] = np.dot(TToolN,TToolN_marker[i])
+    TTool[i] = np.dot(TFlangeN,TToolN_marker[i])
     TTool[i][:3,-1] = P
     TTool[i] = np.dot(TTool[i],np.linalg.inv(TToolN_marker[i]))
 TTool = np.average(TTool,axis=0)

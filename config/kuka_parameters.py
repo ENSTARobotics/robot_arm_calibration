@@ -48,7 +48,7 @@ TBaseN = np.eye(4)
 TBaseN[2,-1] = d1
 
 #Nominal robot tool transformation
-TToolN = np.array([[0,0,1,d6],
+TFlangeN = np.array([[0,0,1,d6],
                    [0,-1,0,0],
                    [1,0,0,0],
                    [0,0,0,1]])

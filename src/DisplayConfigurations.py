@@ -69,7 +69,7 @@ TBase0 = TBaseN
 
 TTool0 = np.empty((len(TToolN_marker),4,4))
 for j in range(len(TToolN_marker)):
-    TTool0[j] = np.dot(TToolN,TToolN_marker[j])
+    TTool0[j] = np.dot(TFlangeN,TToolN_marker[j])
 
 PBase0 = TBase0[:3,-1]
 RBase0 = R.from_matrix(TBase0[:3,:3])

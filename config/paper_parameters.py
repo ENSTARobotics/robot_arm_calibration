@@ -31,4 +31,4 @@ pi0 = np.array([0,d,0,0,  #1
 TBaseN = np.eye(4)
 
 #Nominal robot tool transformation
-TToolN = np.eye(4)
+TFlangeN = np.eye(4)

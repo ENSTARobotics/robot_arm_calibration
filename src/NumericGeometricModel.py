@@ -275,13 +275,13 @@ def JpiT(q,pi,TBase=np.eye(4),TTool=np.eye(4)):
 ### DEBUG
 
 #q0 = np.zeros(JOINTS_NUMBER)
-#display(T(q0,pi0,TBaseN,TToolN))
-#plotRobot(q0,pi0,TBaseN,TToolN)
+#display(T(q0,pi0,TBaseN,TFlangeN))
+#plotRobot(q0,pi0,TBaseN,TFlangeN)
 #
 #q1 = np.zeros(JOINTS_NUMBER)
 #q1[0] = np.pi/4
-#display(T(q1,pi0,TBaseN,TToolN))
-#plotRobot(q1,pi0,TBaseN,TToolN)
+#display(T(q1,pi0,TBaseN,TFlangeN))
+#plotRobot(q1,pi0,TBaseN,TFlangeN)
 
 ### PERFORMANCES
 

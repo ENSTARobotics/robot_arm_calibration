@@ -64,7 +64,7 @@ TBase0 = np.dot(TRobotBase,TBaseN)
 
 TTool0 = np.empty((N_REFERENCEPOINTS,4,4))
 for j in range(N_REFERENCEPOINTS):
-    TTool0[j] = np.dot(TToolN,TToolN_marker[j])
+    TTool0[j] = np.dot(TFlangeN,TToolN_marker[j])
 
 PBase0 = TBase0[:3,-1]
 RBase0 = R.from_matrix(TBase0[:3,:3])

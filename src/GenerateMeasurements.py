@@ -106,7 +106,7 @@ with open('GeneratedMeasurements.csv', 'w') as f:
     writer = csv.writer(f)
 
     for q in Q:
-        Tdelta = T(q,pi0+deltapi,np.dot(TBaseN,TBase),TToolN)
+        Tdelta = T(q,pi0+deltapi,np.dot(TBaseN,TBase),TFlangeN)
 
         for i,marker in enumerate(TToolN_marker):
             TdeltaM = np.dot(Tdelta,np.dot(marker,TMarker[i])) 
@@ -124,5 +124,5 @@ with open('GeneratedErrors.csv', 'w') as f:
         writer.writerow(row)
     for i,marker in enumerate(TToolN_marker):
         writer.writerow(['TTool' + str(i+1)])
-        for row in np.dot(TToolN,np.dot(marker,TMarker[i])):
+        for row in np.dot(TFlangeN,np.dot(marker,TMarker[i])):
             writer.writerow(row)
