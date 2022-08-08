@@ -1,35 +1,9 @@
 #!/usr/bin/python3
 
 import numpy as np
+import os
 
-#Number of revolute joints
-JOINTS_NUMBER = 7
-
-#Joints axis index (x (1), y (2) or z (3))
-JOINTS_AXIS = [3,2,3,-2,3,-2,-3]
-
-#Angular offset at each joint (yes (1) or no (0))
-JOINTS_OFFSET = [0,1,1,1,1,1,0]
-
-#Links translations axis (along x (1), y (2) or z (3))
-LINKS_TRANSLATIONS = [[1,2],
-                      [1,3],
-                      [1,2],
-                      [1,3],
-                      [1,2],
-                      [1],
-                      []]
-
-#Links rotations axis (around x (1), y (2) or z (3))
-LINKS_ROTATIONS = [[3],
-                   [1],
-                   [1],
-                   [3],
-                   [3],
-                   [3],
-                   []]
-
-#Nominal parameters
+robotName = __file__.split("_")[0]
 
 d1 = 0.333
 d2 = 0.316
@@ -38,23 +12,28 @@ d4 = 0.384
 d5 = 0.088
 d6 = 0.107
 
-#Per line : deltaq, T, R
-pi0 = np.array([0,0,0,      #1
-                0,0,d2,0,   #2
-                0,d3,0,0,    #3
-                0,-d3,d4,0,   #4
-                0,0,0,0,    #5
-                0,d5,0])  #6
+#Per line : alpha, d, r, theta - Modified parameters convention !
+DHParameters = np.array([[0,0,d1,0],
+                         [-np.pi/2,0,0,0],
+                         [np.pi/2,0,d2,0],
+                         [np.pi/2,d3,0,0],
+                         [-np.pi/2,-d3,d4,0],
+                         [np.pi/2,0,0,0],
+                         [np.pi/2,d5,d6,0]])
 
-#Nominal robot base transformation
-TBaseN = np.eye(4)
-TBaseN[2,-1] = d1
+if(not os.path.exists(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_parameters.npy")):
+    from DHtoParameters import DHtoParameters
+    DHtoParameters(DHParameters,robotName)
 
-#Nominal robot tool transformation
-TToolN = np.array([[1,0,0,0],
-                   [0,-1,0,0],
-                   [0,0,1,-d6],
-                   [0,0,0,1]])
+with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_parameters.npy","rb") as file:
+    JOINTS_NUMBER = np.load(file, allow_pickle=True)
+    JOINTS_AXIS = np.load(file, allow_pickle=True)
+    JOINTS_OFFSET = np.load(file, allow_pickle=True)
+    LINKS_TRANSLATIONS = np.load(file, allow_pickle=True)
+    LINKS_ROTATIONS = np.load(file, allow_pickle=True)
+    pi0 = np.load(file, allow_pickle=True)
+    TBaseN = np.load(file, allow_pickle=True)
+    TFlangeN = np.load(file, allow_pickle=True)
 
 #TODO REVIEW
 robotBasePlaneOffset = 0.00565
