@@ -73,7 +73,7 @@ HT = np.array([[[0,0,0,1],
                 [0,0,0,0]]])
 
 def size(L):
-    if type(L) == list:
+    if type(L) == list or type(L) == np.ndarray:
         return(sum(size(l) for l in L))
     else:
         return(1) 

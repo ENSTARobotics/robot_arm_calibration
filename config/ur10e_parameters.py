@@ -34,13 +34,6 @@ with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_para
     TBaseN = np.load(file, allow_pickle=True)
     TFlangeN = np.load(file, allow_pickle=True)
 
-def size(L):
-    if type(L) == list or type(L) == np.ndarray:
-        return(sum(size(l) for l in L))
-    else:
-        return(1) 
-PARAMETERS_INDEX = np.array([sum(JOINTS_OFFSET[:i]) + size(LINKS_TRANSLATIONS[:i]) + size(LINKS_ROTATIONS[:i]) for i in range(JOINTS_NUMBER+1)])
-
 robotBasePlaneOffset = 0.00565
 robotBaseCenterOffset = np.array([0,0,0])
 robotBaseItemsNames = ["robotBase1","robotBase2","robotBase3","robotBase4","robotBase5","robotBase6","robotBase7"]
