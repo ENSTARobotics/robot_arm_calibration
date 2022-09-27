@@ -70,7 +70,7 @@ pi0 = pi0
 
 parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
 
-def random(sampledConfigurations,targetConfigurationsNumber):
+def random(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     print("Random selection...")
 
     randomIndices = np.random.permutation(len(sampledConfigurations))
@@ -86,7 +86,7 @@ def random(sampledConfigurations,targetConfigurationsNumber):
         yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
 
-def naive(sampledConfigurations,targetConfigurationsNumber):
+def naive(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     print("Naive selection...")
 
     naiveN = int(np.round(targetConfigurationsNumber/JOINTS_NUMBER))
@@ -105,8 +105,9 @@ def naive(sampledConfigurations,targetConfigurationsNumber):
         yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
 
-def greedy(sampledConfigurations,targetConfigurationsNumber):
+def greedy(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     print("Greedy algorithm...")
+    print("Maximum number of score function calls : " + str(callsNumber))
 
     randomIndices = np.random.permutation(len(sampledConfigurations))
     CalibrationIndices = randomIndices[:targetConfigurationsNumber]
@@ -118,14 +119,9 @@ def greedy(sampledConfigurations,targetConfigurationsNumber):
     newScore = SVD[0]/SVD[-1]
     prevScore = sys.float_info.max
 
-    count = 0
+    print("score " + str(1) + "/" + str(callsNumber) + " = " + str(newScore))
 
-    while(newScore < prevScore or count < 20):
-
-        if(newScore == prevScore):
-            count += 1
-        else:
-            count = 0
+    for i in range(callsNumber - 1):
 
         prevScore = newScore
 
@@ -152,7 +148,7 @@ def greedy(sampledConfigurations,targetConfigurationsNumber):
         else:
             newScore = score
 
-        print("New score : " + str(newScore))
+        print("score " + str(i+2) + "/" + str(callsNumber) + " = " + str(newScore))
 
     print("Done !")
 
@@ -165,15 +161,25 @@ def greedy(sampledConfigurations,targetConfigurationsNumber):
         yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
 
-def genetic(sampledConfigurations,targetConfigurationsNumber):
+def genetic(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     print("Genetic algorithm...")
 
     global counter
     counter = 0
-    maxIterations = 20
-    num_parents_mating = 4
-    maxCounter = maxIterations*num_parents_mating + samplingValue
+
+    sol_per_pop = 5*int(np.round(targetConfigurationsNumber*0.1/5))
+
+    product = callsNumber - sol_per_pop
+    decompositions = list(zip([d for d in range(2,int(np.sqrt(product))) if product % d == 0],[d for d in range(int(np.sqrt(product))+1,product) if product % d == 0][::-1]))
+
+    num_generations = decompositions[(len(decompositions)-1)//2][1]
+    num_parents_mating = sol_per_pop - decompositions[(len(decompositions)-1)//2][0]
+
+    maxCounter = num_generations*(sol_per_pop - num_parents_mating) + sol_per_pop
     print("Maximum number of score function calls : " + str(maxCounter))
+    print(sol_per_pop)
+    print(num_generations)
+    print(num_parents_mating)
 
     def fitnessFunction(solution,index):
         configurations = sampledConfigurations[solution].reshape((-1,JOINTS_NUMBER))
@@ -187,19 +193,14 @@ def genetic(sampledConfigurations,targetConfigurationsNumber):
 
         return(score)
 
-    instanceGA = GA(num_generations=maxIterations,
+    instanceGA = GA(num_generations=num_generations,
+                    sol_per_pop=sol_per_pop,
                     num_parents_mating=num_parents_mating,
-                    fitness_func=fitnessFunction,
-                    sol_per_pop=samplingValue,
                     num_genes=targetConfigurationsNumber,
-                    gene_type=int,
                     gene_space=np.arange(0,len(sampledConfigurations)),
-                    parent_selection_type="sss",
-                    keep_parents=1,
-                    crossover_type="single_point",
-                    mutation_type="random",
-                    mutation_percent_genes=10,
-                    allow_duplicate_genes=False)
+                    gene_type=int,
+                    allow_duplicate_genes=False,
+                    fitness_func=fitnessFunction)
 
     instanceGA.run()
     CalibrationConfigurations = sampledConfigurations[np.sort(instanceGA.best_solution()[0])].reshape((-1,JOINTS_NUMBER))
@@ -213,8 +214,13 @@ def genetic(sampledConfigurations,targetConfigurationsNumber):
         yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
     
-def annealing(sampledConfigurations,targetConfigurationsNumber):
+def annealing(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     print("Simulated annealing algorithm...")
+
+    global counter
+    counter = 0
+
+    print("Maximum number of score function calls : " + str(callsNumber))
 
     class CalibrationConfigurationsProblem(Annealer):
         def __init__(self):
@@ -234,10 +240,16 @@ def annealing(sampledConfigurations,targetConfigurationsNumber):
             configurations = sampledConfigurations[self.state]
             J = np.vstack([Jfunc(parameters0,q) for q in configurations])
             SVD = np.linalg.svd(J)[1]
-            return(SVD[0]/SVD[-1])
+            score = SVD[0]/SVD[-1]
+
+            global counter
+            counter+=1
+            print("score " + str(counter) + "/" + str(callsNumber) + " = " + str(score))
+
+            return(score)
 
     CCP = CalibrationConfigurationsProblem()
-    CCP.steps = 100
+    CCP.steps = callsNumber
     CCP.updates = 5
     result,_ = CCP.anneal()
 
@@ -274,10 +286,16 @@ try:
 except:
     print("No selection method given, defaulting to " + selectionMethod)
 
-targetConfigurationsNumber = int(2*len(parameters0)*(4/3))
+callsNumber = 150
 try:
-    selectionMethod = sys.argv[2]
+    callsNumber = sys.argv[2]
+except:
+    print("No iterations number given, defaulting to " + str(callsNumber))
+
+targetConfigurationsNumber = int(2*len(parameters0)*1.1)
+try:
+    selectionMethod = sys.argv[3]
 except:
     print("No target configurations number given, defaulting to " + str(targetConfigurationsNumber))
 
-locals()[selectionMethod.lower()](SampledCalibrationConfigurations,targetConfigurationsNumber)
+locals()[selectionMethod.lower()](SampledCalibrationConfigurations,targetConfigurationsNumber,callsNumber)

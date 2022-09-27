@@ -10,7 +10,9 @@ import yaml
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+from scipy.optimize import basinhopping
 import re
+import scipy.odr as odr
 
 ### GET CONFIG DIRECTORY PATH
 configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/"
@@ -79,34 +81,34 @@ parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
 
 ### CREATING LEARNING AND TESTING SUBSETS
 
-identificationRatio = 3/4
 N_MEASUREMENTS = len(Items["jointsAngles"])
-N_LEARNING = max(int(np.floor(N_MEASUREMENTS*identificationRatio)),2*len(parameters0))
-N_TESTS = N_MEASUREMENTS - N_LEARNING
+N_LEARNING = min(N_MEASUREMENTS,2*len(parameters0))
+N_TESTS = 0
 
 print("Number of experiments : " + str(N_LEARNING))
 print("Number of tests : " + str(N_TESTS))
 
-print("Test on first measurement :")
-for i,item in enumerate(markerItemsNames):
-    print("Reference point " + item)
-    print(Items[item][0])
-    print(Pfunc(parameters0,Items["jointsAngles"][0])[3*i:3*i+3].T[0])
-
-print("Press any key to continue")
-a = input()
+#print("Test on first measurement :")
+#for i,item in enumerate(markerItemsNames):
+#    print("Reference point " + item)
+#    print(Items[item][0])
+#    print(Pfunc(parameters0,Items["jointsAngles"][0])[3*i:3*i+3].T[0])
+#
+#print("Press any key to continue")
+#a = input()
 
 PijLear = np.empty((N_LEARNING,N_REFERENCEPOINTS,3))
 PijTest = np.empty((N_TESTS,N_REFERENCEPOINTS,3))
 
 randomIndices = np.random.permutation(N_LEARNING+N_TESTS)
+randomIndices = np.arange(N_LEARNING+N_TESTS)
 
 indexLear = randomIndices[:N_LEARNING]
 for i,item in enumerate(markerItemsNames):
     PijLear[:,i,:] = Items[item][indexLear]
 JointiLear = Items["jointsAngles"][indexLear]
 
-if(identificationRatio != 1):
+if(N_TESTS != 0):
     indexTest = randomIndices[-N_TESTS:]
     for i,item in enumerate(markerItemsNames):
         PijTest[:,i,:] = Items[item][indexTest]
@@ -130,53 +132,55 @@ def displayResults(parameters):
         TTool[:3,-1] = P
         display(TTool)
 
+def computeDeltaTest(parameters):
+    return(PijTest.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiTest]))
+
 def computeErrorTest(parameters):
-    return(np.linalg.norm(PijTest.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiTest])))
+    delta = computeDeltaTest(parameters)
+    return(np.dot(delta.T,delta))
+
+def computeDelta(parameters):
+    return(PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
 
 def computeError(parameters):  
-    return(np.linalg.norm(PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear])))
+    delta = computeDelta(parameters)
+    return(np.dot(delta.T,delta))
+
+def computeJacobian(parameters):
+    return(np.vstack([Jfunc(parameters,q) for q in JointiLear]))
+
+def computeGradient(parameters):
+    delta = PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear])
+    gradient = -2*np.dot(computeJacobian(parameters).T,delta)
+    #gradient /= np.linalg.norm(gradient)
+    return(gradient)
+
+def computeAlpha(parameters):
+    delta = computeDelta(parameters)
+    J = computeJacobian(parameters)
+    JtJ = np.dot(J,J.T)
+    alpha = np.dot(np.dot(delta.T,JtJ),delta)/(2*np.dot(np.dot(delta.T,np.dot(JtJ,JtJ)),delta))
+    return(alpha)
 
 def LLS(parameters,Niterations):
 
     print("LINEAR LEAST SQUARES")
 
-    Error = computeError(parameters)
-    print("Initial error : ")
-    print(Error)
-
-    if(identificationRatio != 1):
-        ErrorTest = computeErrorTest(parameters)
-        print("Initial test error : ")
-        print(ErrorTest)
-
     for i in range(Niterations):
 
         print("Iteration " + str(i+1) + "/" + str(Niterations))
 
-        J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
-        Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
-
-        parameters += np.dot(np.linalg.pinv(J),Delta)
-
-        #displayResults(parameters)
+        parameters += np.dot(np.linalg.pinv(computeJacobian(parameters)),computeDelta(parameters))
 
         #Intermediate error
-        Error = computeError(parameters)
+        error = computeError(parameters)
         print("Intermediate error : ")
-        print(Error)
+        print(error)
 
-        if(identificationRatio != 1):
-            ErrorTest = computeErrorTest(parameters)
+        if(N_TESTS != 0):
+            errorTest = computeErrorTest(parameters)
             print("Intermediate test error : ")
-            print(ErrorTest)
-
-    #Final error
-    print("Final error : ")
-    print(Error)
-
-    if(identificationRatio != 1):
-        print("Final test error :")
-        print(ErrorTest)
+            print(errorTest)
 
     return(parameters)
 
@@ -184,37 +188,22 @@ def GD(parameters,Niterations):
 
     print("GRADIENT DESCENT")
 
-    Einit = computeError(parameters)
-    print("Initial error : ")
-    print(Einit)
-
     for i in range(Niterations):
 
         print("Iteration " + str(i+1) + "/" + str(Niterations))
 
-        J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
-        Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
-
-        gradient = -2*np.dot(J.T,Delta)
-        gradient /= np.linalg.norm(gradient)
-
-        JtJ = np.dot(J,J.T)
-        alpha = np.dot(np.dot(Delta.T,JtJ),Delta)/(2*np.dot(np.dot(Delta.T,np.dot(JtJ,JtJ)),Delta))
-        print("alpha = ")
-        print(alpha)
-    
-        parameters -= alpha*gradient
-
-        #displayResults(parameters)
+        alpha = computeAlpha(parameters)
+        parameters -= alpha*computeGradient(parameters)
 
         #Intermediate error
-        Einter = computeError(parameters)
+        error = computeError(parameters)
         print("Intermediate error : ")
-        print(Einter)
+        print(error)
 
-    #Final error
-    Efinal = computeError(parameters)
-    print(Efinal)
+        if(N_TESTS != 0):
+            errorTest = computeErrorTest(parameters)
+            print("Intermediate test error : ")
+            print(errorTest)
 
     return(parameters)
 
@@ -222,35 +211,27 @@ def LM(parameters,Niterations):
 
     print("LEVENBERG-MARQUARDT ALGORITHM")
 
-    Einit = computeError(parameters)
-    print("Initial error : ")
-    print(Einit)
-
     for i in range(Niterations):
 
         print("Iteration " + str(i+1) + "/" + str(Niterations))
 
-        J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
-        Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
-
+        delta = computeDelta(parameters)
+        J = computeJacobian(parameters)
         JtJ = np.dot(J,J.T)
-        alpha = np.dot(np.dot(Delta.T,JtJ),Delta)/(2*np.dot(np.dot(Delta.T,np.dot(JtJ,JtJ)),Delta))
-        print("alpha = ")
-        print(alpha)
+        alpha = np.dot(np.dot(delta.T,JtJ),delta)/(2*np.dot(np.dot(delta.T,np.dot(JtJ,JtJ)),delta))
 
         tJJ = np.dot(J.T,J)
-        parameters += np.dot(np.linalg.inv(tJJ + alpha*np.diag(np.diag(tJJ))),np.dot(J.T,Delta))
-
-        #displayResults(parameters)
+        parameters += np.dot(np.linalg.inv(tJJ + alpha*np.diag(np.diag(tJJ))),np.dot(J.T,delta))
 
         #Intermediate error
-        Einter = computeError(parameters)
+        error = computeError(parameters)
         print("Intermediate error : ")
-        print(Einter)
+        print(error)
 
-    #Final error
-    Efinal = computeError(parameters)
-    print(Efinal)
+        if(N_TESTS != 0):
+            errorTest = computeErrorTest(parameters)
+            print("Intermediate test error : ")
+            print(errorTest)
 
     return(parameters)
 
@@ -258,15 +239,11 @@ def BFGS(parameters,Niterations):
     
     print("BFGS ALGORITHM")
 
-    Einit = computeError(parameters)
-    print("Initial error : ")
-    print(Einit)
-
     B = np.eye(len(parameters))
-    J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
-    Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
 
-    gradient = -2*np.dot(J.T,Delta)
+    delta = computeDelta(parameters)
+    J = computeJacobian(parameters)
+    gradient = -2*np.dot(J.T,delta)
 
     for i in range(Niterations):
 
@@ -276,31 +253,53 @@ def BFGS(parameters,Niterations):
         d = -np.dot(np.linalg.inv(B),gradient)
 
         #Find learning rate
-        alpha = np.dot(np.dot(Delta.T,J),d)/np.dot(np.dot(np.dot(d.T,J.T),J),d)
+        alpha = np.dot(np.dot(delta.T,J),d)/np.dot(np.dot(np.dot(d.T,J.T),J),d)
 
         #Update parameters
         deltaParameters = alpha*d
         parameters += deltaParameters
 
-        J = np.vstack([Jfunc(parameters,q) for q in JointiLear])
-        Delta = (PijLear.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in JointiLear]))
+        delta = computeDelta(parameters)
+        J = computeJacobian(parameters)
 
         prevGradient = deepcopy(gradient)
-        gradient = -2*np.dot(J.T,Delta)
+        gradient = -2*np.dot(J.T,delta)
 
         deltaGradient = np.array([gradient - prevGradient]).T
         B += np.dot(deltaGradient,deltaGradient.T)/np.dot(deltaGradient.T,deltaParameters) - np.dot(np.dot(np.dot(B,deltaParameters),deltaParameters.T),B)/np.dot(np.dot(deltaParameters.T,B),deltaParameters)
 
-        #displayResults(parameters)
-
         #Intermediate error
-        Einter = computeError(parameters)
+        error = computeError(parameters)
         print("Intermediate error : ")
-        print(Einter)
+        print(error)
 
-    #Final error
-    Efinal = computeError(parameters)
-    print(Efinal)
+        if(N_TESTS != 0):
+            errorTest = computeErrorTest(parameters)
+            print("Intermediate test error : ")
+            print(errorTest)
+
+    return(parameters)
+
+def BH(parameters,Niterations):
+    print("BASIN-HOPPING ALGORITHM WITH BFGS")
+
+    def function(parameters):
+        return(computeError(parameters),computeGradient(parameters))
+
+    def callback(x,f,accept):
+        #Intermediate error
+        print("Intermediate error : ")
+        print(f)
+
+        if(N_TESTS != 0):
+            errorTest = computeErrorTest(x)
+            print("Intermediate test error : ")
+            print(errorTest)
+
+        return(accept)
+
+    result = basinhopping(function,x0=np.zeros(len(parameters0)),niter=Niterations,stepsize=10,minimizer_kwargs={"method":"L-BFGS-B","jac":True},disp=True,callback=callback)
+    parameters = result.x
 
     return(parameters)
 
@@ -308,7 +307,8 @@ def BFGS(parameters,Niterations):
 
 #Theorical values
 
-generated = input("Generated measurements ?")
+#generated = input("Generated measurements ?")
+generated = "n"
 if(generated == "y"):
     parametersTH = errorsCSVParsing('GeneratedErrors.csv')
     print("Theorical values")
@@ -318,19 +318,39 @@ if(generated == "y"):
     print("Theorical test error")
     print(computeErrorTest(parametersTH))
 
-Niterations = 5
-try : 
-    Niterations = int(sys.argv[1])
-except:
-    print("No iterations number given, defaulting to " + str(Niterations))
-
 optimizationMethod = "LLS"
 try : 
-    optimizationMethod = sys.argv[2]
+    optimizationMethod = sys.argv[1]
 except:
     print("No optimization method given, defaulting to " + optimizationMethod)
 
+Niterations = 5
+try : 
+    Niterations = int(sys.argv[2])
+except:
+    print("No iterations number given, defaulting to " + str(Niterations))
+
+#Initial error
+error = computeError(parameters0)
+print("Initial error : ")
+print(error)
+
+if(N_TESTS != 0):
+    errorTest = computeErrorTest(parameters0)
+    print("Initial test error : ")
+    print(errorTest)
+
 parameters = locals()[optimizationMethod.upper()](parameters0,Niterations)
+
+#Final error
+error = computeError(parameters)
+print("Final error : ")
+print(error)
+
+if(N_TESTS != 0):
+    errorTest = computeErrorTest(parameters)
+    print("Final test error :")
+    print(errorTest)
 
 ### FILL ROBOT CALIBRATED MODEL
 
@@ -339,7 +359,7 @@ print("Saving robot calibrated model...")
 calibratedModel = {}
 
 #Joints axis
-calibratedModel["jointsAxis"] = JOINTS_AXIS
+calibratedModel["jointsAxis"] = JOINTS_AXIS.tolist()
 
 #Robot base
 PBase = np.array([parameters[:3]]).T
