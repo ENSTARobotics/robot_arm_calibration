@@ -3,7 +3,7 @@
 import numpy as np
 import os
 
-robotName = __file__.split("_")[0]
+robotName = os.path.basename(__file__).split("_")[0]
 
 d1 = 0.333
 d2 = 0.316
@@ -35,7 +35,5 @@ with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_para
     TBaseN = np.load(file, allow_pickle=True)
     TFlangeN = np.load(file, allow_pickle=True)
 
-#TODO REVIEW
-robotBasePlaneOffset = 0.00565
-robotBaseCenterOffset = np.array([0.011+0.127/2,0,0])
+robotBaseCenterOffset = np.array([(0.120/2) - 0.020 + 0.011,0,0.00565])
 robotBaseItemsNames = ["robotBase1","robotBase2","robotBase3","robotBase4","robotBase5","robotBase6","robotBase7"]

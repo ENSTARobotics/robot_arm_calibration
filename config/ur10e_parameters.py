@@ -34,8 +34,7 @@ with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_para
     TBaseN = np.load(file, allow_pickle=True)
     TFlangeN = np.load(file, allow_pickle=True)
 
-robotBasePlaneOffset = 0.00565
-robotBaseCenterOffset = np.array([0,0,0])
+robotBaseCenterOffset = np.array([0,0,0.00565])
 robotBaseItemsNames = ["robotBase1","robotBase2","robotBase3","robotBase4","robotBase5","robotBase6","robotBase7"]
 
 #Joints angles limits
