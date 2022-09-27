@@ -88,7 +88,18 @@ def modAngle(angle):
 ### CSV PARSING
 
 def robotBaseTransformation(Items):
-
+    
+    # ________________________
+    #|(6)                  (1)|
+    #|                 (7)    |
+    #|                        |
+    #|           _|_ (2)      |  
+    #|      (5)   |           |      Y
+    #|                        |      |
+    #|                        |     -|-- X
+    #|(4)__________________(3)|          
+    #           
+        
     #Retrieve the robot base markers positions
     robotBase = np.array([filteredMean(Items[item],axis=0) for item in robotBaseItemsNames])
     baseCentroid = np.mean(robotBase[:-2],axis=0)
@@ -100,14 +111,14 @@ def robotBaseTransformation(Items):
         z*=-1
 
     #Find the other axis
-    x = (robotBase[-1] - robotBase[-2])
+    x = (robotBase[0] - robotBase[5])
     x = x/np.linalg.norm(x)
     y = np.cross(z,x)
 
     #Retreive robot base transformation
     robotBaseTransformation = np.eye(4)
     robotBaseTransformation[:3,:3] = np.array([x,y,z])
-    robotBaseTransformation[:3,-1] = -np.dot(robotBaseTransformation[:3,:3],baseCentroid)
+    robotBaseTransformation[:3,-1] = - np.dot(robotBaseTransformation[:3,:3],baseCentroid) - robotBaseCenterOffset
     
     return(np.linalg.inv(robotBaseTransformation))
 
