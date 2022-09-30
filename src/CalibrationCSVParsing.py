@@ -102,7 +102,7 @@ def robotBaseTransformation(Items):
         
     #Retrieve the robot base markers positions
     robotBase = np.array([filteredMean(Items[item],axis=0) for item in robotBaseItemsNames])
-    baseCentroid = np.mean(robotBase[:-2],axis=0)
+    baseCentroid = np.mean(robotBase[:-1],axis=0)
 
     #Find the plane normal
     z = np.dot(np.linalg.pinv(robotBase),np.ones(len(robotBase)))
@@ -116,11 +116,19 @@ def robotBaseTransformation(Items):
     y = np.cross(z,x)
 
     #Retreive robot base transformation
-    robotBaseTransformation = np.eye(4)
-    robotBaseTransformation[:3,:3] = np.array([x,y,z])
-    robotBaseTransformation[:3,-1] = - np.dot(robotBaseTransformation[:3,:3],baseCentroid) - robotBaseCenterOffset
     
-    return(np.linalg.inv(robotBaseTransformation))
+    #Interpolated frame (C) to OptiTrack reference frame (W)
+    TWC = np.eye(4)
+    TWC[:3,:3] = np.array([x,y,z]).T
+    TWC[:3,-1] = baseCentroid
+
+    #Robot base frame (R) to interpolated frame (C)
+    TCR = robotBaseOffset
+
+    #Robot base frame(R) to Optitrack reference frame (W)
+    robotBaseTransformation = np.dot(TWC,TCR)
+   
+    return(robotBaseTransformation)
 
 def calibrationCSVParsing(itemsNames,calibrationCSVPath):
 

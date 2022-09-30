@@ -35,5 +35,8 @@ with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_para
     TBaseN = np.load(file, allow_pickle=True)
     TFlangeN = np.load(file, allow_pickle=True)
 
-robotBaseCenterOffset = np.array([(0.120/2) - 0.020 + 0.011,0,0.00565])
+robotBaseOffset = np.array([[0,-1,0,0],
+                            [1,0,0,(0.120/2) - 0.020 + 0.011],
+                            [0,0,1,0.00565],
+                            [0,0,0,1]])
 robotBaseItemsNames = ["robotBase1","robotBase2","robotBase3","robotBase4","robotBase5","robotBase6","robotBase7"]
