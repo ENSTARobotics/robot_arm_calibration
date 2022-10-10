@@ -12,6 +12,8 @@ import glob
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 import re
+from functools import reduce
+import matplotlib.pyplot as plt
 
 ### GET CONFIG DIRECTORY PATH
 configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/"
@@ -51,7 +53,7 @@ except:
 
 #Custom packages
 from CalibrationCSVParsing import calibrationCSVParsing,robotBaseTransformation
-from AnalyticGeometricModel import Pfunc
+from AnalyticGeometricModel import Pfunc,Jfunc
 
 ### RETRIEVE MEASUREMENTS DATA
 
@@ -59,26 +61,8 @@ itemsNames = robotBaseItemsNames + markerItemsNames + ["jointsAngles"]
 
 # Uncalibrated data
 
-testingSamplingMethod = "naive"
-try:
-    testingSamplingMethod = sys.argv[1]
-except:
-    print("No testing sampling method provided, defaulting to " + testingSamplingMethod)
-
-solvingMethod = "LLS"
-try:
-    solvingMethod = sys.argv[2]
-except:
-    print("No solving method provided, defaulting to " + solvingMethod)
-
-solvingIterations = 5
-try:
-    solvingIterations = int(sys.argv[3])
-except:
-    print("Invalid solving iterations number provided, defaulting to " + solvingIterations)
-
-fileName = glob.glob("/".join(os.getcwd().split("/")[:-1]) + "/testing_" + testingSamplingMethod + "_*/measurements/Calibration.csv")[0]
-Items0 = calibrationCSVParsing(itemsNames, fileName)
+testingSamplingMethod = input("Testing sampling method ? " + str(["_".join(folder.split("_")[1:])[:-1] for folder in glob.glob("testing_*/")]))
+Items0 = calibrationCSVParsing(itemsNames, "testing_" + testingSamplingMethod + "/measurements/Calibration.csv")
 
 TRobotBase = robotBaseTransformation(Items0)
 
@@ -95,42 +79,65 @@ pi0 = pi0
 
 parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
 
-Jointi = Items0["jointsAngles"]
-Pij = np.empty((len(Jointi),N_REFERENCEPOINTS,3))
+Jointi0 = Items0["jointsAngles"]
+Pij0 = np.empty((len(Jointi0),N_REFERENCEPOINTS,3))
 for i,item in enumerate(markerItemsNames):
-    Pij[:,i,:] = Items0[item]
+    Pij0[:,i,:] = Items0[item]
 
-def computeGlobalDelta(parameters):
+def computeGlobalDelta(parameters,Pij=Pij0,Jointi=Jointi0):
     return(Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
 
-def computeGlobalError(parameters):  
-    delta = computeGlobalDelta(parameters)
+def computeGlobalError(parameters,Pij=Pij0,Jointi=Jointi0):
+    delta = computeGlobalDelta(parameters,Pij,Jointi)
     return(np.dot(delta.T,delta))
 
-def computeLocalDelta(parameters,referencePointIndex,configurationIndex):
+def computeLocalDelta(parameters,referencePointIndex,configurationIndex,Pij=Pij0,Jointi=Jointi0):
     return(Pij[configurationIndex,referencePointIndex].flatten() - Pfunc(parameters,Jointi[configurationIndex]).flatten()[3*referencePointIndex:3*referencePointIndex+3])
 
-def computeLocalError(parameters,referencePointIndex,configurationIndex):
-    delta = computeLocalDelta(parameters,referencePointIndex,configurationIndex)
+def computeLocalError(parameters,referencePointIndex,configurationIndex,Pij=Pij0,Jointi=Jointi0):
+    delta = computeLocalDelta(parameters,referencePointIndex,configurationIndex,Pij,Jointi)
     return(np.dot(delta.T,delta))
 
 # Calibrated data
+learningSamplingMethod = [folder[:-1] for folder in glob.glob("*/") if folder.split("_")[0] != "testing"]
+tmpInput = input("Learning configurations sampling methods ? " + str(learningSamplingMethod))
+learningSamplingMethod = tmpInput.split(" ") if tmpInput != "*" else learningSamplingMethod
+foldersNames = np.array([["/".join(folder.split("/")[1:])[:-1] for folder in glob.glob(method + "/*/measurements/*/")] for method in learningSamplingMethod])
+foldersNames = reduce(np.intersect1d, foldersNames)
 
-foldersNames = glob.glob(os.getcwd()+"/*/")
+learningChoiceMethods = np.unique(np.array([folder.split("/")[0] for folder in foldersNames]))
+tmpInput = input("Learning configurations choice methods ? " + str(learningChoiceMethods))
+learningChoiceMethods = tmpInput.split(" ") if tmpInput != "*" else learningChoiceMethods
+foldersNames = np.array([folder for folder in foldersNames if folder.split("/")[0] in learningChoiceMethods])
 
-Parameters = []
-Labels = []
+identificationMethods = np.unique(np.array([folder.split("/")[-1] for folder in foldersNames]))
+tmpInput = input("Parameters identification methods ? " + str(identificationMethods))
+identificationMethods = tmpInput.split(" ") if tmpInput != "*" else identificationMethods
+foldersNames = np.array([folder for folder in foldersNames if folder.split("/")[-1] in identificationMethods])
+
+foldersNames = np.concatenate([np.array([method+"/"+folder for folder in foldersNames]) for method in learningSamplingMethod])
+
+learningScores = False
+tmpInput = input("Compute learning scores values ? y/n")
+learningScores = True if tmpInput == "y" else False
+
+previousChoiceMethod = ""
+
+fig,ax = plt.subplots()
+
+localError = np.empty((len(Jointi0),N_REFERENCEPOINTS))
+for i,item in enumerate(markerItemsNames):
+    for j,joint in enumerate(Jointi0):
+        localError[j,i] = computeLocalError(parameters0,i,j)
+sumLocalError = np.sum(localError,axis=1)
+ax.plot(np.arange(1,len(Jointi0)+1), sumLocalError, label="uncalibrated")
+print("Testing error raw : " + str(computeGlobalError(parameters0)))
 
 for folder in foldersNames:
-    print("Loading robot calibrated model with method " + folder.split("/")[-2] + " ...")
 
-    try:
-        with open(folder + "measurements/" + solvingMethod.upper() + "_" + str(solvingIterations) + "/CalibratedModel.yaml",'r') as file:
-            calibratedModel = yaml.load(file, Loader=yaml.FullLoader)
-        print("Done !")
-    except:
-        print("Cannot find calibrated model with method " + folder.split("/")[-2] + " - Skipping to next method")
-        continue
+    label = folder.split("/")[0] + " " + folder.split("/")[1] + " " + folder.split("/")[3]
+    with open(folder + "/CalibratedModel.yaml",'r') as file:
+        calibratedModel = yaml.load(file, Loader=yaml.FullLoader)
 
     TBase = np.dot(TRobotBase,np.array(calibratedModel["robotBase"]).reshape((4,4)))
 
@@ -143,37 +150,37 @@ for folder in foldersNames:
     PTool = TTool[:,:3,-1]
     pi = np.array(calibratedModel["robotParameters"])[np.array(calibratedModel["robotParameters"]) != 0]
 
-    Parameters.append(np.hstack((PBase,R.as_euler(RBase,"xyz"),pi,PTool.flatten())))
-    Labels.append(folder.split("/")[-2])
+    parameters = np.hstack((PBase,R.as_euler(RBase,"xyz"),pi,PTool.flatten()))
 
-### GLOBAL ERROR
-
-#print("Global error : ")
-#print(computeGlobalError())
-#print(computeGlobalError0())
-
-### LOCAL ERROR
-import matplotlib.pyplot as plt
-fig,ax = plt.subplots()
-
-for n,parameters in enumerate(Parameters):
-    localError = np.empty((len(Jointi),N_REFERENCEPOINTS))
+    localError = np.empty((len(Jointi0),N_REFERENCEPOINTS))
     for i,item in enumerate(markerItemsNames):
-        for j,joint in enumerate(Jointi):
+        for j,joint in enumerate(Jointi0):
             localError[j,i] = computeLocalError(parameters,i,j)
     sumLocalError = np.sum(localError,axis=1)
-    ax.plot(np.arange(1,len(Jointi)+1), sumLocalError, label=Labels[n])
-    print("Total error " + Labels[n] + " : " + str(computeGlobalError(parameters)))
+    ax.plot(np.arange(1,len(Jointi0)+1), sumLocalError, label=label)
+    print("Testing error for " + label + " : " + str(computeGlobalError(parameters)))
 
-localError = np.empty((len(Jointi),N_REFERENCEPOINTS))
-for i,item in enumerate(markerItemsNames):
-    for j,joint in enumerate(Jointi):
-        localError[j,i] = computeLocalError(parameters0,i,j)
-sumLocalError = np.sum(localError,axis=1)
-ax.plot(np.arange(1,len(Jointi)+1), sumLocalError, label="uncalibrated")
-print("Total error raw : " + str(computeGlobalError(parameters0)))
+    if(learningScores):
+        if(folder.split("/")[1] != previousChoiceMethod):
+            previousChoiceMethod = folder.split("/")[1]
+
+            Items = calibrationCSVParsing(itemsNames, folder.split("/")[0] + "/" + folder.split("/")[1] + "/measurements/Calibration.csv")
+
+            Jointi = Items["jointsAngles"]
+            Pij = np.empty((len(Jointi),N_REFERENCEPOINTS,3))
+            for i,item in enumerate(markerItemsNames):
+                Pij[:,i,:] = Items[item]
+
+            J = np.vstack([Jfunc(parameters0,q) for q in Jointi])
+            SVD = np.linalg.svd(J)[1]
+            score = SVD[0]/SVD[-1]
+
+            print("Identifiability score for " + folder.split("/")[0] + " " + previousChoiceMethod + " : " + str(score))
+            print("Initial learning error for " + folder.split("/")[0] + " " + previousChoiceMethod + " : " + str(computeGlobalError(parameters0,Pij,Jointi)))
+    
+    print("Final learning error for " + label + " : " + str(computeGlobalError(parameters,Pij,Jointi))) 
+
 plt.xlabel("Measurements")
-plt.ylabel("Total error over the markers (m)")
+plt.ylabel("Testing error over the markers (m)")
 plt.legend()
-
 plt.show()

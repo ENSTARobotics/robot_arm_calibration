@@ -420,7 +420,7 @@ calibratedModel["toolReferencesNumber"] = len(TToolN_marker)
 """
 
 if(not os.path.isdir(os.getcwd() + "/" + optimizationMethod.upper() + "_" + str(Niterations) + "/")):
-        os.mkdir(os.getcwd() + "/" + optimizationMethod.upper() + "_" + str(Niterations) + "/")
+    os.mkdir(os.getcwd() + "/" + optimizationMethod.upper() + "_" + str(Niterations) + "/")
 with open(os.getcwd() + "/" + optimizationMethod.upper() + "_" + str(Niterations) + "/CalibratedModel.yaml",'w') as file:
     yaml.dump(calibratedModel, file)
 print("Done !")
