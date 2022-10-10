@@ -56,6 +56,26 @@ except:
 #Custom packages
 from AnalyticGeometricModel import Jfunc
 
+### SORTING FUNCTION
+
+def sortConfigurations(configurations):
+    if(np.shape(configurations)[1] == 1):
+        return(np.sort(configurations))
+    else:
+        sortedConfigurations = configurations[np.argsort(configurations[:,0])]
+        uniqueValues = np.unique(sortedConfigurations[:,0])
+
+        previousIndex = 0
+        nextIndex = previousIndex
+        output = np.empty((0,len(sortedConfigurations[0])-1))
+
+        for value in uniqueValues:
+            nextIndex = np.where(sortedConfigurations[:,0] == value)[0][-1] + 1
+            output = np.vstack((output,sortConfigurations(sortedConfigurations[previousIndex:nextIndex,1:])))
+            previousIndex = nextIndex
+
+        return(np.hstack((np.array([sortedConfigurations[:,0]]).T,output)))
+
 ### RETREIVE NOMINAL PARAMETERS
 TBase0 = TBaseN
 
@@ -77,14 +97,14 @@ def random(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     CalibrationIndices = randomIndices[:targetConfigurationsNumber]
     CalibrationConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
 
-    print("Done !")
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    SVD = np.linalg.svd(J)[1]
+    score = SVD[0]/SVD[-1]
 
-    print("Saving optimized calibration configurations...")
-    if(not os.path.isdir(os.getcwd() + "/random/")):
-        os.mkdir(os.getcwd() + "/random/")
-    with open(os.getcwd() + "/random/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
+    print("score 1/1 = " + str(score))
+
     print("Done !")
+    return(CalibrationConfigurations)
 
 def naive(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     print("Naive selection...")
@@ -97,13 +117,7 @@ def naive(sampledConfigurations,targetConfigurationsNumber,callsNumber):
             CalibrationConfigurations[i*naiveN + j][i] =  jointsLowerLimits[i] + (jointsUpperLimits[i] - jointsLowerLimits[i])*j/(naiveN-1)
 
     print("Done !")
-
-    print("Saving optimized calibration configurations...")
-    if(not os.path.isdir(os.getcwd() + "/naive/")):
-        os.mkdir(os.getcwd() + "/naive/")
-    with open(os.getcwd() + "/naive/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
-    print("Done !")
+    return(CalibrationConfigurations)
 
 def greedy(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     print("Greedy algorithm...")
@@ -150,16 +164,10 @@ def greedy(sampledConfigurations,targetConfigurationsNumber,callsNumber):
 
         print("score " + str(i+2) + "/" + str(callsNumber) + " = " + str(newScore))
 
-    print("Done !")
-
     CalibrationConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
 
-    print("Saving optimized calibration configurations...")
-    if(not os.path.isdir(os.getcwd() + "/greedy/")):
-        os.mkdir(os.getcwd() + "/greedy/")
-    with open(os.getcwd() + "/greedy/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
     print("Done !")
+    return(CalibrationConfigurations)
 
 def genetic(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     print("Genetic algorithm...")
@@ -206,13 +214,7 @@ def genetic(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     CalibrationConfigurations = sampledConfigurations[np.sort(instanceGA.best_solution()[0])].reshape((-1,JOINTS_NUMBER))
 
     print("Done !")
-
-    print("Saving optimized calibration configurations...")
-    if(not os.path.isdir(os.getcwd() + "/genetic/")):
-        os.mkdir(os.getcwd() + "/genetic/")
-    with open(os.getcwd() + "/genetic/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
-    print("Done !")
+    return(CalibrationConfigurations)
     
 def annealing(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     print("Simulated annealing algorithm...")
@@ -256,13 +258,7 @@ def annealing(sampledConfigurations,targetConfigurationsNumber,callsNumber):
     CalibrationConfigurations = sampledConfigurations[np.sort(result)].reshape((-1,JOINTS_NUMBER))
 
     print("Done !")
-
-    print("Saving optimized calibration configurations...")
-    if(not os.path.isdir(os.getcwd() + "/annealing/")):
-        os.mkdir(os.getcwd() + "/annealing/")
-    with open(os.getcwd() + "/annealing/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
-    print("Done !")
+    return(CalibrationConfigurations)
 
 ### LOAD SAMPLED CONFIGURATIONS
 samplingMethod = currentParameters[2]
@@ -292,10 +288,17 @@ try:
 except:
     print("No iterations number given, defaulting to " + str(callsNumber))
 
-targetConfigurationsNumber = int(2*len(parameters0)*1.1)
+targetConfigurationsNumber = int(np.round(2*len(parameters0)*1.0))  #1.1 ?
 try:
     selectionMethod = sys.argv[3]
 except:
     print("No target configurations number given, defaulting to " + str(targetConfigurationsNumber))
 
-locals()[selectionMethod.lower()](SampledCalibrationConfigurations,targetConfigurationsNumber,callsNumber)
+CalibrationConfigurations = sortConfigurations(locals()[selectionMethod.lower()](SampledCalibrationConfigurations,targetConfigurationsNumber,callsNumber))
+
+print("Saving optimized calibration configurations...")
+if(not os.path.isdir(os.getcwd() + "/" + selectionMethod.lower() + "/")):
+    os.mkdir(os.getcwd() + "/" + selectionMethod.lower() + "/")
+with open(os.getcwd() + "/" + selectionMethod.lower() + "/CalibrationConfigurations.yaml",'w') as file:
+    yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist()}, file)
+print("Done !")
