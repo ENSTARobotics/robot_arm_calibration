@@ -39,7 +39,3 @@ robotBaseOffset = np.array([[1,0,0,0],
                             [0,0,1,0.00565],
                             [0,0,0,1]])
 robotBaseItemsNames = ["robotBase1","robotBase2","robotBase3","robotBase4","robotBase5","robotBase6","robotBase7"]
-
-#Joints angles limits
-jointsLowerLimits = np.array([-np.pi, -np.pi, -3*np.pi/4, -np.pi, -3*np.pi/4, -np.pi])
-jointsUpperLimits = np.array([np.pi, 0, 3*np.pi/4, np.pi, 3*np.pi/4, np.pi])
