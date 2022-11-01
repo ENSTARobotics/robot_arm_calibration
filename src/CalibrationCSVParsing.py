@@ -87,6 +87,11 @@ def modAngle(angle):
 
 ### CSV PARSING
 
+def planeProjection(point,planeNormal,planePoint):
+    v = point - planePoint
+    dist = np.dot(planeNormal,v)
+    return(point - dist*planeNormal)
+
 def robotBaseTransformation(Items):
     
     # ________________________
@@ -111,7 +116,8 @@ def robotBaseTransformation(Items):
         z*=-1
 
     #Find the other axis
-    x = (robotBase[0] - robotBase[5])
+    x = (planeProjection(robotBase[0],z,baseCentroid) - planeProjection(robotBase[5],z,baseCentroid))
+    #x = (robotBase[0] - robotBase[5]) #OLD WAY (WRONG, BUT LEGACY)
     x = x/np.linalg.norm(x)
     y = np.cross(z,x)
 
