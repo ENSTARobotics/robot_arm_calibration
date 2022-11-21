@@ -39,3 +39,70 @@ robotBaseOffset = np.array([[1,0,0,0],
                             [0,0,1,0.00565],
                             [0,0,0,1]])
 robotBaseItemsNames = ["robotBase1","robotBase2","robotBase3","robotBase4","robotBase5","robotBase6","robotBase7"]
+
+def planeProjection(point,planeNormal,planePoint):
+    v = point - planePoint
+    dist = np.dot(planeNormal,v)
+    return(point - dist*planeNormal)
+
+def robotBaseTransformation(Items):
+    
+    # ____________________________
+    #|(6)                      (7)|
+    #|                            |  
+    #|                      (1)   |
+    #|                            |
+    #|             _|_       (2)  |  
+    #|  (5)         |             |      Y
+    #|                            |      |
+    #|   (4)                      |     -|-- X
+    #|                            |
+    #|_________________________(3)|          
+    #           
+        
+    #Retrieve the robot base markers positions
+    robotBase = np.array([np.array([np.mean([coordinate for coordinate in array if np.abs(coordinate - np.mean(array)) <= np.std(array)]) for array in Items[item].T]) for item in robotBaseItemsNames])
+    baseCentroid = np.mean(robotBase[:-1],axis=0)
+
+    #import matplotlib.pyplot as plt
+    #ax = plt.figure().add_subplot(projection='3d')
+    #scatter = ax.scatter(robotBase[:,0],robotBase[:,1],robotBase[:,2],c=np.arange(len(robotBase)))
+    #ax.scatter(baseCentroid[0],baseCentroid[1],baseCentroid[2])
+    #extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
+    #sz = extents[:,1] - extents[:,0]
+    #centers = np.mean(extents, axis=1)
+    #maxsize = max(abs(sz))
+    #r = maxsize/2
+    #for ctr, dim in zip(centers, 'xyz'):
+    #    getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
+    #ax.set_xlabel("x")
+    #ax.set_ylabel("y")
+    #ax.set_zlabel("z")
+    #plt.colorbar(scatter)
+    #plt.show()
+
+    #Find the plane normal
+    z = np.dot(np.linalg.pinv(robotBase),np.ones(len(robotBase)))
+    z/=np.linalg.norm(z)
+    if(z[2] < 0):
+        z*=-1
+
+    #Find the other axis
+    x = (planeProjection(robotBase[-1],z,baseCentroid) - planeProjection(robotBase[-2],z,baseCentroid))   #OLD LAYOUT FOR UR
+    x = x/np.linalg.norm(x)
+    y = np.cross(z,x)
+
+    #Retreive robot base transformation
+    
+    #Interpolated frame (C) to OptiTrack reference frame (W)
+    TWC = np.eye(4)
+    TWC[:3,:3] = np.array([x,y,z]).T
+    TWC[:3,-1] = baseCentroid
+
+    #Robot base frame (R) to interpolated frame (C)
+    TCR = robotBaseOffset
+
+    #Robot base frame(R) to Optitrack reference frame (W)
+    robotBaseTransformation = np.dot(TWC,TCR)
+   
+    return(robotBaseTransformation)
