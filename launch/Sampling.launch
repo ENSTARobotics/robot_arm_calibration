@@ -1,0 +1,33 @@
+<?xml version="1.0" ?>
+<launch>
+
+    <!-- GENERAL ARGUMENTS & PARAMETERS -->
+    <arg name="robot_name" default="panda"/>
+    <arg name="tool_name" default="marker3D"/>
+    <arg name="simulation" default="true"/>
+    <arg name="safety_distance" default="0.03"/>
+
+    <!-- SAMPLING PARAMETERS --> 
+    <arg name="sampling_method" default="testing_naive"/>
+    <arg name="sampling_value" default="25"/>
+    <arg name="sampled_configurations_file_name" default="$(find robot_arm_tools)/config/calibration/$(arg robot_name)_$(arg tool_name)/$(arg sampling_method)_$(arg sampling_value)/SampledConfigurations.yaml"/>
+    <param name="samplingMethod" value="$(arg sampling_method)"/>
+    <param name="samplingValue" value="$(arg sampling_value)"/>
+    <param name="sampledConfigurationsFileName" value="$(arg sampled_configurations_file_name)"/>
+
+    <!-- ROBOT SETUP -->
+    <include file="$(find robot_arm_tools)/launch/Setup_$(arg robot_name).launch">
+        <arg name="simulation" value="$(arg simulation)"/>
+        <arg name="tool_name" value="$(arg tool_name)" />
+        <arg name="safety_distance" value="$(arg safety_distance)"/>
+        <arg name="planner_name" value="RRTConnect"/>
+    </include>
+
+    <!-- MAIN NODE -->
+    <node pkg="robot_arm_tools" type="robot_arm_tools_sampling_node" name="robot_arm_tools_sampling_node" output="screen" required="true"/>
+
+    <!-- COLLISIONS -->
+    <param name="environmentFileName" value="$(find robot_arm_tools)/config/environments/OptiTrack_$(arg robot_name).yaml"/>
+    <node pkg="robot_arm_tools" type="robot_arm_tools_environment_node" name="robot_arm_tools_environment_node" output="screen"/>
+
+</launch>

@@ -1,0 +1,46 @@
+<?xml version="1.0" ?>
+<launch>
+
+    <!-- GENERAL ARGUMENTS & PARAMETERS -->
+    <arg name="robot_name" default="panda"/>
+    <arg name="tool_name" default="marker3D"/>
+    <arg name="simulation" default="false"/>
+    <arg name="safety_distance" default="0.03"/>
+    <arg name="calibration" default="false"/>
+
+    <!-- OPTITRACK SETUP -->
+    <node pkg="mocap_optitrack" type="mocap_node" name="mocap_node" respawn="false" launch-prefix="" required="true">
+        <rosparam file="$(find robot_arm_tools)/config/calibration/OptiTrackParameters.yaml" command="load" />
+    </node>
+
+    <!-- CALIBRATION PARAMETERS --> 
+    <arg name="target_configurations_file"/>
+    <rosparam command="load" file="$(arg target_configurations_file)"/>
+    <rosparam command="load" file="$(find robot_arm_tools)/config/$(arg robot_name)_calibration_parameters.yaml"/>
+
+    <arg name="calibrated_model_file" default=""/>
+
+    <!-- ROBOT SETUP -->
+    <include file="$(find robot_arm_tools)/launch/Setup_$(arg robot_name).launch">
+        <arg name="simulation" value="$(arg simulation)"/>
+        <arg name="tool_name" value="$(arg tool_name)" />
+        <arg name="safety_distance" value="$(arg safety_distance)"/>
+        <arg name="calibration" value="$(arg calibration)"/>
+        <arg name="calibrated_model_file" value="$(arg calibrated_model_file)"/>
+    </include>
+
+    <!-- ROBOT POSITION MEASUREMENT SERVER -->
+    <param name="measurementServerName" value="/robot_position_measurement_server"/>
+    <param name="measurementServerStorageFolder" value="$(eval eval('_' + '_import_' + '_(\'os\')').path.dirname(arg('target_configurations_file')) + '/measurements/')"/>
+    <param name="measurementServerDisplay" value="true"/>
+    <node pkg="robot_arm_tools" type="robot_position_measurement_server" name="robot_position_measurement_server" output="screen"/>
+
+    <!-- MAIN NODE -->
+    <node pkg="robot_arm_tools" type="robot_arm_tools_calibration_node" name="robot_arm_tools_calibration_node" output="screen" required="true"/>
+
+    <!-- COLLISIONS --> 
+    <param name="environmentFileName" value="$(find robot_arm_tools)/config/environments/OptiTrack_$(arg robot_name).yaml"/>
+    <node pkg="robot_arm_tools" type="robot_arm_tools_environment_node" name="robot_arm_tools_environment_node" output="screen"/>
+
+</launch>
+
