@@ -8,7 +8,7 @@ import sys
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-def DHtoParameters(DHParameters, robotName):
+def DHtoModel(DHParameters, robotName):
     ### BUILDING MODEL PARAMETERS
     print("Building robot geometric model parameters !")
 

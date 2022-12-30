@@ -21,8 +21,8 @@ DHParameters = np.array([[0,0,d1,0],
                          [np.pi/2,0,d6,np.pi]])
 
 if(not os.path.exists(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_parameters.npy")):
-    from DHtoParameters import DHtoParameters
-    DHtoParameters(DHParameters,robotName)
+    from DHtoModel import DHtoModel
+    DHtoModel(DHParameters,robotName)
 
 with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_parameters.npy","rb") as file:
     JOINTS_NUMBER = np.load(file, allow_pickle=True)
