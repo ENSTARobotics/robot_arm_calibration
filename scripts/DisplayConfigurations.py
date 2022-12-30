@@ -153,9 +153,6 @@ elif(plotMode == "mesh"):
 
     xacroOutput = xacroOutput.replace("file://","")
 
-    print(xacroOutput)
-    input()
-
     URDFfile = open("/tmp/tmp.urdf", "w")
     URDFfile.write(xacroOutput)
     URDFfile.close()
