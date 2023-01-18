@@ -94,15 +94,48 @@ parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
 
 ### UTILITY SCORE
 
-def identifiability(CalibrationConfigurations):
+def A_optimality(CalibrationConfigurations):
     J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
     return(np.trace(np.dot(J.T,J)))
 
+def D_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    return(np.linalg.det(np.dot(J.T,J)))
+
+def E_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    _,SVD = np.linalg.svd(np.dot(J.T,J))
+    return(SVD[-1])
+
+def O1_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    measurementsNumber = float(len(CalibrationConfigurations))
+    return(np.power(np.linalg.det(np.dot(J.T,J)),1/measurementsNumber)/measurementsNumber)
+
+def O2_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    _,SVD = np.linalg.svd(np.dot(J.T,J))
+    return(SVD[-1]/SVD[0])
+
+def O3_optimality(CalibrationConfigurations):
+    return(E_optimality(CalibrationConfigurations))
+
+def O4_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    _,SVD = np.linalg.svd(np.dot(J.T,J))
+    return((SVD[-1]**2)/SVD[0])
+
+def O5_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    _,SVD = np.linalg.svd(np.dot(J.T,J))
+    inverseSVD = 1/SVD
+    return(1/np.sum(inverseSVD))
+
 #Interest configurations
-#TODO Custom definition
+#TODO Custom definition !
 qStar = np.zeros(JOINTS_NUMBER)
 
-def precision(CalibrationConfigurations):
+def A_optimality_accuracy(CalibrationConfigurations):
     J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
     JStar = np.vstack([Jfunc(parameters0,qStar) for q in CalibrationConfigurations])
     return(1/np.trace(np.dot(np.dot(JStar,np.linalg.inv(np.dot(J.T,J))),JStar.T)))
