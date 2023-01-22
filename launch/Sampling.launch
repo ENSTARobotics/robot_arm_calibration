@@ -10,7 +10,7 @@
     <!-- SAMPLING PARAMETERS --> 
     <arg name="sampling_method" default="testing_naive"/>
     <arg name="sampling_value" default="25"/>
-    <arg name="sampled_configurations_file_name" default="$(find robot_arm_tools)/config/calibration/$(arg robot_name)_$(arg tool_name)/$(arg sampling_method)_$(arg sampling_value)/SampledConfigurations.yaml"/>
+    <arg name="sampled_configurations_file_name" default="$(find robot_arm_calibration)/config/calibratedModels/$(arg robot_name)_$(arg tool_name)/$(arg sampling_method)_$(arg sampling_value)/SampledConfigurations.yaml"/>
     <param name="samplingMethod" value="$(arg sampling_method)"/>
     <param name="samplingValue" value="$(arg sampling_value)"/>
     <param name="sampledConfigurationsFileName" value="$(arg sampled_configurations_file_name)"/>
@@ -24,10 +24,12 @@
     </include>
 
     <!-- MAIN NODE -->
-    <node pkg="robot_arm_tools" type="robot_arm_tools_sampling_node" name="robot_arm_tools_sampling_node" output="screen" required="true"/>
+    <node pkg="robot_arm_calibration" type="robot_arm_calibration_sampling_node" name="robot_arm_calibration_sampling_node" output="screen" required="true"/>
 
-    <!-- COLLISIONS -->
-    <param name="environmentFileName" value="$(find robot_arm_tools)/config/environments/OptiTrack_$(arg robot_name).yaml"/>
-    <node pkg="robot_arm_tools" type="robot_arm_tools_environment_node" name="robot_arm_tools_environment_node" output="screen"/>
+    <!-- COLLISIONS --> 
+    <node pkg="robot_arm_tools" type="robot_arm_tools_environment_node" name="robot_arm_tools_environment_node" output="screen">
+        <param name="environmentFileName" value="$(find robot_arm_calibration)/config/environments/Calibration_$(arg robot_name).yaml"/>
+    </node>
+    <!--<node type="rviz" name="rviz" pkg="rviz" args="-d $(find robot_arm_calibration)/config/RViz/CalibrationSetup.rviz"/>-->
 
 </launch>
