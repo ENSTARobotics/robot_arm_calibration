@@ -10,51 +10,39 @@
 #define AVG_WINDOW 5
 
 #include <Eigen/QR> 
+#include <tf2_eigen/tf2_eigen.h>
 
 RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementServer()
 {
-    //Retrieve robot base calibration tool reference points number
+    //Retrieve the robot base calibration tool reference points number
     std::string tmp;
-    if(!m_nodeHandle.getParam("mocap_node/rigid_bodies/0/marker_set_size",tmp))
+    if(!m_nodeHandle.getParam("robotBasePointsNumber",tmp))
     {
         ROS_ERROR("Unable to retrieve robot base points number !");
         throw std::runtime_error("MISSING PARAMETER");
     }
     m_robotBasePointsNumber = stoi(tmp);
 
-    //Retrieve calibration tool name and reference points number
+    //Retrieve the robot calibration tool reference points number and name
     if(!m_nodeHandle.getParam("toolName",m_markerName))
     {
         ROS_ERROR("Unable to retrieve marker tool name !");
         throw std::runtime_error("MISSING PARAMETER");
     }
+    if(!m_nodeHandle.getParam("markerPointsNumber",tmp))
+    {
+        ROS_ERROR("Unable to retrieve reference points number !");
+        throw std::runtime_error("MISSING PARAMETER");
+    }
+    m_markerPointsNumber = stoi(tmp);
+
+    //Retrieve the basename of the topic on which the reference and robot base points will be published
+    if(!m_nodeHandle.getParam("topicBaseName",m_topicBaseName))  
+    {
+        ROS_ERROR("Unable to retrieve topic base name !");
+        throw std::runtime_error("MISSING PARAMETER");
+    }
     
-    if(m_markerName == "marker2D")
-    {
-        if(!m_nodeHandle.getParam("mocap_node/rigid_bodies/1/marker_set_size",tmp))
-        {
-            ROS_ERROR("Unable to retrieve reference points number !");
-            throw std::runtime_error("MISSING PARAMETER");
-        }
-        m_markerPointsNumber = stoi(tmp);
-    }
-
-    else if(m_markerName == "marker3D")
-    {
-        if(!m_nodeHandle.getParam("mocap_node/rigid_bodies/2/marker_set_size",tmp))
-        {
-            ROS_ERROR("Unable to retrieve reference points number !");
-            throw std::runtime_error("MISSING PARAMETER");
-        }
-        m_markerPointsNumber = stoi(tmp);
-    }
-
-    else
-    {
-        ROS_ERROR("Invalid tool for calibration measurements !");
-        throw std::runtime_error("INVALID TOOL");
-    }
-
     double startTime = ros::WallTime::now().toSec();
     while(!m_nodeHandle.getParam("jointsNamesMapping",m_jointsNamesMapping) && ros::WallTime::now().toSec() - startTime < 10.0){}
     if(m_jointsNamesMapping.empty())
@@ -104,7 +92,7 @@ bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_
         //Reference points
         for(int i = 0; i < m_markerPointsNumber; i++)
         {
-            point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/mocap_node/" + m_markerName + std::to_string(i+1))->point;
+            point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/" + m_topicBaseName + "/" + m_markerName + std::to_string(i+1))->point;
 
             if(abs(point.x) > 9000 || abs(point.y) > 9000 || abs(point.z) > 9000)
             {
@@ -242,7 +230,7 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
             //Robot Base
             for(int j = 0; j < m_robotBasePointsNumber; j++)
             {
-                point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/mocap_node/robotBase"+std::to_string(j+1))->point;
+                point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/" + m_topicBaseName + "/robotBase" + std::to_string(j+1))->point;
 
                 if(abs(point.x) > 9000 || abs(point.y) > 9000 || abs(point.z) > 9000)
                 {
@@ -315,7 +303,7 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
 
     //Retreive robot base transformation
     
-    //Interpolated frame (C) to OptiTrack reference frame (W)
+    //Interpolated frame (C) to measurement device reference frame (W)
     Eigen::Matrix4d TWC = Eigen::MatrixXd::Identity(4,4);
     TWC.topLeftCorner(3,3) << robotBaseNormalX,robotBaseNormalY,robotBaseNormalZ;
     TWC.topRightCorner(3,1) << baseCentroid;
@@ -331,12 +319,23 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
 
     Eigen::Matrix4d TCR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data());
 
-    //Robot base frame(R) to Optitrack reference frame (W)
-    Eigen::Matrix4d robotBaseTransform = (TWC*TCR).inverse();
+    //Measurement device reference frame (W) to robot base frame (R)
+    Eigen::Matrix4d TRW = (TWC*TCR).inverse();
 
     //Create robot base transform
-    m_robotBaseTransform.linear() = robotBaseTransform.topLeftCorner(3,3);
-    m_robotBaseTransform.translation() = robotBaseTransform.topRightCorner(3,1);
+    m_robotBaseTransform.matrix() = TRW;
+
+    //Broadcast the measurement device reference frame
+    Eigen::Matrix4d TWR = TWC*TCR;
+    Eigen::Isometry3d measurementDeviceTransform;
+    measurementDeviceTransform.matrix() = TWR;
+    geometry_msgs::TransformStamped transformStamped = tf2::eigenToTransform(measurementDeviceTransform);
+
+    transformStamped.header.stamp = ros::Time::now();
+    transformStamped.header.frame_id = "world";
+    transformStamped.child_frame_id = "measurement_device_reference";
+
+    m_broadcaster.sendTransform(transformStamped);    
 }
 
 int main( int argc, char **argv)

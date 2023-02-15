@@ -11,6 +11,7 @@
 
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include "robot_arm_tools/MeasurementServer.h"
 
@@ -40,11 +41,15 @@ class RobotPositionMeasurementServer:MeasurementServer
          */
         void computeRobotBaseTransform();
 
+        std::string m_topicBaseName;   /*!< The basename of the topic on which the reference and robot base points will be published */
         std::string m_markerName;   /*!< Type of marker used for the calibration measurements */
         int m_markerPointsNumber;  /*!< Number of reference points on the robot calibration tool */
         int m_robotBasePointsNumber;    /*!< Number of reference points on the robot base calibration tool */
 
         std::vector<int> m_jointsNamesMapping;  /*!< Mapping between joint states and URDF joints names */
 
-        Eigen::Isometry3d m_robotBaseTransform; /*!< Robot base pose in the OptiTrack reference frame */
+        Eigen::Isometry3d m_robotBaseTransform; /*!< Robot base pose in the measurement device reference frame */
+
+        tf2_ros::StaticTransformBroadcaster m_broadcaster;    /*!< TF broadcaster for the measurement device reference frame */
+
 };
