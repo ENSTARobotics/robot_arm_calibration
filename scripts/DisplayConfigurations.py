@@ -36,6 +36,10 @@ except:
     print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
+### GET MARKER CONFIG DIRECTORY PATH
+configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/markers/"
+sys.path.append(configPath)
+
 ### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
 try:
     module = import_module(markerName+"_parameters")

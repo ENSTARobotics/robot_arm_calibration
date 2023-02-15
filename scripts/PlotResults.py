@@ -39,6 +39,10 @@ except:
     print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
 
+### GET MARKER CONFIG DIRECTORY PATH
+configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/markers/"
+sys.path.append(configPath)
+
 ### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
 try:
     module = import_module(markerName + "_parameters")
@@ -124,14 +128,48 @@ learningScores = True if tmpInput == "y" else False
 
 ### UTILITY SCORE
 
-def identifiability(CalibrationConfigurations):
+def a_optimality(CalibrationConfigurations):
     J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
-    return(1/np.trace(np.linalg.inv(np.dot(J.T,J))))
+    return(np.trace(np.dot(J.T,J)))
+
+def d_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    return(np.linalg.det(np.dot(J.T,J)))
+
+def e_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    _,SVD = np.linalg.svd(np.dot(J.T,J))
+    return(SVD[-1])
+
+def o1_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    measurementsNumber = float(len(CalibrationConfigurations))
+    return(np.power(np.linalg.det(np.dot(J.T,J)),1/measurementsNumber)/measurementsNumber)
+
+def o2_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    _,SVD = np.linalg.svd(np.dot(J.T,J))
+    return(SVD[-1]/SVD[0])
+
+def o3_optimality(CalibrationConfigurations):
+    return(e_optimality(CalibrationConfigurations))
+
+def o4_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    _,SVD = np.linalg.svd(np.dot(J.T,J))
+    return((SVD[-1]**2)/SVD[0])
+
+def o5_optimality(CalibrationConfigurations):
+    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    _,SVD = np.linalg.svd(np.dot(J.T,J))
+    inverseSVD = 1/SVD
+    return(1/np.sum(inverseSVD))
 
 #Interest configurations
+#TODO Custom definition !
 qStar = np.zeros(JOINTS_NUMBER)
 
-def precision(CalibrationConfigurations):
+def A_optimality_accuracy(CalibrationConfigurations):
     J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
     JStar = np.vstack([Jfunc(parameters0,qStar) for q in CalibrationConfigurations])
     return(1/np.trace(np.dot(np.dot(JStar,np.linalg.inv(np.dot(J.T,J))),JStar.T)))

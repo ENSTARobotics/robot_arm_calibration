@@ -14,6 +14,8 @@ from scipy.optimize import basinhopping
 import re
 import scipy.odr as odr
 
+import time
+
 ### RETRIEVE PARAMETERS FROM DIRECTORY NAME
 currentParameters = np.array(re.split('/|_',os.getcwd()))
 currentParameters = currentParameters[np.where(currentParameters == "calibratedModels")[0][0] + 1:]
@@ -37,6 +39,10 @@ try:
 except:
     print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
+
+### GET MARKER CONFIG DIRECTORY PATH
+configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/markers/"
+sys.path.append(configPath)
 
 ### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
 try:
@@ -313,6 +319,8 @@ def BH(parameters,Niterations):
 
 ### MAIN LOOP
 
+t0 = time.time()
+
 optimizationMethod = "LLS"
 try : 
     optimizationMethod = sys.argv[1]
@@ -416,4 +424,6 @@ if(not os.path.isdir(os.getcwd() + "/" + optimizationMethod.upper() + "_" + str(
 with open(os.getcwd() + "/" + optimizationMethod.upper() + "_" + str(Niterations) + "/CalibratedModel.yaml",'w') as file:
     yaml.dump(calibratedModel, file)
 print("Done !")
+
+print("-- Parameters identified in " + str(time.time() - t0) + " seconds --")
 

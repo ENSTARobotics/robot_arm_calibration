@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import numpy as np
+import sys
 import os
 
 robotName = os.path.basename(__file__).split("_")[0]
@@ -21,6 +22,7 @@ DHParameters = np.array([[0,0,d1,0],
                          [np.pi/2,0,d6,np.pi]])
 
 if(not os.path.exists(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_parameters.npy")):
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
     from DHtoModel import DHtoModel
     DHtoModel(DHParameters,robotName)
 

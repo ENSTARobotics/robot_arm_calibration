@@ -8,7 +8,12 @@ import sys
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+import time
+
 def DHtoModel(DHParameters, robotName):
+
+    t0 = time.time()
+
     ### BUILDING MODEL PARAMETERS
     print("Building robot geometric model parameters !")
 
@@ -102,7 +107,7 @@ def DHtoModel(DHParameters, robotName):
         pi0.extend([0.0 for i in LINKS_ROTATIONS[j]])
 
     print("Saving geometric model parameters...")
-    with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_parameters.npy","wb") as file:
+    with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "/" + robotName + "_parameters.npy","wb") as file:
         np.save(file,JOINTS_NUMBER)
         np.save(file,JOINTS_AXIS)
         np.save(file,JOINTS_OFFSET)
@@ -112,3 +117,5 @@ def DHtoModel(DHParameters, robotName):
         np.save(file,TBaseN)
         np.save(file,TFlangeN)
     print("Done !")
+
+    print("-- Model parameters computed in " + str(time.time() - t0) + " seconds --")

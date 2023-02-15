@@ -10,6 +10,8 @@ import dill
 import sympy as sp
 import numpy as np
 
+import time
+
 ### RETREIVE ROBOT AND MARKER NAMES
 if __name__ == "__main__":
     robotName = sys.argv[1]
@@ -22,8 +24,8 @@ else:
     markerName = currentParameters[1]
 
 ### GET ROBOT CONFIG DIRECTORY PATH
-configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/" + robotName + "/"
-sys.path.append(configPath)
+configPathRobot = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/" + robotName + "/"
+sys.path.append(configPathRobot)
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
@@ -38,6 +40,10 @@ try:
 except:
     print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
     exit(1)
+
+### GET MARKER CONFIG DIRECTORY PATH
+configPathMarker = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/markers/"
+sys.path.append(configPathMarker)
 
 ### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
 try:
@@ -70,7 +76,9 @@ def rot_axis(angle,axisIndex):
     else:
         return(sp.Identity(3))
 
-if(not os.path.exists(configPath + "Jacobian_" + robotName + "_" + markerName + ".pickle") or not os.path.exists(configPath + "GeometricModel_" + robotName + "_" + markerName + ".pickle")):
+if(not os.path.exists(configPathRobot + "Jacobian_" + robotName + "_" + markerName + ".pickle") or not os.path.exists(configPathRobot + "GeometricModel_" + robotName + "_" + markerName + ".pickle")):
+
+    t0 = time.time()
 
     ### GLOBAL SYMBOLS
 
@@ -158,17 +166,19 @@ if(not os.path.exists(configPath + "Jacobian_" + robotName + "_" + markerName + 
     print("Turning sympy expressions to lambda functions...")
 
     Pfunc = sp.lambdify((parameters,q),P,modules=["numpy","scipy"])
-    with open(configPath + "GeometricModel_" + robotName + "_" + markerName + ".pickle", "wb") as file:
+    with open(configPathRobot + "GeometricModel_" + robotName + "_" + markerName + ".pickle", "wb") as file:
         dill.dump(Pfunc, file)
     Jfunc = sp.lambdify((parameters,q),J,modules=["numpy","scipy"])
-    with open(configPath + "Jacobian_" + robotName + "_" + markerName + ".pickle", "wb") as file:
+    with open(configPathRobot + "Jacobian_" + robotName + "_" + markerName + ".pickle", "wb") as file:
         dill.dump(Jfunc, file)
 
     print("Done !")   
 
+    print("-- Analytic model computed in " + str(time.time() - t0) + " seconds --")
+
 print("Loading geometric model and jacobian...")
-rawJfunc = dill.load(open(configPath + "Jacobian_" + robotName + "_" + markerName + ".pickle", "rb"))
-rawPfunc = dill.load(open(configPath + "GeometricModel_" + robotName + "_" + markerName + ".pickle", "rb"))
+rawJfunc = dill.load(open(configPathRobot + "Jacobian_" + robotName + "_" + markerName + ".pickle", "rb"))
+rawPfunc = dill.load(open(configPathRobot + "GeometricModel_" + robotName + "_" + markerName + ".pickle", "rb"))
 print("Done !")
 
 PARAMETERS_NUMBER = 6 + 3*len(TToolN_marker) + len(pi0)
@@ -191,4 +201,3 @@ def Pfunc(parameters,q):
         except:
             P[i] = float(P[i])
     return(P)
-
