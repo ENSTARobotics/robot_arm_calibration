@@ -8,11 +8,10 @@
     <arg name="safety_distance" default="0.03"/>
 
     <!-- SAMPLING PARAMETERS --> 
-    <arg name="sampling_method" default="testing_naive"/>
-    <arg name="sampling_value" default="25"/>
+    <arg name="sampling_parameters_file" default="$(find robot_arm_calibration)/config/sampling/naive_sampling.yaml"/>
+    <rosparam command="load" file="$(arg sampling_parameters_file)"/>
+
     <arg name="sampled_configurations_file_name" default="$(find robot_arm_calibration)/config/calibratedModels/$(arg robot_name)_$(arg tool_name)/$(arg sampling_method)_$(arg sampling_value)/SampledConfigurations.yaml"/>
-    <param name="samplingMethod" value="$(arg sampling_method)"/>
-    <param name="samplingValue" value="$(arg sampling_value)"/>
     <param name="sampledConfigurationsFileName" value="$(arg sampled_configurations_file_name)"/>
 
     <!-- ROBOT SETUP -->

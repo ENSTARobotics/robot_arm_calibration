@@ -1,0 +1,2 @@
+samplingMethod: random  #Random sampling of the robot angular configurations
+samplingValue: 20  #Number of configurations 

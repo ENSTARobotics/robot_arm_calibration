@@ -65,9 +65,167 @@ int main(int argc, char **argv)
         config.remove("sampledConfigurations");
     }
 
-    if(samplingMethod == "naive")
+    ROS_INFO("Computing sampled calibration configurations with %s method",samplingMethod);
+
+    if(n.hasParam("cartesian_limits"))
     {
-        ROS_INFO("Computing naively sampled calibration configurations...");
+        //ROS_INFO("Adding cartesian constraints !");
+        ROS_ERROR("Not yet implemented, soon !");
+        throw std::logic_error("NOT IMPLEMENTED");
+    }
+
+    else if(n.hasParam("spheric_limits"))
+    {
+        ROS_INFO("Adding spheric constraints !");
+
+        //Get sphere center
+        geometry_msgs::Pose spherePose;
+        std::vector<double> tmp;
+        n.getParam("spheric_limits/center",tmp);
+        spherePose.position.x = tmp[0];
+        spherePose.position.y = tmp[1];
+        spherePose.position.z = tmp[2];
+
+        //Get radius, inclination and azimuth limits
+        std::vector<double> radiusLimits;
+        n.getParam("spheric_limits/radius",radiusLimits);
+        std::vector<double> inclinationLimits;
+        n.getParam("spheric_limits/inclination",inclinationLimits);
+        std::vector<double> azimuthLimits;
+        n.getParam("spheric_limits/azimuth",azimuthLimits);
+
+        //Get orientation parameter
+        bool inward;
+        n.getParam("spheric_limits/inward",inward);
+
+        double radiusMin = 0.2, radiusMax = 0.5, currentRadius;
+        double inclinationMin = M_PI/6, inclinationMax = M_PI/3, currentInclination;
+        double currentAzimuth;
+
+        geometry_msgs::Pose currentPose;
+        std::vector<double> currentConfiguration;
+        std::vector<geometry_msgs::Pose> sampledPoses;
+
+        bool reachable = false;
+
+        if(samplingMethod == "naive")
+        {
+            for(int i = 0; i < samplingValue; i++)
+            {
+                if(radiusLimits[0] == radiusLimits[1]){i = samplingValue-1;}
+
+                for(int j = 0; j < samplingValue; j++)
+                {
+
+                    if(inclinationLimits[0] == inclinationLimits[1]){j = samplingValue-1;}
+
+                    for(int k = 0; k < samplingValue; k++)
+                    {
+
+                        if(azimuthLimits[0] == azimuthLimits[1]){k = samplingValue-1;}
+
+                        currentRadius = radiusLimits[0] + (radiusLimits[1] - radiusLimits[0])*i/(samplingValue - 1);
+                        currentInclination = inclinationLimits[0] + (inclinationLimits[1] - inclinationLimits[0])*j/(samplingValue - 1);
+                        currentAzimuth = azimuthLimits[0] + (azimuthLimits[1] - azimuthLimits[0])*k/samplingValue;
+
+                        reachable = false;
+                        for(int l = 0; l < 4; l++)
+                        {   
+                            currentPose = sphericPose(spherePose,currentRadius,currentInclination,currentAzimuth,inward,l*M_PI/2);
+                            if(l >= 1)
+                            {
+                                ROS_INFO("Trying with yaw offset !");
+                            }
+                            ROS_INFO("Testing pose %d/%d: ", i*samplingValue*samplingValue + j*samplingValue + k + 1, samplingValue*samplingValue*samplingValue);
+                            ROS_INFO("X : %f, Y : %f, Z : %f", currentPose.position.x, currentPose.position.y, currentPose.position.z);
+
+                            reachable = robot.isReachable(currentPose,currentConfiguration,true);
+                            if(reachable)
+                            {
+                                break;
+                            }
+                        }
+
+                        if(reachable)
+                        {
+                            ROS_INFO("Reachable !");
+                            ROS_INFO("Corresponding configuration : ");
+                            for(int u = 0; u < currentConfiguration.size(); u++)
+                            {
+                                ROS_INFO("J%d : %f",u+1,currentConfiguration[u]);
+                            }
+                            config["sampledConfigurations"].push_back(currentConfiguration);
+                        }   
+                        else
+                        {
+                            ROS_INFO("Unreachable...");
+                        }
+                    }
+                }
+            }
+        }
+
+        else if(samplingMethod == "random")
+        {
+            //Random values generation
+            std::default_random_engine re;
+            std::uniform_real_distribution<double> unifRadius, unifInclination, unifAzimuth;
+            unifRadius = std::uniform_real_distribution<double>(radiusLimits[0],radiusLimits[1]);
+            unifInclination = std::uniform_real_distribution<double>(inclinationLimits[0],inclinationLimits[1]);
+            unifAzimuth = std::uniform_real_distribution<double>(azimuthLimits[0],azimuthLimits[1]);
+
+            for(int i = 0; i < samplingValue; i++)
+            {
+                ROS_INFO("Trying to find testing configuration %d",i+1);
+                currentRadius = unifRadius(re);
+                currentInclination = unifInclination(re);
+                currentAzimuth = unifAzimuth(re);
+
+                reachable = false;
+                for(int l = 0; l < 4; l++)
+                {   
+                    currentPose = sphericPose(spherePose,currentRadius,currentInclination,currentAzimuth,inward,l*M_PI/2);
+                    if(l >= 1)
+                    {
+                        ROS_INFO("Trying with yaw offset !");
+                    }
+                    ROS_INFO("Testing pose %d/%d: ", i, samplingValue);
+                    ROS_INFO("X : %f, Y : %f, Z : %f", currentPose.position.x, currentPose.position.y, currentPose.position.z);
+
+                    reachable = robot.isReachable(currentPose,currentConfiguration,true);
+                    if(reachable)
+                    {
+                        break;
+                    }
+                }
+
+                if(reachable)
+                {
+                    ROS_INFO("Reachable !");
+                    ROS_INFO("Corresponding configuration : ");
+                    for(int u = 0; u < currentConfiguration.size(); u++)
+                    {
+                        ROS_INFO("J%d : %f",u+1,currentConfiguration[u]);
+                    }
+                    config["sampledConfigurations"].push_back(currentConfiguration);
+                }   
+                else
+                {
+                    ROS_INFO("Unreachable...");
+                    i--;
+                }
+            }
+        }
+
+        else
+        {
+            ROS_ERROR("Invalid sampling parameters !");
+            throw std::runtime_error("INVALID PARAMETER");
+        }
+    }
+    
+    else if(samplingMethod == "naive")
+    {
         std::vector<double> Q;
         std::vector<std::vector<double>> jointsLimits = robot.getJointsLimits();
         for(int i = 0; i < samplingValue; i++)
@@ -119,73 +277,9 @@ int main(int argc, char **argv)
             }
         }
     }
-
-    else if(samplingMethod == "scan")
+    
+    else if(samplingMethod == "random")
     {
-        double radiusMin = 0.2, radiusMax = 0.5, currentRadius;
-        double inclinationMin = M_PI/6, inclinationMax = M_PI/3, currentInclination;
-        double currentAzimuth;
-
-        geometry_msgs::Pose currentPose, spherePose;
-        spherePose.position.x = 0.3;
-        spherePose.position.z = 0.1;
-        visualTools.addSphere("collisionSphere",spherePose,0.1,false);
-
-        std::vector<double> currentConfiguration;
-        std::vector<geometry_msgs::Pose> sampledPoses;
-
-        bool reachable = false;
-
-        for(int i = 0; i < samplingValue; i++)
-        {
-            for(int j = 0; j < samplingValue; j++)
-            {
-                for(int k = 0; k < samplingValue; k++)
-                {
-                    currentRadius = radiusMin + (radiusMax - radiusMin)*i/(samplingValue - 1);
-                    currentInclination = inclinationMin + (inclinationMax - inclinationMin)*j/(samplingValue - 1);
-                    currentAzimuth = 0.0 + (2*M_PI)*k/samplingValue;
-
-                    reachable = false;
-                    for(int l = 0; l < 4; l++)
-                    {   
-                        currentPose = sphericPose(spherePose,currentRadius,currentInclination,currentAzimuth,true,l*M_PI/2);
-                        if(l >= 1)
-                        {
-                            ROS_INFO("Trying with yaw offset !");
-                        }
-                        ROS_INFO("Testing pose %d/%d: ", i*samplingValue*samplingValue + j*samplingValue + k + 1, samplingValue*samplingValue*samplingValue);
-                        ROS_INFO("X : %f, Y : %f, Z : %f", currentPose.position.x, currentPose.position.y, currentPose.position.z);
-
-                        reachable = robot.isReachable(currentPose,currentConfiguration,true);
-                        if(reachable)
-                        {
-                            break;
-                        }
-                    }
-
-                    if(reachable)
-                    {
-                        ROS_INFO("Reachable !");
-                        ROS_INFO("Corresponding configuration : ");
-                        for(int u = 0; u < currentConfiguration.size(); u++)
-                        {
-                            ROS_INFO("J%d : %f",u+1,currentConfiguration[u]);
-                        }
-                        config["sampledConfigurations"].push_back(currentConfiguration);
-                    }   
-                    else
-                    {
-                        ROS_INFO("Unreachable...");
-                    }
-                }
-            }
-        }
-    }
-
-    else if(samplingMethod == "testing_naive")
-    {
-        ROS_INFO("Computing naive testing calibration configurations...");
         std::vector<std::vector<double>> jointsLimits = robot.getJointsLimits();
         std::vector<double> currentConfiguration;
 
@@ -205,7 +299,7 @@ int main(int argc, char **argv)
             ROS_INFO("Trying to find testing configuration %d",i+1);
             for(int j = 0; j < robot.getJointsNumber(); j++)
             {
-                ROS_INFO("%f,%f",jointsLimits[j][0],jointsLimits[j][1]);
+                //ROS_INFO("%f,%f",jointsLimits[j][0],jointsLimits[j][1]);
                 currentConfiguration.push_back(unifVector[j](re));
             }
 
@@ -218,7 +312,7 @@ int main(int argc, char **argv)
             if(robot.isReachable(currentConfiguration,true))
             {
                 ROS_INFO("Reachable !");
-                config["targetConfigurations"].push_back(currentConfiguration);
+                config["sampledConfigurations"].push_back(currentConfiguration);
             }
             else
             {
@@ -229,68 +323,10 @@ int main(int argc, char **argv)
         }
     }
 
-    else if(samplingMethod == "testing_scan")
+    else
     {
-        ROS_INFO("Computing scan testing calibration configurations...");
-
-        double radiusMin = 0.2, radiusMax = 0.5, currentRadius;
-        double inclinationMin = M_PI/6, inclinationMax = M_PI/3, currentInclination;
-        double currentAzimuth;
-
-        //Random configuration generation
-        std::default_random_engine re;
-        std::uniform_real_distribution<double> unifRadius, unifInclination;
-
-        unifRadius = std::uniform_real_distribution<double>(radiusMin,radiusMax);
-        unifInclination = std::uniform_real_distribution<double>(inclinationMin,inclinationMax);
-        currentRadius = unifRadius(re);
-        currentInclination = unifInclination(re);
-
-        geometry_msgs::Pose currentPose, spherePose;
-        spherePose.position.x = 0.5;
-        spherePose.position.z = 0.2;
-        visualTools.addSphere("collisionSphere",spherePose,0.1,false);
-
-        bool reachable;
-        std::vector<double> currentConfiguration;
-
-        for(int k = 0; k < samplingValue; k++)
-        {
-            currentAzimuth = 0.0 + (2*M_PI)*k/samplingValue;
-
-            reachable = false;
-            for(int l = 0; l < 4; l++)
-            {   
-                currentPose = sphericPose(spherePose,currentRadius,currentInclination,currentAzimuth,true,l*M_PI/2);
-                if(l >= 1)
-                {
-                    ROS_INFO("Trying with yaw offset !");
-                }
-                ROS_INFO("Testing pose %d/%d: ", k + 1, samplingValue);
-                ROS_INFO("X : %f, Y : %f, Z : %f", currentPose.position.x, currentPose.position.y, currentPose.position.z);
-
-                reachable = robot.isReachable(currentPose,currentConfiguration,true);
-                if(reachable)
-                {
-                    break;
-                }
-            }
-
-            if(reachable)
-            {
-                ROS_INFO("Reachable !");
-                ROS_INFO("Corresponding configuration : ");
-                for(int u = 0; u < currentConfiguration.size(); u++)
-                {
-                    ROS_INFO("J%d : %f",u+1,currentConfiguration[u]);
-                }
-                config["sampledConfigurations"].push_back(currentConfiguration);
-            }   
-            else
-            {
-                ROS_INFO("Unreachable...");
-            }
-        }
+        ROS_ERROR("Invalid sampling parameters !");
+        throw std::runtime_error("INVALID PARAMETER");
     }
 
     //Close file
@@ -300,4 +336,3 @@ int main(int argc, char **argv)
     ros::shutdown();
     return 0;
 }
-

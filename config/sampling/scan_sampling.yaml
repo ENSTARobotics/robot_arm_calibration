@@ -1,0 +1,11 @@
+samplingMethod: naive #Even discretisation over a spheric space
+samplingValue: 5  #Discretisation step for each parameter
+spheric_limits: #Spheric limits
+  center:
+    - 0.3
+    - 0.0
+    - 0.1
+  radius: [0.2,0.5]
+  inclination: [0.523,1.047]
+  azimuth: [0,6.280]
+  inward: true

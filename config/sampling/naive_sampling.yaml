@@ -1,0 +1,2 @@
+samplingMethod: naive  #Naive even discretisation of each actuator angular range
+samplingValue: 5  #Angular discretisation step for each actuator
