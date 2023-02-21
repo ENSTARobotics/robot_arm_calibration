@@ -1,0 +1,21 @@
+<?xml version="1.0" ?>
+<launch>
+
+    <!-- TO BE ADAPTED DEPENDING ON THE MEASURING TOOL -->
+    <!-- Positions are sent as a geometry_msgs::PointStamped message-->
+
+    <arg name="topic_base_name" value="mocap_node"/>
+    <param name="topicBaseName" value="$(arg topic_base_name)"/>
+
+    <node pkg="mocap_optitrack" type="mocap_node" name="$(arg topic_base_name)" respawn="false" launch-prefix="" required="true">
+        <rosparam file="$(find robot_arm_calibration)/config/optitrack_parameters.yaml" command="load" />
+    </node>
+
+    <remap from="/robotBasePointsNumber" to="/mocap_node/rigid_bodies/0/marker_set_size"/>
+    <!--<remap from="/robotBasei" to="/topic_associated_to_the_ith_robot_base_marker"/>-->
+
+    <remap from="/markerPointsNumber" to="/mocap_node/rigid_bodies/1/marker_set_size" if="$(eval arg('tool_name') == 'marker2D')"/>
+    <remap from="/markerPointsNumber" to="/mocap_node/rigid_bodies/2/marker_set_size" if="$(eval arg('tool_name') == 'marker3D')"/>  
+    <!--<remap from="/$(arg tool_name)i" to="/topic_associated_to_the_ith_end_effector_marker"/>-->
+    
+</launch>

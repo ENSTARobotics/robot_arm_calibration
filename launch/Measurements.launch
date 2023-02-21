@@ -7,23 +7,19 @@
     <arg name="simulation" default="false"/>
     <arg name="safety_distance" default="0.03"/>
     <arg name="calibration" default="false"/>
+    <arg name="measuring_device" default="optitrack"/>
 
-    <!-- MEASUREMENT DEVICE SETUP -->
-    <arg name="topic_base_name" default="mocap_node"/>
-    <param name="topicBaseName" value="$(arg topic_base_name)"/>
-
-    <node pkg="mocap_optitrack" type="mocap_node" name="$(arg topic_base_name)" respawn="false" launch-prefix="" required="true">
-        <rosparam file="$(find robot_arm_calibration)/config/OptiTrackParameters.yaml" command="load" />
-    </node>
-
-    <remap from="/robotBasePointsNumber" to="/mocap_node/rigid_bodies/0/marker_set_size"/>
-    <remap from="/markerPointsNumber" to="/mocap_node/rigid_bodies/1/marker_set_size" if="$(eval arg('tool_name') == 'marker2D')"/>
-    <remap from="/markerPointsNumber" to="/mocap_node/rigid_bodies/2/marker_set_size" if="$(eval arg('tool_name') == 'marker3D')"/>  
+    <!-- MEASURING DEVICE SETUP -->
+    <include file="$(arg measuring_device).launch">
+        <arg name="tool_name" value="$(arg tool_name)"/>
+    </include>
 
     <!-- CALIBRATION PARAMETERS --> 
     <arg name="target_configurations_file"/>
     <rosparam command="load" file="$(arg target_configurations_file)"/>
-    <rosparam command="load" file="$(find robot_arm_calibration)/config/$(arg robot_name)_calibration_parameters.yaml"/>
+    <remap from="/targetConfigurations" to="/sampledConfigurations" if="$(eval 'sampled' in arg('target_configurations_file'))"/>  <!-- Direct sampling use ! -->
+    
+    <rosparam command="load" file="$(find robot_arm_calibration)/config/$(arg robot_name)_calibration_parameters.yaml"/>    <!-- Robot base position regarding to robot base plate measurements -->
 
     <arg name="calibrated_model_file" default=""/>
 
