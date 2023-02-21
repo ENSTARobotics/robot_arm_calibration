@@ -22,17 +22,7 @@ DHParameters = np.array([[0,0,d1,0],
                          [np.pi/2,0,0,0],
                          [np.pi/2,d5,d6,0]])
 
-if(not os.path.exists(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_parameters.npy")):
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-    from DHtoModel import DHtoModel
-    DHtoModel(DHParameters,robotName)
-
-with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "_parameters.npy","rb") as file:
-    JOINTS_NUMBER = np.load(file, allow_pickle=True)
-    JOINTS_AXIS = np.load(file, allow_pickle=True)
-    JOINTS_OFFSET = np.load(file, allow_pickle=True)
-    LINKS_TRANSLATIONS = np.load(file, allow_pickle=True)
-    LINKS_ROTATIONS = np.load(file, allow_pickle=True)
-    pi0 = np.load(file, allow_pickle=True)
-    TBaseN = np.load(file, allow_pickle=True)
-    TFlangeN = np.load(file, allow_pickle=True)
+### Import routine
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from DHtoModel import DHtoModel
+JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN = DHtoModel(DHParameters,robotName)

@@ -8,13 +8,22 @@ import sys
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+#Time package
 import time
 
 def DHtoModel(DHParameters, robotName):
+    """! Converts Denavit-Hartenberg parameters to identifiable geometric parameters.
 
+    @param DHParameters   The modified Denavit-Hartenberg parameters (alpha, d, r, theta)
+    @param robotName      The name of the robot
+
+    @return  The identifiable geometric parameters.
+    """
+
+    #Starting timer
     t0 = time.time()
 
-    ### BUILDING MODEL PARAMETERS
+    ### Building model parameters
     print("Building robot geometric model parameters !")
 
     #Number of revolute joints
@@ -106,16 +115,18 @@ def DHtoModel(DHParameters, robotName):
         pi0.extend([deltaP[i-1] for i in LINKS_TRANSLATIONS[j]])
         pi0.extend([0.0 for i in LINKS_ROTATIONS[j]])
 
-    print("Saving geometric model parameters...")
-    with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "/" + robotName + "_parameters.npy","wb") as file:
-        np.save(file,JOINTS_NUMBER)
-        np.save(file,JOINTS_AXIS)
-        np.save(file,JOINTS_OFFSET)
-        np.save(file,LINKS_TRANSLATIONS)
-        np.save(file,LINKS_ROTATIONS)
-        np.save(file,pi0)
-        np.save(file,TBaseN)
-        np.save(file,TFlangeN)
-    print("Done !")
+    #print("Saving geometric model parameters...")
+    #with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "/" + robotName + #"_parameters.npy","wb+") as file:
+    #    np.save(file,JOINTS_NUMBER)
+    #    np.save(file,JOINTS_AXIS)
+    #    np.save(file,JOINTS_OFFSET)
+    #    np.save(file,LINKS_TRANSLATIONS)
+    #    np.save(file,LINKS_ROTATIONS)
+    #    np.save(file,pi0)
+    #    np.save(file,TBaseN)
+    #    np.save(file,TFlangeN)
+    #print("Done !")
 
     print("-- Model parameters computed in " + str(time.time() - t0) + " seconds --")
+
+    return(JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN)
