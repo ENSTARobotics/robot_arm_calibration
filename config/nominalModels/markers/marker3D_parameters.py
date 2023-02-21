@@ -2,7 +2,7 @@
 
 import numpy as np
 
-toolDepth = 0.019
+markerDepth = 0.019
 
 #dX,dY,dZ
 d = np.array([[0.08,-0.08,0.00565],#1
@@ -31,8 +31,8 @@ TToolN_body = np.array([[1/np.sqrt(2),1/np.sqrt(2),0,0],
                    [0,0,0,1]])
 TToolN_marker = np.array([np.dot(TToolN_body,np.array([[1,0,0,item[0]],
                                     [0,1,0,item[1]],
-                                    [0,0,1,toolDepth+item[2]],
+                                    [0,0,1,markerDepth+item[2]],
                                     [0,0,0,1]])) for item in d])
 
-N_REFERENCEPOINTS = len(d)
-markerItemsNames = ["optiTrackPose" + str(i) for i in range(N_REFERENCEPOINTS)]
+N_EEPOINTS = len(d)
+EEPointsItemsNames = ["EEPositions" + str(i) for i in range(N_EEPOINTS)]

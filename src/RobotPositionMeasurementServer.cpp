@@ -14,7 +14,7 @@
 
 RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementServer()
 {
-    //Retrieve the robot base calibration tool reference points number
+    //Retrieve the robot base calibration tool end effector points number
     std::string tmp;
     if(!m_nodeHandle.getParam("robotBasePointsNumber",tmp))
     {
@@ -23,7 +23,7 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
     }
     m_robotBasePointsNumber = stoi(tmp);
 
-    //Retrieve the robot calibration tool reference points number and name
+    //Retrieve the robot calibration tool end effector points number and name
     if(!m_nodeHandle.getParam("toolName",m_markerName))
     {
         ROS_ERROR("Unable to retrieve marker tool name !");
@@ -31,7 +31,7 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
     }
     if(!m_nodeHandle.getParam("markerPointsNumber",tmp))
     {
-        ROS_ERROR("Unable to retrieve reference points number !");
+        ROS_ERROR("Unable to retrieve end effector points number !");
         throw std::runtime_error("MISSING PARAMETER");
     }
     m_markerPointsNumber = stoi(tmp);
@@ -56,8 +56,8 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
 
 bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
-    //Get last robot base reference points measurements
-    std::vector<geometry_msgs::Point> robotBase, referencePoints;
+    //Get last robot base points measurements
+    std::vector<geometry_msgs::Point> robotBase, endEffectorPoints;
     geometry_msgs::Point point;
 
     bool measurementOK = false;
@@ -89,7 +89,7 @@ bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_
         }
         if(!measurementOK){continue;}*/
 
-        //Reference points
+        //End effector points
         for(int i = 0; i < m_markerPointsNumber; i++)
         {
             point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/" + m_topicBaseName + "/" + m_markerName + std::to_string(i+1))->point;
@@ -103,7 +103,7 @@ bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_
 
             if(m_measurementServerDisplay)
             {
-                ROS_INFO("Reference Point - %d",i+1);
+                ROS_INFO("End effector Point - %d",i+1);
                 ROS_INFO("X: %f, Y: %f, Z: %f", point.x, point.y, point.z);
             }
             
@@ -116,7 +116,7 @@ bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_
             point.y = pointVector(1);
             point.z = pointVector(2);
 
-            referencePoints.push_back(point);
+            endEffectorPoints.push_back(point);
         }
         if(!measurementOK){continue;}
     }
@@ -156,18 +156,18 @@ bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_
 
     ROS_INFO("Fill Robot Base - OK");*/
 
-    //Record the reference points measurements
+    //Record the end effector points measurements
     for(int i = 0; i < m_markerPointsNumber; i++)
     {
-        myfile << referencePoints[i].x;
+        myfile << endEffectorPoints[i].x;
         myfile << ",";
-        myfile << referencePoints[i].y;
+        myfile << endEffectorPoints[i].y;
         myfile << ",";
-        myfile << referencePoints[i].z;
+        myfile << endEffectorPoints[i].z;
         myfile << "\n";
     }
 
-    ROS_INFO("Fill Reference Points - OK");
+    ROS_INFO("Fill end effector points - OK");
 
     //Record the joints angles values
     for(int i = 0; i < jointState->position.size(); i++)
@@ -214,7 +214,7 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
     //|(4)______________________(3)|          
     //                
         
-    //Get last robot base reference points measurements
+    //Get last robot base points measurements
     std::vector<geometry_msgs::Point> robotBaseMarkers(m_robotBasePointsNumber), tmpRobotBaseMarkers(m_robotBasePointsNumber);
     geometry_msgs::Point point;
 

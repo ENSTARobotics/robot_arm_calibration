@@ -37,14 +37,14 @@ class RobotPositionMeasurementServer:MeasurementServer
     private:
 
         /*!
-         *  \brief Computes the robot base transform according to the robot base markers position measurement.
+         *  \brief Computes the robot base transform according to the robot base marker points position measurement.
          */
         void computeRobotBaseTransform();
 
         std::string m_topicBaseName;   /*!< The basename of the topic on which the reference and robot base points will be published */
         std::string m_markerName;   /*!< Type of marker used for the calibration measurements */
-        int m_markerPointsNumber;  /*!< Number of reference points on the robot calibration tool */
-        int m_robotBasePointsNumber;    /*!< Number of reference points on the robot base calibration tool */
+        int m_markerPointsNumber;  /*!< Number of marker points on the robot calibration tool */
+        int m_robotBasePointsNumber;    /*!< Number of marker points on the robot base calibration tool */
 
         std::vector<int> m_jointsNamesMapping;  /*!< Mapping between joint states and URDF joints names */
 
