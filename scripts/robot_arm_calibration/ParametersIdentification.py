@@ -11,58 +11,15 @@ import yaml
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from scipy.optimize import basinhopping
-import re
 import scipy.odr as odr
 
-#Timing packages
-import time
-
-### Retrieve parameters from directory name
-currentParameters = np.array(re.split('/|_',os.getcwd()))
-currentParameters = currentParameters[np.where(currentParameters == "calibratedModels")[0][0] + 1:]
-robotName = currentParameters[0]
-markerName = currentParameters[1]
-
-### Get robot config directory path
-configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/" + robotName + "/"
-sys.path.append(configPath)
-
-### Import robot parameters from dedicated file
-try:
-    module = import_module(robotName + "_parameters")
-
-    if "__all__" in module.__dict__:
-        names = module.__dict__["__all__"]
-    else:
-        names = [x for x in module.__dict__ if not x.startswith("_")]
-
-    globals().update({k: getattr(module, k) for k in names})
-except:
-    print("Invalid robot name for robot parameters importation ! Are you in a proper measurements folder ? ")
-    exit(1)
-
-### Get marker config directory path
-configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/markers/"
-sys.path.append(configPath)
-
-### Import marker parameters from dedicated file
-try:
-    module = import_module(markerName + "_parameters")
-
-    if "__all__" in module.__dict__:
-        names = module.__dict__["__all__"]
-    else:
-        names = [x for x in module.__dict__ if not x.startswith("_")]
-
-    globals().update({k: getattr(module, k) for k in names})
-except:
-    print("Invalid robot name for markers parameters importation ! Are you in a proper measurements folder ? ")
-    exit(1)
+### Import robot and marker parameters
+from ParametersTools import importParameters, getIdentificationParameters
+importParameters()
 
 #Custom packages (needing robot and marker parameters inclusions)
 from CalibrationCSVParsing import calibrationCSVParsing
 from AnalyticGeometricModel import Pfunc,Jfunc,size
-from NumericGeometricModel import display
 
 def computeDelta(parameters, Pij, Jointi):
     """! Computes the deltas between the measured and modeled positions.
@@ -133,15 +90,15 @@ def computeLearningRate(parameters,Pij,Jointi):
 
 globalAlgorithms = {"BH":"BFGS based Basin-Hopping"}
 
-def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations,algorithmName="BH",PijTest=None,JointiTest=None):
+def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations=10,algorithmName="BH",PijTest=None,JointiTest=None):
     """! Performs the robot model parameters identification using the specified global algorithm.
 
-    @param initialParameters   The current robot parameters vector.
-    @param PijLear      The learning measured positions vector.
-    @param JointiLear   The learning measured joints angles vector.
-    @param maxIterations  The maximum number of iterations- default = 10.
-    @param PijTest      The testing measured positions vector.
-    @param JointiTest   The testing measured joints angles vector.
+    @param initialParameters    The current robot parameters vector.
+    @param PijLear              The learning measured positions vector.
+    @param JointiLear           The learning measured joints angles vector.
+    @param maxIterations        The maximum number of iterations- default = 10.
+    @param PijTest              The testing measured positions vector.
+    @param JointiTest           The testing measured joints angles vector.
 
     @return  The optimized parameters vector.
     """
@@ -160,13 +117,13 @@ def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations,
 def BH(initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest):
     """! Performs the robot model parameters identification using the BFGS based Basin-Hopping algorithm.
 
-    @param initialParameters   The current robot parameters vector.
-    @param PijLear      The learning measured positions vector.
-    @param JointiLear   The learning measured joints angles vector.
-    @param maxIterations  The maximum number of iterations.
-    @param algorithm    The optimization algorithm to be used.
-    @param PijTest      The testing measured positions vector.
-    @param JointiTest   The testing measured joints angles vector.
+    @param initialParameters    The current robot parameters vector.
+    @param PijLear              The learning measured positions vector.
+    @param JointiLear           The learning measured joints angles vector.
+    @param maxIterations        The maximum number of iterations.
+    @param algorithm            The optimization algorithm to be used.
+    @param PijTest              The testing measured positions vector.
+    @param JointiTest           The testing measured joints angles vector.
 
     @return  The optimized parameters vector.
     """
@@ -193,7 +150,7 @@ localAlgorithms = {"GN":"Gauss-Newton",
                    "LM":"Levendberg-Marquardt",
                    "BFGS":"Broyden-Fletcher-Goldfarb-Shanno"}
 
-def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=10):
+def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=10):
     """! Performs the robot model parameters identification using the specified locally iterative algorithm.
 
     @param initialParameters   The current robot parameters vector.
@@ -334,27 +291,22 @@ def BFGS(parameters,Pij,Jointi):
 if __name__ == "__main__":
 
     #Timer initialisation
-    t0 = time.time()
+    #import time
+    #t0 = time.time()
 
     ### Retrieve measurements data
+    print("Retrieving camibration measurement data...")
     itemsNames = EEPointsItemsNames + ["jointsAngles"]
 
-    Items = calibrationCSVParsing(itemsNames,"Calibration.csv")
+    try:
+        Items = calibrationCSVParsing(itemsNames,"Calibration.csv")
+    except:
+        print("No calibration measurements CSV ! Are you in a proper calibrated model folder ? ")
+        exit(1)
+    print("Done !")
 
     ### Robot base, robot parameters and end effector points transformations estimations
-    TBase0 = TBaseN
-
-    TTool0 = np.empty((N_EEPOINTS,4,4))
-    for j in range(N_EEPOINTS):
-        TTool0[j] = np.dot(TFlangeN,TToolN_marker[j])
-
-    PBase0 = TBase0[:3,-1]
-    RBase0 = R.from_matrix(TBase0[:3,:3])
-    PTool0 = TTool0[:,:3,-1]
-    pi0 = pi0
-
-    #Merging all parameters together
-    parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten())) 
+    parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
 
     ### Create learning and testing subsets
     N_MEASUREMENTS = len(Items["jointsAngles"])
@@ -487,15 +439,14 @@ if __name__ == "__main__":
 
     ### FILL SETUP CONFIGURATION
 
-    """
-    calibratedModel["baseReference"] = np.eye(4)
+    #calibratedModel["baseReference"] = np.eye(4)
 
-    calibratedModel["toolReferences"] = {}
-    for i,tool in enumerate(TToolN_marker):
-        calibratedModel["toolReferences"][str(i+1)] = np.dot(np.linalg.inv(TToolN_body),tool).flatten().tolist()
+    #calibratedModel["toolReferences"] = {}
+    #for i,tool in enumerate(TToolN_marker):
+    #    calibratedModel["toolReferences"][str(i+1)] = np.dot(np.linalg.inv(TToolN_body),tool).#flatten().tolist()
 
-    calibratedModel["toolReferencesNumber"] = len(TToolN_marker)
-    """
+    #calibratedModel["toolReferencesNumber"] = len(TToolN_marker)
+
 
     calibratedModel["initialError"] = float(initialError)
     calibratedModel["finalError"] = float(finalError)
@@ -506,5 +457,5 @@ if __name__ == "__main__":
         yaml.dump(calibratedModel, file)
     print("Done !")
 
-    print("-- Parameters identified in " + str(time.time() - t0) + " seconds --")
+    #print("-- Parameters identified in " + str(time.time() - t0) + " seconds --")
 

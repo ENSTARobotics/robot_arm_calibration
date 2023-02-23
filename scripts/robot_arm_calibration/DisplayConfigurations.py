@@ -1,101 +1,40 @@
 #!/usr/bin/python3
 
 #System packages
-from importlib import import_module
 import sys
-import os
 import yaml
 import glob
 
 #Utility packages
 import numpy as np
-from scipy.spatial.transform import Rotation as R
 
-### RETRIEVE PARAMETERS FROM DIRECTORY NAME
-import re
-currentParameters = np.array(re.split('/|_',os.getcwd()))
-currentParameters = currentParameters[np.where(currentParameters == "calibration")[0][0] + 1:]
-robotName = currentParameters[0]
-markerName = currentParameters[1]
-
-### GET CONFIG DIRECTORY PATH
-configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/" + robotName + "/"
-sys.path.append(configPath)
-
-### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
-try:
-    module = import_module(robotName+"_parameters")
-
-    if "__all__" in module.__dict__:
-        names = module.__dict__["__all__"]
-    else:
-        names = [x for x in module.__dict__ if not x.startswith("_")]
-
-    globals().update({k: getattr(module, k) for k in names})
-except:
-    print("INVALID ROBOT NAME FOR PARAMETERS IMPORTATION !")
-    exit(1)
-
-### GET MARKER CONFIG DIRECTORY PATH
-configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/markers/"
-sys.path.append(configPath)
-
-### IMPORT MARKER PARAMETERS FROM DEDICATED FILE
-try:
-    module = import_module(markerName+"_parameters")
-
-    if "__all__" in module.__dict__:
-        names = module.__dict__["__all__"]
-    else:
-        names = [x for x in module.__dict__ if not x.startswith("_")]
-
-    globals().update({k: getattr(module, k) for k in names})
-except:
-    print("INVALID MARKER NAME FOR PARAMETERS IMPORTATION !")
-    exit(1)
+### Import robot and marker parameters
+from ParametersTools import importParameters, getIdentificationParameters
+importParameters()
 
 #Custom packages
-from AnalyticGeometricModel import Jfunc
 from NumericGeometricModel import T
 
-### RETREIVE NOMINAL PARAMETERS
-TBase0 = TBaseN
+### Retreive nominal parameters
+parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
 
-TTool0 = np.empty((len(TToolN_marker),4,4))
-for j in range(len(TToolN_marker)):
-    TTool0[j] = np.dot(TFlangeN,TToolN_marker[j])
-
-PBase0 = TBase0[:3,-1]
-RBase0 = R.from_matrix(TBase0[:3,:3])
-PTool0 = TTool0[:,:3,-1]
-pi0 = pi0
-
-parameters0 = np.hstack((PBase0,R.as_euler(RBase0,"xyz"),pi0,PTool0.flatten()))
-
-### LOADING CALIBRATION POSES
-
+### Loading calibration poses
 print("Loading configurations...")
-fileName = glob.glob("*Configurations.yaml")[0]
-print(fileName)
+try:
+    fileName = sys.argv[1]
+except:
+    try:
+        fileName = glob.glob("*Configurations.yaml")[0]
+    except:
+        print("Invalid configurations file name ! Are you in a proper calibrated model folder or have you specified a correct configurations file name ? ")
+        exit(1)
+
 with open(fileName,"r") as file:
     Configurations = yaml.load(file, Loader=yaml.FullLoader)
-    Configurations = np.array(Configurations[list(Configurations.keys())[0]]).reshape((-1,JOINTS_NUMBER))
+    Configurations = np.array(Configurations[list(Configurations.keys())[0]]).reshape((-1,JOINTS_NUMBER))[:10]
 print("Done !")
 
 print('Number of configurations : ' + str(len(Configurations)))
-
-identifiability = input("Compute identifiability score ? y/n")
-
-if(identifiability == "y" or identifiability == "Y"):
-    print("Identifiability score :")
-    J = np.vstack([Jfunc(parameters0,q) for q in Configurations])
-    SVD = np.linalg.svd(J)[1]
-
-    print("Singular values : " + str(SVD))
-
-    score = SVD[0]/SVD[-1]
-    print("score : " + str(score))
-
 
 plotMode = input("Plot mode ? [mesh, axes]")
 
@@ -103,8 +42,15 @@ if(plotMode == "axes"):
 
     import matplotlib.pyplot as plt
 
-    ### USEFULL FUNCTION
+    ### Tool function
     def plotFrame(transformationMatrix, ax = None):
+        """! Plot the frame assiated to an homogeneous 4x4 transformation matrix.
+
+        @param transformationMatrix The tranformation matrix.
+        @param ax                   Previously defined matplotlib.pyplot axes - default : None.
+
+        @return  The generated or completed matplotlib.pyplot axes.
+        """
         if(ax is None):
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
@@ -196,7 +142,6 @@ elif(plotMode == "mesh"):
     from PIL import Image
     rendered = Image.open(trimesh.util.wrap_as_stream(data))
     rendered.save("output.png")
-
 
 else:
     print("Invalid plot mode !")

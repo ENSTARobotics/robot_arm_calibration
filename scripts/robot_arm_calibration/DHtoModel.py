@@ -1,15 +1,8 @@
 #!/usr/bin/python3
 
-#System packages
-import os
-import sys
-
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-
-#Time package
-import time
 
 def DHtoModel(DHParameters, robotName):
     """! Converts Denavit-Hartenberg parameters to identifiable geometric parameters.
@@ -21,10 +14,11 @@ def DHtoModel(DHParameters, robotName):
     """
 
     #Starting timer
-    t0 = time.time()
+    #import time
+    #t0 = time.time()
 
     ### Building model parameters
-    print("Building robot geometric model parameters !")
+    #print("Building robot geometric model parameters !")
 
     #Number of revolute joints
     JOINTS_NUMBER = len(DHParameters)
@@ -127,6 +121,6 @@ def DHtoModel(DHParameters, robotName):
     #    np.save(file,TFlangeN)
     #print("Done !")
 
-    print("-- Model parameters computed in " + str(time.time() - t0) + " seconds --")
+    #print("-- Model parameters computed in " + str(time.time() - t0) + " seconds --")
 
     return(JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN)
