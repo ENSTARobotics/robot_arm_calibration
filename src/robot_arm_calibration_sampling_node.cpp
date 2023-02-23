@@ -38,13 +38,41 @@ int main(int argc, char **argv)
         throw std::runtime_error("MISSING PARAMETER");
     }
 
-    //Open sampled configurations file
-    std::string sampledConfigurationsFileName;
-    if(!n.getParam("sampledConfigurationsFileName",sampledConfigurationsFileName))
+    std::string sampledConfigurationsStorageFolder;
+    if(!n.getParam("sampledConfigurationsStorageFolder",sampledConfigurationsStorageFolder))
     {
-        ROS_ERROR("Unable to retrieve sampled configurations file name !");
+        ROS_ERROR("Unable to retrieve sampled configurations folder name !");
         throw std::runtime_error("MISSING PARAMETER");
     }
+
+    sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + "_" + samplingMethod + "_" + std::to_string(samplingValue);
+    if(n.hasParam("cartesian_limits"))
+    {
+        sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + "_box/";
+        
+    }
+    else if(n.hasParam("spheric_limits"))
+    {
+        sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + "_scan/";
+    }
+    else
+    {
+        sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + "/";
+    }
+
+    //Handle sampled configurations storage folder - clean or create
+    if(boost::filesystem::exists(sampledConfigurationsStorageFolder))
+    {
+        ROS_WARN("%s already exists : its contents will be overwritten !", sampledConfigurationsStorageFolder.c_str());
+        for (const auto& entry : boost::filesystem::directory_iterator(sampledConfigurationsStorageFolder))
+        {
+            boost::filesystem::remove_all(entry.path());
+        }
+    }
+    ROS_INFO("Creating %s ...", sampledConfigurationsStorageFolder.c_str());
+    boost::filesystem::create_directory(sampledConfigurationsStorageFolder);
+
+    std::string sampledConfigurationsFileName = sampledConfigurationsStorageFolder + "SampledConfigurations.yaml";
 
     YAML::Node config;
     try
