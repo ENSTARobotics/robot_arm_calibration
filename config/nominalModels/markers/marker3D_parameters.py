@@ -22,7 +22,7 @@ d = np.array([[0.08,-0.08,0.00565],#1
 #              --------    (5)             X
 #                                          |
 #                                      Y --|- 
-#  (3)                         (4) 
+#  (3)                         (4)     (Holding tool reference frame)
 
 
 TToolN_body = np.array([[1/np.sqrt(2),1/np.sqrt(2),0,0],

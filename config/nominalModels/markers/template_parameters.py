@@ -19,10 +19,9 @@ d = np.array([[0.0,0.0,0.0],#1
 #
 #            (1)        (2)
 #                                     
-#                           ^  
-#                         Y |
-#            (3)           -|-->     
-#                              X
+#                           Y  
+#                           |
+#            (3)           -|-- X     
 
 ### FILL PARAMETERS HERE !
 #Homogeneous transformation matrix linking the robot flange to the holding tool reference frame
