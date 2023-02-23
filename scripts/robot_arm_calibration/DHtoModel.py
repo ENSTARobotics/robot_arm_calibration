@@ -4,7 +4,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-def DHtoModel(DHParameters, robotName):
+def DHtoModel(DHParameters):
     """! Converts Denavit-Hartenberg parameters to identifiable geometric parameters.
 
     @param DHParameters   The modified Denavit-Hartenberg parameters (alpha, d, r, theta)
@@ -55,12 +55,12 @@ def DHtoModel(DHParameters, robotName):
 
         #Building links translations and rotations - Tej/uj/vj and Rej/uj/vj
 
-        #Base link
+        #Base joint
         if(j == 0):
             TBaseN = np.eye(4)
             TBaseN[:3,-1][currentjointIndex] = deltaP[currentjointIndex]
         
-        #Other links
+        #Other joints
         else:
             #If ej-1 // ej, we delete Tuj-k/vj-k which defines the translation orthogonal to ej, with k minimal
             if(abs(JOINTS_AXIS[-1]) == abs(JOINTS_AXIS[-2])):
@@ -73,7 +73,7 @@ def DHtoModel(DHParameters, robotName):
             else:
                 LINKS_ROTATIONS[-1] = np.delete(LINKS_ROTATIONS[-1],np.where(LINKS_ROTATIONS[-1] == abs(JOINTS_AXIS[-1]))[0][0])
 
-        #Flange link
+        #Flange joint
         if(j == JOINTS_NUMBER - 1):
             TFlangeN = np.eye(4)
             TFlangeN[:3,:3] = globalT[:3,:3]
@@ -85,7 +85,7 @@ def DHtoModel(DHParameters, robotName):
             LINKS_TRANSLATIONS.append(np.array([]))
             LINKS_ROTATIONS.append(np.array([]))
 
-        #Other links
+        #Other joints
         else:
             LINKS_TRANSLATIONS.append(np.sort(np.array([(currentjointIndex + 1)%3 + 1,(currentjointIndex + 2)%3 + 1])))
             LINKS_ROTATIONS.append(np.sort(np.array([(currentjointIndex + 1)%3 + 1,(currentjointIndex + 2)%3 + 1])))

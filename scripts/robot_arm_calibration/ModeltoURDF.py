@@ -7,7 +7,6 @@ import yaml
 import subprocess
 import re
 import glob
-from copy import deepcopy
 
 #Utility packages
 import numpy as np
@@ -38,15 +37,13 @@ class Joint:
         """! __str___ override for the Joint class"""
         return(self.name + " - Origin : " + str(self.origin) + " RPY : " + str(self.rpy) + " Axis : " + str(self.axis))
 
-def ModeltoURDF(modelFilePath, robotName, show = False):
+def ModeltoURDF(modelFilePath, urdfFilePath, show = False):
     """! Modifies an URDF file according to a calibrated model file.
 
     @param modelFilePath    The original URDF file.
-    @param robotName        The name of the robot.
+    @param urdfFilePath     The path to the robot URDF or XACRO description file.
     @param show             Wether to visualize the 3D result or not - default = False.
     """
-
-    print("Building " + robotName + " URDF description !")
 
     ### Reading model parameters
     with open(modelFilePath,"r") as file:
@@ -78,32 +75,39 @@ def ModeltoURDF(modelFilePath, robotName, show = False):
     Joints.append(Joint(TFlange,"joint" + str(len(jointsAxis)-1),3))
 
     ### Load URDF file
-    xacro = "echo $(xacro $(rospack find robot_arm_tools)/config/tools/none/" + robotName + "/" + robotName + "_none.urdf.xacro)"
-    xacroProcess = subprocess.run(xacro,shell=True,stdout=subprocess.PIPE)
-    xacroOutput = str(xacroProcess.stdout)[2:-3]
 
-    packages = np.unique(np.array([xacroOutput[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', xacroOutput)]))
+    #XACRO file
+    if(urdfFilePath.split(".")[-1] == "xacro"):
+        xacro = "echo $(xacro " + urdfFilePath + ")"
+        xacroProcess = subprocess.run(xacro,shell=True,stdout=subprocess.PIPE)
+        xacroOutput = str(xacroProcess.stdout)[2:-3]
 
-    for package in packages:
-        rosFind = "rospack find " + package.split("/")[-2]
-        rosFindProcess = subprocess.run(rosFind,shell=True,stdout=subprocess.PIPE)
-        rosFindOutput = str(rosFindProcess.stdout)[2:-3] + "/" 
-        xacroOutput = xacroOutput.replace(package,rosFindOutput)
+        packages = np.unique(np.array([xacroOutput[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', xacroOutput)]))
 
-    xacroOutput = xacroOutput.replace("file://","")
+        for package in packages:
+            rosFind = "rospack find " + package.split("/")[-2]
+            rosFindProcess = subprocess.run(rosFind,shell=True,stdout=subprocess.PIPE)
+            rosFindOutput = str(rosFindProcess.stdout)[2:-3] + "/" 
+            xacroOutput = xacroOutput.replace(package,rosFindOutput)
 
-    URDFfile = open("/tmp/tmp.urdf", "w")
-    URDFfile.write(xacroOutput)
-    URDFfile.close()
+        xacroOutput = xacroOutput.replace("file://","")
 
-    ### Modify URDF file
-    robot = URDF.load('/tmp/tmp.urdf')
+        URDFfile = open("/tmp/tmp.urdf", "w")
+        URDFfile.write(xacroOutput)
+        URDFfile.close()
+
+        ### Modify URDF file
+        robot = URDF.load('/tmp/tmp.urdf')
+
+    #URDF file
+    else:
+        robot = URDF.load(urdfFilePath)
 
     globalTRobot = np.eye(4)    #For the complete transformation with all joints (even unactuated)
     globalTCalibration = np.eye(4)  #For the calibrated model transformation with only actuated joints
     linksNames = np.array([link.name for link in robot.links])
 
-    #Remove intermediate conventionnal joints if needed
+    #Skip intermediate conventionnal joints if needed
     if(len(robot.joints) == len(Joints)):
         robotJoints = robot.joints
         baseJoints = []
@@ -160,7 +164,7 @@ def ModeltoURDF(modelFilePath, robotName, show = False):
         joint.origin = np.eye(4)
 
     ### Save URDF file
-    robot.save(os.getcwd() + "/" + robotName + ".urdf")
+    robot.save(os.getcwd() + "/" + urdfFilePath.split(".")[-2] + ".urdf")
 
     if(show):
         import trimesh
@@ -196,11 +200,9 @@ def ModeltoURDF(modelFilePath, robotName, show = False):
 if __name__ == "__main__":
     try : 
         modelFilePath = sys.argv[1]
-        robotName = sys.argv[2]
+        urdfFilePath = sys.argv[2]
     except:
-        modelFilePath = glob.glob("*.yaml")[0]
-        currentParameters = np.array(re.split('/|_',os.getcwd()))
-        currentParameters = currentParameters[np.where(currentParameters == "calibratedModels")[0][0] + 1:]
-        robotName = currentParameters[0]
+        print("Invalid model and URDF/XACRO file paths !")
+        sys.exit(1)
     
-    ModeltoURDF(modelFilePath,robotName)
+    ModeltoURDF(modelFilePath,urdfFilePath)

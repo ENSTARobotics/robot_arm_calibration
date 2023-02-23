@@ -45,6 +45,10 @@ def rot_axis(angle,axisIndex):
     else:
         return(sp.Identity(3))
 
+#TODO 
+#1) Non cartesian aligned axes (ie, not X(1),Y(2),Z(3) aligned)
+#2) Joints flexibilities
+
 #If the analytic model does not exist, it is generated
 if(not os.path.exists(configPathRobot + "Jacobian_" + robotName + "_" + markerName + ".pickle") or not os.path.exists(configPathRobot + "GeometricModel_" + robotName + "_" + markerName + ".pickle")):
 
