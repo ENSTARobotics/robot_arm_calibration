@@ -18,10 +18,14 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
     std::string tmp;
     if(!m_nodeHandle.getParam("robotBasePointsNumber",tmp))
     {
-        ROS_ERROR("Unable to retrieve robot base points number !");
-        throw std::runtime_error("MISSING PARAMETER");
+        ROS_WARN("Unable to retrieve robot base points number ! Measurements will be performed according to given robot base offset");
+        //throw std::runtime_error("MISSING PARAMETER");
+        m_robotBasePointsNumber = 0;
     }
-    m_robotBasePointsNumber = stoi(tmp);
+    else
+    {
+        m_robotBasePointsNumber = stoi(tmp);
+    }
 
     //Retrieve the robot calibration tool end effector points number and name
     if(!m_nodeHandle.getParam("toolName",m_markerName))
@@ -199,134 +203,157 @@ Eigen::Vector3d planeProjection(Eigen::Vector3d point, Eigen::Vector3d planeNorm
     return(point - dist*planeNormal);
 }
 
+//TODO Custom layout !
 void RobotPositionMeasurementServer::computeRobotBaseTransform()
 {
-    // ____________________________
-    //|(6)                      (1)|
-    //|                            |  
-    //|                      (7)   |
-    //|                            |
-    //|             _|_       (2)  |  
-    //|  (5)         |             |      Y
-    //|                            |      |
-    //|                            |     -|-- X
-    //|                            |
-    //|(4)______________________(3)|          
-    //                
-        
-    //Get last robot base points measurements
-    std::vector<geometry_msgs::Point> robotBaseMarkers(m_robotBasePointsNumber), tmpRobotBaseMarkers(m_robotBasePointsNumber);
-    geometry_msgs::Point point;
 
-    bool measurementOK = false;
-    int counterTries = 0, counterMeasurements = 0;
+    //Mandatory transformation matrix 
+    //Robot base frame (R) to world frame (W)
+    Eigen::Matrix4d TWR, TRW;
 
-    for(int i = 0; i < AVG_WINDOW; i++)
-    {        
-        while(!measurementOK && counterTries < MAX_TRIES)
+    if(m_robotBasePointsNumber == 0)
+    {
+        //Robot base frame (R) to world frame (W) - Estimated.
+        std::vector<double> tmpMatrix;
+
+        if(!m_nodeHandle.getParam("robotBaseOffset",tmpMatrix))
         {
-            measurementOK = true;
+            ROS_ERROR("Unable to retrieve robot base offset !");
+            throw std::runtime_error("MISSING PARAMETER");
+        }
 
-            //Robot Base
-            for(int j = 0; j < m_robotBasePointsNumber; j++)
+        TWR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data());
+        TRW = TWR.inverse();
+    }
+
+    else
+    {
+        // ____________________________
+        //|(6)                      (1)|
+        //|                            |  
+        //|                      (7)   |
+        //|                            |
+        //|             _|_       (2)  |  
+        //|  (5)         |             |      Y
+        //|                            |      |
+        //|                            |     -|-- X
+        //|                            |     (Robot base reference frame)
+        //|(4)______________________(3)|          
+        //                
+            
+        //Get last robot base points measurements
+        std::vector<geometry_msgs::Point> robotBaseMarkers(m_robotBasePointsNumber), tmpRobotBaseMarkers(m_robotBasePointsNumber);
+        geometry_msgs::Point point;
+
+        bool measurementOK = false;
+        int counterTries = 0, counterMeasurements = 0;
+
+        for(int i = 0; i < AVG_WINDOW; i++)
+        {        
+            while(!measurementOK && counterTries < MAX_TRIES)
             {
-                point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/" + m_topicBaseName + "/robotBase" + std::to_string(j+1))->point;
+                measurementOK = true;
 
-                if(abs(point.x) > 9000 || abs(point.y) > 9000 || abs(point.z) > 9000)
+                //Robot Base
+                for(int j = 0; j < m_robotBasePointsNumber; j++)
                 {
-                    counterTries++;
-                    measurementOK = false;
-                    break;
+                    point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/" + m_topicBaseName + "/robotBase" + std::to_string(j+1))->point;
+
+                    if(abs(point.x) > 9000 || abs(point.y) > 9000 || abs(point.z) > 9000)
+                    {
+                        counterTries++;
+                        measurementOK = false;
+                        break;
+                    }
+                    
+                    tmpRobotBaseMarkers[j].x = point.x;
+                    tmpRobotBaseMarkers[j].y = point.y;
+                    tmpRobotBaseMarkers[j].z = point.z;
                 }
-                
-                tmpRobotBaseMarkers[j].x = point.x;
-                tmpRobotBaseMarkers[j].y = point.y;
-                tmpRobotBaseMarkers[j].z = point.z;
             }
-        }
 
-        if(counterTries < MAX_TRIES)
-        {
-            counterMeasurements++;
-            for(int j = 0; j < m_robotBasePointsNumber; j++)
+            if(counterTries < MAX_TRIES)
             {
-                robotBaseMarkers[j].x += tmpRobotBaseMarkers[j].x;
-                robotBaseMarkers[j].y += tmpRobotBaseMarkers[j].y;
-                robotBaseMarkers[j].z += tmpRobotBaseMarkers[j].z;
-            }  
+                counterMeasurements++;
+                for(int j = 0; j < m_robotBasePointsNumber; j++)
+                {
+                    robotBaseMarkers[j].x += tmpRobotBaseMarkers[j].x;
+                    robotBaseMarkers[j].y += tmpRobotBaseMarkers[j].y;
+                    robotBaseMarkers[j].z += tmpRobotBaseMarkers[j].z;
+                }  
+            }
+
+            counterTries = 0;
+            measurementOK = false;
         }
 
-        counterTries = 0;
-        measurementOK = false;
-    }
+        for(int j = 0; j < m_robotBasePointsNumber; j++)
+        {
+            robotBaseMarkers[j].x /= counterMeasurements;
+            robotBaseMarkers[j].y /= counterMeasurements;
+            robotBaseMarkers[j].z /= counterMeasurements;
+        }
 
-    for(int j = 0; j < m_robotBasePointsNumber; j++)
-    {
-        robotBaseMarkers[j].x /= counterMeasurements;
-        robotBaseMarkers[j].y /= counterMeasurements;
-        robotBaseMarkers[j].z /= counterMeasurements;
-    }
+        //Get robot base pose position
+        Eigen::Vector3d baseCentroid;
+        for(int i = 0; i < robotBaseMarkers.size() - 1; i++)
+        {
+            baseCentroid(0) += robotBaseMarkers[i].x/(robotBaseMarkers.size() - 1);
+            baseCentroid(1) += robotBaseMarkers[i].y/(robotBaseMarkers.size() - 1);
+            baseCentroid(2) += robotBaseMarkers[i].z/(robotBaseMarkers.size() - 1);
+        }
 
-    //Get robot base pose position
-    Eigen::Vector3d baseCentroid;
-    for(int i = 0; i < robotBaseMarkers.size() - 1; i++)
-    {
-        baseCentroid(0) += robotBaseMarkers[i].x/(robotBaseMarkers.size() - 1);
-        baseCentroid(1) += robotBaseMarkers[i].y/(robotBaseMarkers.size() - 1);
-        baseCentroid(2) += robotBaseMarkers[i].z/(robotBaseMarkers.size() - 1);
-    }
+        //Find the robot base plane normal vector
+        Eigen::MatrixXd robotBaseMatrix(robotBaseMarkers.size(),3);
+        Eigen::VectorXd onesVector(robotBaseMarkers.size());
+        for(int i = 0; i < robotBaseMarkers.size(); i++)
+        {
+            robotBaseMatrix(i,0) = robotBaseMarkers[i].x;
+            robotBaseMatrix(i,1) = robotBaseMarkers[i].y;
+            robotBaseMatrix(i,2) = robotBaseMarkers[i].z;
+            onesVector(i) = 1.0;
+        }
 
-    //Find the robot base plane normal vector
-    Eigen::MatrixXd robotBaseMatrix(robotBaseMarkers.size(),3);
-    Eigen::VectorXd onesVector(robotBaseMarkers.size());
-    for(int i = 0; i < robotBaseMarkers.size(); i++)
-    {
-        robotBaseMatrix(i,0) = robotBaseMarkers[i].x;
-        robotBaseMatrix(i,1) = robotBaseMarkers[i].y;
-        robotBaseMatrix(i,2) = robotBaseMarkers[i].z;
-        onesVector(i) = 1.0;
-    }
+        Eigen::Vector3d robotBaseNormalZ = robotBaseMatrix.completeOrthogonalDecomposition().pseudoInverse()*onesVector;
+        robotBaseNormalZ /= robotBaseNormalZ.norm();
 
-    Eigen::Vector3d robotBaseNormalZ = robotBaseMatrix.completeOrthogonalDecomposition().pseudoInverse()*onesVector;
-    robotBaseNormalZ /= robotBaseNormalZ.norm();
+        if(robotBaseNormalZ(2) < 0)
+        {
+            robotBaseNormalZ *= -1.0;
+        }
 
-    if(robotBaseNormalZ(2) < 0)
-    {
-        robotBaseNormalZ *= -1.0;
-    }
+        //Find the other axis
+        Eigen::Vector3d robotBaseNormalX = planeProjection(robotBaseMatrix.row(0),robotBaseNormalZ,baseCentroid) - planeProjection(robotBaseMatrix.row(robotBaseMarkers.size()-2),robotBaseNormalZ,baseCentroid);
+        robotBaseNormalX /= robotBaseNormalX.norm();
+        Eigen::Vector3d robotBaseNormalY = robotBaseNormalZ.cross(robotBaseNormalX);
 
-    //Find the other axis
-    //TODO Custom layout ?
-    Eigen::Vector3d robotBaseNormalX = planeProjection(robotBaseMatrix.row(0),robotBaseNormalZ,baseCentroid) - planeProjection(robotBaseMatrix.row(robotBaseMarkers.size()-2),robotBaseNormalZ,baseCentroid);
-    robotBaseNormalX /= robotBaseNormalX.norm();
-    Eigen::Vector3d robotBaseNormalY = robotBaseNormalZ.cross(robotBaseNormalX);
+        //Retreive robot base transformation
+        
+        //Interpolated frame (C) to measurement device reference frame (W)
+        Eigen::Matrix4d TWC = Eigen::MatrixXd::Identity(4,4);
+        TWC.topLeftCorner(3,3) << robotBaseNormalX,robotBaseNormalY,robotBaseNormalZ;
+        TWC.topRightCorner(3,1) << baseCentroid;
 
-    //Retreive robot base transformation
-    
-    //Interpolated frame (C) to measurement device reference frame (W)
-    Eigen::Matrix4d TWC = Eigen::MatrixXd::Identity(4,4);
-    TWC.topLeftCorner(3,3) << robotBaseNormalX,robotBaseNormalY,robotBaseNormalZ;
-    TWC.topRightCorner(3,1) << baseCentroid;
+        //Robot base frame (R) to interpolated frame (C)
+        std::vector<double> tmpMatrix;
 
-    //Robot base frame (R) to interpolated frame (C)
-    std::vector<double> tmpMatrix;
+        if(!m_nodeHandle.getParam("robotBaseOffset",tmpMatrix))
+        {
+            ROS_ERROR("Unable to retrieve robot base offset !");
+            throw std::runtime_error("MISSING PARAMETER");
+        }
 
-    if(!m_nodeHandle.getParam("robotBaseOffset",tmpMatrix))
-    {
-        ROS_ERROR("Unable to retrieve robot base offset !");
-        throw std::runtime_error("MISSING PARAMETER");
-    }
+        Eigen::Matrix4d TCR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data());
 
-    Eigen::Matrix4d TCR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data());
-
-    //Measurement device reference frame (W) to robot base frame (R)
-    Eigen::Matrix4d TRW = (TWC*TCR).inverse();
+        //Measurement device reference frame (W) to robot base frame (R)
+        Eigen::Matrix4d TRW = (TWC*TCR).inverse();
+        TWR = TWC*TCR;        
+    }    
 
     //Create robot base transform
     m_robotBaseTransform.matrix() = TRW;
 
     //Broadcast the measurement device reference frame
-    Eigen::Matrix4d TWR = TWC*TCR;
     Eigen::Isometry3d measurementDeviceTransform;
     measurementDeviceTransform.matrix() = TWR;
     geometry_msgs::TransformStamped transformStamped = tf2::eigenToTransform(measurementDeviceTransform);
@@ -335,7 +362,7 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
     transformStamped.header.frame_id = "world";
     transformStamped.child_frame_id = "measurement_device_reference";
 
-    m_broadcaster.sendTransform(transformStamped);    
+    m_broadcaster.sendTransform(transformStamped);
 }
 
 int main( int argc, char **argv)
