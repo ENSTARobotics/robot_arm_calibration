@@ -1,6 +1,6 @@
 samplingMethod: naive #Even discretisation over a spheric space
 samplingValue: 5  #Discretisation step for each parameter
-spheric_limits: #Spheric limits
+sphericLimits: #Spheric limits
   center:
     - 0.3
     - 0.0

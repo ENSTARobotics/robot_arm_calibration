@@ -1,9 +1,6 @@
 #!/usr/bin/python3
 
 import numpy as np
-import os
-
-robotName = os.path.basename(__file__).split("_")[0]
 
 d1 = 0.1807
 d2 = 0.17415

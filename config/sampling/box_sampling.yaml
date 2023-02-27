@@ -1,6 +1,6 @@
 samplingMethod: naive #Even discretisation over a cartesian box
 samplingValue: 5  #Discretisation step for each parameter
-cartesian_limits: #Cartesian limits
+cartesianLimits: #Cartesian limits
   X: [-0.1,0.1]
   Y: [-0.1,0.1]
   Z: [-0.1,0.1]
