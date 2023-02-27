@@ -7,18 +7,17 @@ import yaml
 
 #Utility modules
 import numpy as np
-from scipy.spatial.transform import Rotation as R
 
 #Comutation modules
 from pygad import GA
 from simanneal import Annealer
 
 ### Import robot and marker parameters
-from ParametersTools import importParameters, getIdentificationParameters
+from robot_arm_calibration.ParametersTools import importParameters, getIdentificationParameters
 importParameters()
 
 #Custom packages
-from AnalyticGeometricModel import Jfunc
+from robot_arm_calibration.AnalyticGeometricModel import Jfunc
 
 ### Sorting function
 
@@ -68,87 +67,87 @@ utilityScores = {"A" : "A-optimality",
                  "O5" : "O5-optimality",
                  "A_accuracy" : "Accuracy driven A-optimality"}
 
-def A(CalibrationConfigurations):
+def A(TargetConfigurations):
     """! Computes the A-optimality score
 
-    @param CalibrationConfigurations   The selected configurations.
+    @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
-    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
     return(np.trace(np.dot(J.T,J)))
 
-def D(CalibrationConfigurations):
+def D(TargetConfigurations):
     """! Computes the D-optimality score
 
-    @param CalibrationConfigurations   The selected configurations.
+    @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
-    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
     return(np.linalg.det(np.dot(J.T,J)))
 
-def E(CalibrationConfigurations):
+def E(TargetConfigurations):
     """! Computes the E-optimality score
 
-    @param CalibrationConfigurations   The selected configurations.
+    @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
-    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
     _,SVD = np.linalg.svd(np.dot(J.T,J))
     return(SVD[-1])
 
-def O1(CalibrationConfigurations):
+def O1(TargetConfigurations):
     """! Computes the O1-optimality score
 
-    @param CalibrationConfigurations   The selected configurations.
+    @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
-    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
-    measurementsNumber = float(len(CalibrationConfigurations))
+    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
+    measurementsNumber = float(len(TargetConfigurations))
     return(np.power(np.linalg.det(np.dot(J.T,J)),1/measurementsNumber)/measurementsNumber)
 
-def O2(CalibrationConfigurations):
+def O2(TargetConfigurations):
     """! Computes the O2-optimality score
 
-    @param CalibrationConfigurations   The selected configurations.
+    @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
-    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
     _,SVD = np.linalg.svd(np.dot(J.T,J))
     return(SVD[-1]/SVD[0])
 
-def O3(CalibrationConfigurations):
+def O3(TargetConfigurations):
     """! Computes the O3-optimality score
 
-    @param CalibrationConfigurations   The selected configurations.
+    @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
-    return(e_optimality(CalibrationConfigurations))
+    return(e_optimality(TargetConfigurations))
 
-def O4(CalibrationConfigurations):
+def O4(TargetConfigurations):
     """! Computes the O4-optimality score
 
-    @param CalibrationConfigurations   The selected configurations.
+    @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
-    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
     _,SVD = np.linalg.svd(np.dot(J.T,J))
     return((SVD[-1]**2)/SVD[0])
 
-def O5(CalibrationConfigurations):
+def O5(TargetConfigurations):
     """! Computes the O5-optimality score
 
-    @param CalibrationConfigurations   The selected configurations.
+    @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
-    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
+    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
     _,SVD = np.linalg.svd(np.dot(J.T,J))
     inverseSVD = 1/SVD
     return(1/np.sum(inverseSVD))
@@ -157,15 +156,15 @@ def O5(CalibrationConfigurations):
 #TODO Custom definition !
 qStar = np.zeros(JOINTS_NUMBER)
 
-def A_accuracy(CalibrationConfigurations):
+def A_accuracy(TargetConfigurations):
     """! Computes the accuracy drivent A-optimality score
 
-    @param CalibrationConfigurations   The selected configurations.
+    @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
-    J = np.vstack([Jfunc(parameters0,q) for q in CalibrationConfigurations])
-    JStar = np.vstack([Jfunc(parameters0,qStar) for q in CalibrationConfigurations])
+    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
+    JStar = np.vstack([Jfunc(parameters0,qStar) for q in TargetConfigurations])
     return(1/np.trace(np.dot(np.dot(JStar,np.linalg.inv(np.dot(J.T,J))),JStar.T)))
 
 ### Optimization method
@@ -190,15 +189,15 @@ def random(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,u
 
     randomIndices = np.random.permutation(len(sampledConfigurations))
     CalibrationIndices = randomIndices[:targetConfigurationsNumber]
-    CalibrationConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
+    TargetConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
 
-    CalibrationConfigurations = np.random.normal(0.0,1.0,(targetConfigurationsNumber,JOINTS_NUMBER))
+    TargetConfigurations = np.random.normal(0.0,1.0,(targetConfigurationsNumber,JOINTS_NUMBER))
 
-    score = utilityScore(CalibrationConfigurations)
+    score = utilityScore(TargetConfigurations)
     print("Final score = " + str(score))
 
     print("Done !")
-    return(CalibrationConfigurations,score)
+    return(TargetConfigurations,score)
 
 def greedy(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,utilityScore=O1):
     """! Extract a given number of angular configurations trying to maximize an utility score with the greedy exchange algorithm.
@@ -217,8 +216,8 @@ def greedy(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,u
     CalibrationIndices = randomIndices[:targetConfigurationsNumber]
     RemainingIndices = randomIndices[targetConfigurationsNumber:]
 
-    CalibrationConfigurations = sampledConfigurations[CalibrationIndices]
-    newScore = utilityScore(CalibrationConfigurations)
+    TargetConfigurations = sampledConfigurations[CalibrationIndices]
+    newScore = utilityScore(TargetConfigurations)
     prevScore = sys.float_info.max
 
     print("score " + str(1) + "/" + str(maxCallsNumber) + " = " + str(newScore))
@@ -237,8 +236,8 @@ def greedy(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,u
         RemainingIndices = np.delete(RemainingIndices,np.where(RemainingIndices == addIndex)[0][0])
         RemainingIndices = np.append(RemainingIndices,delIndex)
 
-        CalibrationConfigurations = sampledConfigurations[CalibrationIndices]
-        score = utilityScore(CalibrationConfigurations)
+        TargetConfigurations = sampledConfigurations[CalibrationIndices]
+        score = utilityScore(TargetConfigurations)
 
         if(score > prevScore):
             CalibrationIndices = np.delete(CalibrationIndices,-1)
@@ -250,13 +249,13 @@ def greedy(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,u
 
         print("score " + str(i+2) + "/" + str(maxCallsNumber) + " = " + str(newScore))
 
-    CalibrationConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
+    TargetConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
 
     score = newScore
     print("Final score = " + str(score))
 
     print("Done !")
-    return(CalibrationConfigurations,score)
+    return(TargetConfigurations,score)
 
 def genetic(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,utilityScore=O1):
     """! Extract a given number of angular configurations trying to maximize an utility score with the genetic algorithm.
@@ -304,13 +303,13 @@ def genetic(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,
                     fitness_func=fitnessFunction)
 
     instanceGA.run()
-    CalibrationConfigurations = sampledConfigurations[np.sort(instanceGA.best_solution()[0])].reshape((-1,JOINTS_NUMBER))
+    TargetConfigurations = sampledConfigurations[np.sort(instanceGA.best_solution()[0])].reshape((-1,JOINTS_NUMBER))
 
     score = 1/instanceGA.best_solution()[1]
     print("Final score = " + str(score))
 
     print("Done !")
-    return(CalibrationConfigurations,score)
+    return(TargetConfigurations,score)
     
 def annealing(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,utilityScore=O1):
     """! Extract a given number of angular configurations trying to maximize an utility score with the simulated annealing algorithm.
@@ -357,12 +356,12 @@ def annealing(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=15
     CCP.updates = 5
     result,score = CCP.anneal()
 
-    CalibrationConfigurations = sampledConfigurations[np.sort(result)].reshape((-1,JOINTS_NUMBER))
+    TargetConfigurations = sampledConfigurations[np.sort(result)].reshape((-1,JOINTS_NUMBER))
 
     print("Final score = " + str(score))
 
     print("Done !")
-    return(CalibrationConfigurations,score)
+    return(TargetConfigurations,score)
 
 ### Main loop
 if __name__ == "__main__":
@@ -373,7 +372,7 @@ if __name__ == "__main__":
     ### Load sampled configurations
 
     SampledCalibrationConfigurations = np.empty((0,0))
-    print("Loading sampled calibration configurations...")
+    print("Loading sampled target configurations...")
     try:
         with open("SampledConfigurations.yaml","r") as file:
                 SampledCalibrationConfigurations = np.array(yaml.load(file, Loader=yaml.FullLoader)["sampledConfigurations"]).reshape((-1,JOINTS_NUMBER))
@@ -406,16 +405,16 @@ if __name__ == "__main__":
     except:
         print("No utility score given, defaulting to " + utilityScores[utilityScore])
 
-    CalibrationConfigurations,score = sortConfigurations(locals()[selectionMethods[selectionMethod]](SampledCalibrationConfigurations,targetConfigurationsNumber,maxCallsNumber,locals()[utilityScores[utilityScore]]))
+    TargetConfigurations,score = sortConfigurations(locals()[selectionMethods[selectionMethod]](SampledCalibrationConfigurations,targetConfigurationsNumber,maxCallsNumber,locals()[utilityScores[utilityScore]]))
 
-    print("Saving optimized calibration configurations...")
+    print("Saving optimized target configurations...")
 
     saveDirectory = os.getcwd() + "/" + utilityScore.lower()  + "/" + selectionMethod.lower() + "/"
 
     if(not os.path.isdir(saveDirectory)):
         os.mkdir(saveDirectory)
-    with open(saveDirectory + "/CalibrationConfigurations.yaml",'w') as file:
-        yaml.dump({"calibrationConfigurations":CalibrationConfigurations.tolist(),"score":score}, file)
+    with open(saveDirectory + "/TargetConfigurations.yaml",'w') as file:
+        yaml.dump({"targetConfigurations":TargetConfigurations.tolist(),"score":score}, file)
     print("Done !")
 
     #print("-- Optimal configurations computed in " + str(time.time() - t0) + " seconds --")

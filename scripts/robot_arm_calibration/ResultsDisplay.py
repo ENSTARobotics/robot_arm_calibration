@@ -12,12 +12,12 @@ from functools import reduce
 import matplotlib.pyplot as plt
 
 ### Import robot and marker parameters
-from ParametersTools import importParameters, getIdentificationParameters
+from robot_arm_calibration.ParametersTools import importParameters, getIdentificationParameters
 importParameters()
 
 #Custom packages
-from CalibrationCSVParsing import calibrationCSVParsing
-from AnalyticGeometricModel import Pfunc
+from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
+from robot_arm_calibration.AnalyticGeometricModel import Pfunc
 
 ### Retrieve measurements data
 
@@ -121,7 +121,7 @@ learningScores = True if tmpInput == "y" else False
 ### Utility score
 utilityScore =  ""
 if(learningScores):
-    from GenerateCalibrationConfigurations import *
+    from robot_arm_calibration.TargetConfigurationsGeneration import *
     tmpInput = input("Utility score function ? " + str(utilityScores))
     utilityScore = tmpInput.lower()
 
