@@ -46,12 +46,12 @@ int main(int argc, char **argv)
     }
 
     sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + "_" + samplingMethod + "_" + std::to_string(samplingValue);
-    if(n.hasParam("cartesian_limits"))
+    if(n.hasParam("cartesianLimits"))
     {
         sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + "_box/";
         
     }
-    else if(n.hasParam("spheric_limits"))
+    else if(n.hasParam("sphericLimits"))
     {
         sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + "_scan/";
     }
@@ -95,36 +95,36 @@ int main(int argc, char **argv)
 
     ROS_INFO("Computing sampled calibration configurations with %s method",samplingMethod);
 
-    if(n.hasParam("cartesian_limits"))
+    if(n.hasParam("cartesianLimits"))
     {
         //ROS_INFO("Adding cartesian constraints !");
         ROS_ERROR("Not yet implemented, soon !");
         throw std::logic_error("NOT IMPLEMENTED");
     }
 
-    else if(n.hasParam("spheric_limits"))
+    else if(n.hasParam("sphericLimits"))
     {
         ROS_INFO("Adding spheric constraints !");
 
         //Get sphere center
         geometry_msgs::Pose spherePose;
         std::vector<double> tmp;
-        n.getParam("spheric_limits/center",tmp);
+        n.getParam("sphericLimits/center",tmp);
         spherePose.position.x = tmp[0];
         spherePose.position.y = tmp[1];
         spherePose.position.z = tmp[2];
 
         //Get radius, inclination and azimuth limits
         std::vector<double> radiusLimits;
-        n.getParam("spheric_limits/radius",radiusLimits);
+        n.getParam("sphericLimits/radius",radiusLimits);
         std::vector<double> inclinationLimits;
-        n.getParam("spheric_limits/inclination",inclinationLimits);
+        n.getParam("sphericLimits/inclination",inclinationLimits);
         std::vector<double> azimuthLimits;
-        n.getParam("spheric_limits/azimuth",azimuthLimits);
+        n.getParam("sphericLimits/azimuth",azimuthLimits);
 
         //Get orientation parameter
         bool inward;
-        n.getParam("spheric_limits/inward",inward);
+        n.getParam("sphericLimits/inward",inward);
 
         double radiusMin = 0.2, radiusMax = 0.5, currentRadius;
         double inclinationMin = M_PI/6, inclinationMax = M_PI/3, currentInclination;
