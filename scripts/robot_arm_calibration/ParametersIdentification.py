@@ -1,25 +1,22 @@
 #!/usr/bin/python3
 
 #System packages
-from importlib import import_module
 import sys
 import os
-from copy import deepcopy
 import yaml
 
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from scipy.optimize import basinhopping
-import scipy.odr as odr
 
 ### Import robot and marker parameters
-from ParametersTools import importParameters, getIdentificationParameters
+from robot_arm_calibration.ParametersTools import importParameters, getIdentificationParameters
 importParameters()
 
 #Custom packages (needing robot and marker parameters inclusions)
-from CalibrationCSVParsing import calibrationCSVParsing
-from AnalyticGeometricModel import Pfunc,Jfunc,size
+from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
+from robot_arm_calibration.AnalyticGeometricModel import Pfunc,Jfunc,size
 
 def computeDelta(parameters, Pij, Jointi):
     """! Computes the deltas between the measured and modeled positions.
@@ -451,9 +448,9 @@ if __name__ == "__main__":
     calibratedModel["initialError"] = float(initialError)
     calibratedModel["finalError"] = float(finalError)
 
-    if(not os.path.isdir(os.getcwd() + "/" + algorithmName.upper() + "_" + str(Niterations) + "/")):
-        os.mkdir(os.getcwd() + "/" + algorithmName.upper() + "_" + str(Niterations) + "/")
-    with open(os.getcwd() + "/" + algorithmName.upper() + "_" + str(Niterations) + "/CalibratedModel.yaml",'w') as file:
+    if(not os.path.isdir(os.getcwd() + "/" + algorithmName + "/")):
+        os.mkdir(os.getcwd() + "/" + algorithmName + "/")
+    with open(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml",'w+') as file:
         yaml.dump(calibratedModel, file)
     print("Done !")
 

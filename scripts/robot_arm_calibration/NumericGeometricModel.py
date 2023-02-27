@@ -5,7 +5,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 ### Import robot and marker parameters
-from ParametersTools import importParameters
+from robot_arm_calibration.ParametersTools import importParameters
 importParameters()
 
 ### Useful matrices and functions

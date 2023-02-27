@@ -4,6 +4,7 @@
 from importlib import machinery
 import sys
 import os
+import subprocess
 
 #Utility packages
 import numpy as np
@@ -43,7 +44,10 @@ def importParameters():
             pass
 
     ### Get config directory path
-    configPath = "/".join(os.path.dirname(os.path.realpath(__file__)).split("/")[:-2]) + "/config/nominalModels"
+    packagePath = "rospack find robot_arm_calibration"
+    packageProcess = subprocess.run(packagePath,shell=True,stdout=subprocess.PIPE)
+    packageOutput = str(packageProcess.stdout)[2:-3]
+    configPath = packageOutput + "/config/nominalModels"
 
     ### Import robot parameters from dedicated file
     configPathRobot = configPath + "/" + robotName + "/"
@@ -87,6 +91,7 @@ def getIdentificationParameters(TBase,TFlange,TTool_marker,pi):
 
     @return     The identifiable parameters vector.
     """
+
     TTool = np.empty((len(TTool_marker),4,4))
     for j in range(len(TTool_marker)):
         TTool[j] = np.dot(TFlange,TTool_marker[j])

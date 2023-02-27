@@ -3,16 +3,21 @@
 #System packages
 import os
 import dill
+import subprocess
 
 #Utility packages
 import sympy as sp
 import numpy as np
 
 ### Import robot and marker parameters
-from ParametersTools import importParameters
+from robot_arm_calibration.ParametersTools import importParameters
 importParameters()
 
 ### Get robot config directory path
+packagePath = "rospack find robot_arm_calibration"
+packageProcess = subprocess.run(packagePath,shell=True,stdout=subprocess.PIPE)
+packageOutput = str(packageProcess.stdout)[2:-3]
+configPath = packageOutput + "/config/nominalModels/" + robotName + "/"
 configPathRobot = "/".join(os.path.dirname(os.path.realpath(__file__)).split("/")[:-2]) + "/config/nominalModels" + "/" + robotName + "/"
 
 ### Tool functions

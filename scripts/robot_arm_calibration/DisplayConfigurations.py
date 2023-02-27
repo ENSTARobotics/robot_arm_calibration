@@ -9,11 +9,11 @@ import glob
 import numpy as np
 
 ### Import robot and marker parameters
-from ParametersTools import importParameters, getIdentificationParameters
+from robot_arm_calibration.ParametersTools import importParameters, getIdentificationParameters
 importParameters()
 
 #Custom packages
-from NumericGeometricModel import T
+from robot_arm_calibration.NumericGeometricModel import T
 
 ### Retreive nominal parameters
 parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
