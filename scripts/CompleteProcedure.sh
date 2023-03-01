@@ -25,6 +25,14 @@ Help()
     echo "\$11 = (optional) Additionnal output - default : urdf"
 }
 
+while getopts ":h" option; do
+   case $option in
+      h) # display help
+         Help
+         exit;;
+   esac
+done
+
 bash InitParameters.sh $1 $2 $3 $4 $5 $6 || exit 1
 
 #Modeling
@@ -119,8 +127,7 @@ python3 -m robot_arm_calibration.ResultsDisplay.py
 
 if [ -z "$11" ]; then
     if [ "$extension" = "py" ]; then
-        read -p "URDF description file path ?" -r
-        URDF_path=$REPLY
+        read -e -p "URDF description file path ? " URDF_path
     else
         URDF_path=$2
 

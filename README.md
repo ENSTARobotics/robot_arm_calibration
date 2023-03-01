@@ -90,7 +90,7 @@ catkin_make
 source devel/setup.bash
 ```
 
-:warning: _Remark_ : before use, attention must be paid to the proper functioning of the _robot\_arm\_tool_ package, which involve the installation of the robot ROS driver !
+> :warning: _Remark_ : before use, attention must be paid to the proper functioning of the _robot\_arm\_tool_ package, which involve the installation of the robot ROS driver !
 
 ## Usage
 
@@ -123,7 +123,7 @@ The calibration procedure can also be splitted into separated steps as follows :
     ```bash
     roslaunch robot_arm_calibration Sampling.launch robot_name:=<robot_name> tool_name:=<marker_name> sampling_parameters_file=<sampling_parameters_file>
     ```
-   _Remark_ : Examples of sampling parameters files can be found at `config/samplig`.
+   > _Remark_ : Examples of sampling parameters files can be found at `config/samplig`.
 3. Measurements configurations choice
     ```bash
     roscd robot_arm_calibration && cd config/calibratedModels/<robot_name>_<marker_name>/<sampling_parameters>
@@ -168,6 +168,7 @@ The calibration procedure can also be splitted into separated steps as follows :
 *   [ ] Implementing more optimal configurations selection methods !
 *   [x] **Generic integration of position measuring device** based on remapped topic and parameters names
 *   [ ] Handling of **full pose measurements** (_i.e._ all 6 degrees of freedom), and **lower degree partial pose measurements** (_e.g._ single distance measurements)
+*   [ ] Handling of **camera based** measurements
 *   [x] Automated and simultaneous position and joints angles measurement process using [MoveIt](https://github.com/ros-planning/moveit) motion planning tool.
 *   [x] Design and creation of rigid structures holding reference points markers, whose position is to be measured. One of this strucure is fixed to the robot flange (end effector points/markers - mandatory) and the other one is placed under the robot base (robot base points/markers - optionnal). CAD files are provided in `/doc/CAD`.
 Full credits to [Thibault Toralba](thibault.toralba@ensta-paris.fr) and [Clément Yver](clement.yver@ensta-paris.fr)

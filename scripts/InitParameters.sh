@@ -14,6 +14,14 @@ Help()
     echo "\$5 = Path to the markers parameters file (.py - see template in config/nominalModels/marker/template.py)"
 }
 
+while getopts ":h" option; do
+   case $option in
+      h) # display help
+         Help
+         exit;;
+   esac
+done
+
 #Getting robot_arm_calibration folder
 package_folder=$(rospack find robot_arm_calibration)
 
@@ -31,8 +39,8 @@ fi
 if ! [ -f "$package_folder/config/nominalModels/$1/$1_parameters.py" ]; then
     touch "$package_folder/config/nominalModels/$1/$1_parameters.py"
 else
-    read -p "File $package_folder/config/nominalModels/$1/$1_parameters.py already exists, overwrite ? y/n " -n 1 -r
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    read -e -p "File $package_folder/config/nominalModels/$1/$1_parameters.py already exists, overwrite ? (y/n) " answer
+    if [[ $answer =~ ^[Yy]$ ]]; then
         rm "$package_folder/config/nominalModels/$1/*.py"
         rm "$package_folder/config/nominalModels/$1/*.pickle"
         touch "$package_folder/config/nominalModels/$1/$1_parameters.py"
@@ -65,8 +73,8 @@ if ! [ -f "$package_folder/config/nominalModel/markers/$4_parameters.py" ]; then
     #touch "$package_folder/config/nominalModels/markers/$4_parameters.py"
     cp $5 "$package_folder/config/nominalModels/markers/$4_parameters.py"
 else
-    read -p "File $package_folder/config/nominalModels/markers/$4_parameters.py already exists, overwrite ? y/n " -n 1 -r
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    read -e -p "File $package_folder/config/nominalModels/markers/$4_parameters.py already exists, overwrite ? (y/n) " answer
+    if [[ $answer =~ ^[Yy]$ ]]; then
         #rm "$package_folder/config/nominalModels/markers/$4_parameters.py"
         #touch "$package_folder/config/nominalModels/markers/$4_parameters.py"
         cp $5 "$package_folder/config/nominalModels/markers/$4_parameters.py"
