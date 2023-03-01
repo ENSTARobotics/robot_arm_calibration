@@ -22,6 +22,7 @@ d = np.array([[0.0,0.0,0.0],#1
 #                           Y  
 #                           |
 #            (3)           -|-- X     
+#                          (Holding tool reference frame)
 
 ### FILL PARAMETERS HERE !
 #Homogeneous transformation matrix linking the robot flange to the holding tool reference frame
