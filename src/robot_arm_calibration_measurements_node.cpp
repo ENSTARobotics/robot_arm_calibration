@@ -49,7 +49,7 @@ int main(int argc, char **argv)
     }
 
     //Main loop
-    robot.runMeasurementRountine(waypoints,"/robot_position_measurement_server",true);
+    robot.runMeasurementRoutine(waypoints,"/robot_position_measurement_server",true);
 
     //stop robot
     robot.stop(false,true);

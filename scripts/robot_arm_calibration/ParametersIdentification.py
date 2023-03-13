@@ -23,7 +23,7 @@ def computeDelta(parameters, Pij, Jointi):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The deltas vector.
     """
@@ -35,7 +35,7 @@ def computeError(parameters, Pij, Jointi):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The computed error.
     """
@@ -47,7 +47,7 @@ def computeIdentificationJacobian(parameters,Jointi):
     """! Computes the identifiaction jacobian matrix.
 
     @param parameters   The current robot parameters vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The identification jacbobian matrix.
     """
@@ -59,7 +59,7 @@ def computeIdentificationGradient(parameters,Pij,Jointi):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The identification jacbobian matrix.
     """
@@ -74,7 +74,7 @@ def computeLearningRate(parameters,Pij,Jointi):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The optimal learning rate.
     """
@@ -92,10 +92,10 @@ def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations=
 
     @param initialParameters    The current robot parameters vector.
     @param PijLear              The learning measured positions vector.
-    @param JointiLear           The learning measured joints angles vector.
+    @param JointiLear           The learning measured joints values vector.
     @param maxIterations        The maximum number of iterations- default = 10.
     @param PijTest              The testing measured positions vector.
-    @param JointiTest           The testing measured joints angles vector.
+    @param JointiTest           The testing measured joints values vector.
 
     @return  The optimized parameters vector.
     """
@@ -116,11 +116,11 @@ def BH(initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest):
 
     @param initialParameters    The current robot parameters vector.
     @param PijLear              The learning measured positions vector.
-    @param JointiLear           The learning measured joints angles vector.
+    @param JointiLear           The learning measured joints values vector.
     @param maxIterations        The maximum number of iterations.
     @param algorithm            The optimization algorithm to be used.
     @param PijTest              The testing measured positions vector.
-    @param JointiTest           The testing measured joints angles vector.
+    @param JointiTest           The testing measured joints values vector.
 
     @return  The optimized parameters vector.
     """
@@ -152,11 +152,11 @@ def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,
 
     @param initialParameters   The current robot parameters vector.
     @param PijLear      The learning measured positions vector.
-    @param JointiLear   The learning measured joints angles vector.
+    @param JointiLear   The learning measured joints values vector.
     @param stopDelta    The relative delta stopping criterion.
     @param algorithm    The optimization algorithm to be used.
     @param PijTest      The testing measured positions vector.
-    @param JointiTest   The testing measured joints angles vector.
+    @param JointiTest   The testing measured joints values vector.
     @param maxIterations  The maximum number of iterations - default = 10.
 
     @return  The identified parameters vector, final learning error and final testing error.
@@ -198,7 +198,7 @@ def GN(parameters,Pij,Jointi):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The optimized parameters vector.
     """
@@ -212,7 +212,7 @@ def GD(parameters,Pij,Jointi):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The optimized parameters vector.
     """
@@ -227,7 +227,7 @@ def LM(parameters,Pij,Jointi):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The optimized parameters vector.
     """
@@ -247,7 +247,7 @@ def BFGS(parameters,Pij,Jointi):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The optimized parameters vector.
     """
@@ -293,7 +293,7 @@ if __name__ == "__main__":
 
     ### Retrieve measurements data
     print("Retrieving camibration measurement data...")
-    itemsNames = EEPointsItemsNames + ["jointsAngles"]
+    itemsNames = EEPointsItemsNames + ["jointsValues"]
 
     try:
         Items = calibrationCSVParsing(itemsNames,"Calibration.csv")
@@ -306,7 +306,7 @@ if __name__ == "__main__":
     parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
 
     ### Create learning and testing subsets
-    N_MEASUREMENTS = len(Items["jointsAngles"])
+    N_MEASUREMENTS = len(Items["jointsValues"])
     N_LEARNING = min(N_MEASUREMENTS,2*len(parameters0))
     N_TESTS = 0
 
@@ -317,7 +317,7 @@ if __name__ == "__main__":
     for i,item in enumerate(EEPointsItemsNames):
         print("End effector point " + item)
         print(Items[item][0])
-        print(Pfunc(parameters0,Items["jointsAngles"][0])[3*i:3*i+3].T[0])
+        print(Pfunc(parameters0,Items["jointsValues"][0])[3*i:3*i+3].T[0])
 
     PijLear = np.empty((N_LEARNING,N_EEPOINTS,3))
     JointiLear = np.empty((N_LEARNING,JOINTS_NUMBER))
@@ -331,13 +331,13 @@ if __name__ == "__main__":
     indexLear = randomIndices[:N_LEARNING]
     for i,item in enumerate(EEPointsItemsNames):
         PijLear[:,i,:] = Items[item][indexLear]
-    JointiLear = Items["jointsAngles"][indexLear]
+    JointiLear = Items["jointsValues"][indexLear]
 
     if(N_TESTS != 0):
         indexTest = randomIndices[-N_TESTS:]
         for i,item in enumerate(EEPointsItemsNames):
             PijTest[:,i,:] = Items[item][indexTest]
-        JointiTest = Items["jointsAngles"][indexTest]
+        JointiTest = Items["jointsValues"][indexTest]
 
     #Initial error
     initialError = computeError(parameters0,PijLear,JointiLear)

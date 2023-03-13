@@ -130,7 +130,7 @@ bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_
         return(true);
     }
 
-    //Get last joints angles values measurement
+    //Get last joints values values measurement
     boost::shared_ptr<const sensor_msgs::JointState> jointState = ros::topic::waitForMessage<sensor_msgs::JointState>("/joint_states");
     ROS_INFO("Joints values");
 
@@ -173,7 +173,7 @@ bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_
 
     ROS_INFO("Fill end effector points - OK");
 
-    //Record the joints angles values
+    //Record the joints values values
     for(int i = 0; i < jointState->position.size(); i++)
     {
         myfile << jointState->position[m_jointsNamesMapping[i]];

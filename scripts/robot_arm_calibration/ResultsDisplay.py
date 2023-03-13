@@ -21,7 +21,7 @@ from robot_arm_calibration.AnalyticGeometricModel import Pfunc
 
 ### Retrieve measurements data
 
-itemsNames = EEPointsItemsNames + ["jointsAngles"]
+itemsNames = EEPointsItemsNames + ["jointsValues"]
 
 ### Uncalibrated data
 testingSamplingMethod = input("Testing configurations ? " + str([folder[:-1] for folder in glob.glob("*/")]))
@@ -29,7 +29,7 @@ Items0 = calibrationCSVParsing(itemsNames,os.getcwd() + "/" + testingSamplingMet
 
 parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
 
-Jointi0 = Items0["jointsAngles"][:20]
+Jointi0 = Items0["jointsValues"][:20]
 Pij0 = np.empty((len(Jointi0),N_EEPOINTS,3))
 for i,item in enumerate(EEPointsItemsNames):
     Pij0[:,i,:] = Items0[item][:20]
@@ -41,7 +41,7 @@ def computeGlobalDelta(parameters,Pij=Pij0,Jointi=Jointi0):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The deltas vector.
     """
@@ -53,7 +53,7 @@ def computeGlobalError(parameters,Pij=Pij0,Jointi=Jointi0):
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
-    @param Jointi       The measured joints angles vector.
+    @param Jointi       The measured joints values vector.
 
     @return  The computed error.
     """
@@ -69,7 +69,7 @@ def computeLocalDelta(parameters,endEffectorPointIndex,configurationIndex,Pij=Pi
     @param endEffectorPointIndex    The the end effector point index.
     @param configurationIndex       The configuration index.
     @param Pij                      The measured positions vector.
-    @param Jointi                   The measured joints angles vector.
+    @param Jointi                   The measured joints values vector.
 
     @return  The deltas vector.
     """
@@ -83,7 +83,7 @@ def computeLocalError(parameters,endEffectorPointIndex,configurationIndex,Pij=Pi
     @param endEffectorPointIndex    The the end effector point index.
     @param configurationIndex       The configuration index.
     @param Pij                      The measured positions vector.
-    @param Jointi                   The measured joints angles vector.
+    @param Jointi                   The measured joints values vector.
 
     @return  The computed error.
     """
@@ -166,7 +166,7 @@ for folder in foldersNames:
 
             Items = calibrationCSVParsing(itemsNames, folder.split("/")[0] + "/" + folder.split("/")[1] + "/measurements/Calibration.csv")
 
-            Jointi = Items["jointsAngles"]
+            Jointi = Items["jointsValues"]
             Pij = np.empty((len(Jointi),N_EEPOINTS,3))
             for i,item in enumerate(EEPointsItemsNames):
                 Pij[:,i,:] = Items[item]

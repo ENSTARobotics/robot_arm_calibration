@@ -61,7 +61,7 @@ def Ti(i,q,pi):
     """! Computes the local homogeneous transformation matrix for the ith robot joint.
 
     @param i   The robot joint index.
-    @param q   The robot angular configuration (i.e. actuators angles).
+    @param q   The robot angular configuration (i.e. actuators values).
     @param pi  The robot kinematic parameters vector.
 
     @return  The local homogeneous transformation matrix.
@@ -114,7 +114,7 @@ def Ti(i,q,pi):
 def T(q,pi,TBase=TBaseN,TTool=TFlangeN):
     """! Computes the global homogeneous transformation matrix between the world reference frame and the robot flange.
 
-    @param q        The robot angular configuration (i.e. actuators angles).
+    @param q        The robot angular configuration (i.e. actuators values).
     @param pi       The robot kinematic parameters vector.
     @param TBase    The homogeneous transformation matrix between the world reference frame and the robot base.
     @param TFalnge  The homogeneous transformation matrix between the last robot joint and the robot flange.
