@@ -4,6 +4,7 @@
     <!-- TO BE ADAPTED DEPENDING ON THE MEASURING TOOL -->
     <!-- Positions are sent as a geometry_msgs::PointStamped message-->
 
+    <!-- TODO Remove base name ? -->
     <arg name="topic_base_name" value="position_measurement_topic_base_name"/>
     <param name="topicBaseName" value="$(arg topic_base_name)"/>
 
@@ -11,10 +12,10 @@
         <rosparam file="optional_configuration_file.yaml" command="load" />
     </node>
 
-    <remap from="/robotBasePointsNumber" to="/ROS_param_giving_the_number_of_robot_base_markers"/> <!-- Set to 0 for ne robot base markers measurements -->
-    <remap from="/robotBasei" to="/topic_associated_to_the_ith_robot_base_marker"/>
+    <remap from="/robotBasePointsNumber" to="/ROS_param_giving_the_number_of_robot_base_markers"/> <!-- Set to 0 for no robot base markers measurements -->
+    <remap from="/$(arg topic_base_name)/robotBasei" to="/topic_associated_to_the_ith_robot_base_marker"/>
 
     <remap from="/markerPointsNumber" to="/ROS_param_giving_the_number_of_end effector_markers"/>
-    <remap from="/$(arg tool_name)i" to="/topic_associated_to_the_ith_end_effector_marker"/>
+    <remap from="/$(arg topic_base_name)/$(arg tool_name)i" to="/topic_associated_to_the_ith_end_effector_marker"/>
     
 </launch>

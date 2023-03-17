@@ -40,6 +40,7 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
     }
     m_markerPointsNumber = stoi(tmp);
 
+    //TODO Remove basename ?
     //Retrieve the basename of the topic on which the reference and robot base points will be published
     if(!m_nodeHandle.getParam("topicBaseName",m_topicBaseName))  
     {
@@ -70,28 +71,6 @@ bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_
     while(!measurementOK && counterTries < MAX_TRIES)
     {
         measurementOK = true;
-
-        /*//Robot Base
-        for(int i = 0; i < m_robotBasePointsNumber; i++)
-        {
-            point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/mocap_node/robotBase"+std::to_string(i+1))->point;
-
-            if(abs(point.x) > 9000 || abs(point.y) > 9000 || abs(point.z) > 9000)
-            {
-                counterTries++;
-                measurementOK = false;
-                break;
-            }
-
-            if(m_measurementServerDisplay)
-            {
-                ROS_INFO("Robot Base - %d",i+1);
-                ROS_INFO("X: %f, Y: %f, Z: %f", point.x, point.y, point.z);
-            }
-            
-            robotBase.push_back(point);
-        }
-        if(!measurementOK){continue;}*/
 
         //End effector points
         for(int i = 0; i < m_markerPointsNumber; i++)
@@ -146,19 +125,6 @@ bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_
     std::ofstream myfile(m_measurementServerStorageFolder + "Calibration.csv",std::ios::app);
 
     ROS_INFO("Open CSV - OK");
-
-    /*//Record the robot base measurements
-    for(int i = 0; i < m_robotBasePointsNumber; i++)
-    {
-        myfile << robotBase[i].x;
-        myfile << ",";
-        myfile << robotBase[i].y;
-        myfile << ",";
-        myfile << robotBase[i].z;
-        myfile << "\n";
-    }
-
-    ROS_INFO("Fill Robot Base - OK");*/
 
     //Record the end effector points measurements
     for(int i = 0; i < m_markerPointsNumber; i++)
