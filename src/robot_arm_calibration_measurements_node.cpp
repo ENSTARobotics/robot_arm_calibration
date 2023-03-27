@@ -51,9 +51,6 @@ int main(int argc, char **argv)
     //Main loop
     robot.runMeasurementRoutine(waypoints,"/robot_position_measurement_server",true);
 
-    //stop robot
-    robot.stop(false,true);
-
     ros::shutdown();
     return 0;
 }
