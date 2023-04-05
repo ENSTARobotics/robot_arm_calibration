@@ -163,6 +163,7 @@ The calibration procedure can also be splitted into separated steps as follows :
 
 #### Step 2: observations/measurements (`src/robot_arm_calibration/robot_arm_calibration_sampling_node.cpp` `src/robot_arm_calibration/robot_arm_calibration_measurement_node.cpp` & `scripts/robot_arm_calibration/TargetConfigurationsGeneration.py`)
 *   [x] Collision aware and spacially configurable **sampling of reachable robot configurations** using [MoveIt](https://github.com/ros-planning/moveit) simulation tool
+*   [ ] Itegration of the measuring device perception range for robot configuration sampling
 *   [ ] Integration of **cartesian space limits** for robot configurations sampling
 *   [x] Combinatorial optimization based **choice of optimal measurement configurations** according to identifiability indexes. Based on [pygad](https://github.com/ahmedfgad/GeneticAlgorithmPython) and [simanneal](https://github.com/perrygeo/simanneal) for the corresponding methods
 *   [ ] Implementing more optimal configurations selection methods !

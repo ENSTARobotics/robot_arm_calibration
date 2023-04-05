@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     RobotVisualTools visualTools;
 
     //Move the robot to its initial configuration
-    robot.init(false,true);
+    robot.init();
 
     //Retrieve calibration targets
     std::vector<std::vector<double>> waypoints;
@@ -49,7 +49,7 @@ int main(int argc, char **argv)
     }
 
     //Main loop
-    robot.runMeasurementRoutine(waypoints,"/robot_position_measurement_server",true);
+    robot.runMeasurementRoutine(waypoints,"/robot_position_measurement_server");
 
     ros::shutdown();
     return 0;
