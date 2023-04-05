@@ -93,7 +93,7 @@ int main(int argc, char **argv)
         config.remove("sampledConfigurations");
     }
 
-    ROS_INFO("Computing sampled calibration configurations with %s method",samplingMethod);
+    ROS_INFO("Computing sampled calibration configurations with %s method",samplingMethod.c_str());
 
     if(n.hasParam("cartesianLimits"))
     {
