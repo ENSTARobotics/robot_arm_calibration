@@ -25,48 +25,74 @@ Help()
     echo "\$11 = (optional) Additionnal output - default : urdf"
 }
 
+#Help
 while getopts ":h" option; do
    case $option in
-      h) # display help
+      h)
          Help
          exit;;
    esac
 done
 
-bash InitParameters.sh $1 $2 $3 $4 $5 $6 || exit 1
+#YAML parser
+function parse_yaml {
+   local prefix=$2
+   local s='[[:space:]]*' w='[a-zA-Z0-9_]*' fs=$(echo @|tr @ '\034')
+   sed -ne "s|,$s\]$s\$|]|" \
+        -e ":1;s|^\($s\)\($w\)$s:$s\[$s\(.*\)$s,$s\(.*\)$s\]|\1\2: [\3]\n\1  - \4|;t1" \
+        -e "s|^\($s\)\($w\)$s:$s\[$s\(.*\)$s\]|\1\2:\n\1  - \3|;p" $1 | \
+   sed -ne "s|,$s}$s\$|}|" \
+        -e ":1;s|^\($s\)-$s{$s\(.*\)$s,$s\($w\)$s:$s\(.*\)$s}|\1- {\2}\n\1  \3: \4|;t1" \
+        -e    "s|^\($s\)-$s{$s\(.*\)$s}|\1-\n\1  \2|;p" | \
+   sed -ne "s|^\($s\):|\1|" \
+        -e "s|^\($s\)-$s[\"']\(.*\)[\"']$s\$|\1$fs$fs\2|p" \
+        -e "s|^\($s\)-$s\(.*\)$s\$|\1$fs$fs\2|p" \
+        -e "s|^\($s\)\($w\)$s:$s[\"']\(.*\)[\"']$s\$|\1$fs\2$fs\3|p" \
+        -e "s|^\($s\)\($w\)$s:$s\(.*\)$s\$|\1$fs\2$fs\3|p" | \
+   awk -F$fs '{
+      indent = length($1)/2;
+      vname[indent] = $2;
+      for (i in vname) {if (i > indent) {delete vname[i]; idx[i]=0}}
+      if(length($2)== 0){  vname[indent]= ++idx[indent] };
+      if (length($3) > 0) {
+         split($3,tab,"#");
+         gsub(/ /,"",tab[1])
+         vn=""; for (i=0; i<indent; i++) { vn=(vn)(vname[i])("_")}
+         printf("%s%s%s=\"%s\"\n", "'$prefix'",vn, vname[indent], tab[1]);
+      }
+   }'
+}
 
-#Modeling
+### ROBOT/MARKER NOMINAL PARAMETERS
+
+#Retrieve robot flange link name for URDF handling
+roslaunch robot_arm_tools Setup_$1.launch --dump-params | sed -e '/"</,/n"/d' > tmp.yaml
+cut -c 2- tmp.yaml > robot_default_params.yaml
+rm tmp.yaml
+eval $(parse_yaml robot_default_params.yaml)
+rm robot_default_params.yaml
+
+#Setup robot/marker nominal parameters files
+bash NominalParametersSetting.sh $1 $2 $3 $4 $5 ${flangeLinkName}|| exit 1
+
+### MODELING
 
 python3 -m robot_arm_calibration.AnalyticGeometricModel.py $1 $4
 cd "$package_folder/config/calibratedModels/$1_$4"
 
-#Sampling
+### SAMPLING
 
-function parse_yaml {
-    local prefix=$2
-    local s='[[:space:]]*' w='[a-zA-Z0-9_]*' fs=$(echo @|tr @ '\034')
-    sed -ne "s|^\($s\):|\1|" \
-        -e "s|^\($s\)\($w\)$s:$s[\"']\(.*\)[\"']$s\$|\1$fs\2$fs\3|p" \
-        -e "s|^\($s\)\($w\)$s:$s\(.*\)$s\$|\1$fs\2$fs\3|p"  $1 |
-    awk -F$fs '{
-        indent = length($1)/2;
-        vname[indent] = $2;
-        for (i in vname) {if (i > indent) {delete vname[i]}}
-        if (length($4) > 0) {
-            split($4,tab,"#");
-            gsub(/ /,"",tab[1])
-            vn=""; for (i=0; i<indent; i++) {vn=(vn)(vname[i])("_")}
-            printf("%s%s%s=\"%s\"\n", "'$prefix'",vn, $2, tab[1]);
-        }
-    }'
-}
+#For identification
 
+#Check for sampling method file
 if [ -z "$7" ]; then
     $7="$package_folder/config/sampling/naive_sampling.yaml"
 fi
-eval $(parse_yaml $7)
 
-roslaunch robot_arm_calibration Sampling.launch robot_name:=$1 tool_name:=$4 sampling_parameters_file:=$7    #Measurements
+roslaunch robot_arm_calibration Sampling.launch robot_name:=$1 tool_name:=$4 sampling_parameters_file:=$7    
+
+#Create storage folder depending on sampling parameters
+eval $(parse_yaml $7)
 
 sampling_folder_measurements= "${samplingMethod}_${samplingValue}"
 if [ -z ${cartesianLimits+x} ]; then
@@ -75,13 +101,17 @@ elif [ -z ${sphericLimits+x} ]; then
     sampling_folder_measurements="${sampling_folder_measurements}_scan"
 fi
 
+#For verification
+
+#Check for sampling method file
 if [ -z "$8" ]; then
     $8="$package_folder/config/sampling/random_sampling.yaml"
 fi
+
+roslaunch robot_arm_calibration Sampling.launch robot_name:=$1 tool_name:=$4 sampling_parameters_file:=$8    
+
+#Create storage folder depending on sampling parameters
 eval $(parse_yaml $8)
-
-
-roslaunch robot_arm_calibration Sampling.launch robot_name:=$1 tool_name:=$4 sampling_parameters_file:=$8    #Verification
 
 sampling_folder_verification= "${samplingMethod}_${samplingValue}"
 if [ -z ${cartesianLimits+x} ]; then
@@ -90,10 +120,11 @@ elif [ -z ${sphericLimits+x} ]; then
     sampling_folder_verification="${sampling_folder_verification}_scan"
 fi
 
+### MEASUREMENTS CONFIGURATIONS CHOICE
+
 cd sampling_folder_measurements
 
-#Measurements configurations choice
-
+#Check for choice method
 if [ -z "$9" ]; then
     $9="random"
 fi
@@ -101,29 +132,31 @@ fi
 python3 _m robot_arm_calibration.TargetConfigurationsGeneration.py $9
 cd "$9"
 
-#Measurements
+### MEASUREMENTS
 
+#For identification
 roslaunch robot_arm_calibration Measurements.launch robot_name:=$1 tool_name:=$4 target_configurations_file:="$package_folder/config/calibratedModels/$1_$4/$sampling_folder_measurements/$9/TargetConfigurations.yaml" measuring_device:=$6
 
-
+#For verification
 roslaunch robot_arm_calibration Measurements.launch robot_name:=$1 tool_name:=$4 target_configurations_file:="$package_folder/config/calibratedModels/$1_$4/$sampling_folder_verification/SampledConfigurations.yaml" measuring_device:=$6
 
-#Identification
+### IDENTIFICATION
 
 cd "measurements"
 
+#Check for identification method
 if [ -z "$10" ]; then
     $10="GN"
 fi
 
 python3 -m robot_arm_calibration.ParametersIdentification.py $10
 
-#Verification
+### VERIFICATION
 
 cd "$package_folder/config/calibratedModels/$1_$4"
 python3 -m robot_arm_calibration.ResultsDisplay.py
 
-#Outputs
+### OUTPUTS GENERATION
 
 if [ -z "$11" ]; then
     if [ "$extension" = "py" ]; then
@@ -131,5 +164,5 @@ if [ -z "$11" ]; then
     else
         URDF_path=$2
 
-    python3 -m robot_arm_calibration.ModeltoURDF.py "$package_folder/config/calibratedModels/$1_$4/$(basename $7)/$8/measurements/$9/CalibratedModel.yaml" $URDF_path
+    python3 -m robot_arm_calibration.ModeltoURDF.py "$package_folder/config/calibratedModels/$1_$4/$(basename $7)/$8/measurements/$9/CalibratedModel.yaml" $URDF_path ${flangeLinkName}
 fi
