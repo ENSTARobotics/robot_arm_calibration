@@ -175,7 +175,7 @@ target_link_libraries(robot_position_measurement_server
 ## in contrast to setup.py, you can choose the destination
 catkin_install_python(PROGRAMS
   scripts/CompleteProcedure.sh
-  scripts/InitParameters.sh
+  scripts/NominalParametersSetting.sh
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
