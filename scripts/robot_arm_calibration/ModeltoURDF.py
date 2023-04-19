@@ -8,40 +8,45 @@ import subprocess
 import re
 import glob
 
+
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from urdfpy import URDF
+from urdfpy import URDF,Mesh
+
+#Custom package
+from URDFTools import getURDF, getSortedJoints, setLocalVisuals, size
+from URDFtoModel import URDFtoModel
 
 class Joint:
     """! The Joint class.
     Defines an object describing a serial robot joint.
     """
 
-    def __init__(self,tranformationMatrix,name,axis):
+    def __init__(self,tranformationMatrix,axis,offset):
         """! The Joint class initializer.
-        @param transformationMatrix  The 4x4 homogeneous local transformation matrix associated to the  joint.
-        @param  name                 The name of the joint.
+        @param transformationMatrix  The 4x4 homogeneous local transformation matrix associated to the joint.
+        @param axis The joint axis as a signed integer (1: X, 2: Y, 3: Z).
         """
-        self.name = name
 
+        #Joint axis vector
         self.axis = np.zeros(3)
         self.axis[np.abs(axis)-1] = np.sign(axis)
 
-        self.origin = tranformationMatrix[:3,-1]
-        self.rpy = R.from_matrix(tranformationMatrix[:3,:3]).as_euler('xyz')
+        #Joint rotation offset
+        self.offset = offset
 
-        self.tranformationMatrix = tranformationMatrix
+        #Joint transformation matrix (including offset)
+        offsetTransformationMatrix = np.eye(4)
+        offsetTransformationMatrix[:3,:3] = R.from_rotvec(self.axis*self.offset).as_matrix()
+        self.tranformationMatrix = np.dot(tranformationMatrix,offsetTransformationMatrix)
 
-    def __str__(self):
-        """! __str___ override for the Joint class"""
-        return(self.name + " - Origin : " + str(self.origin) + " RPY : " + str(self.rpy) + " Axis : " + str(self.axis))
-
-def ModeltoURDF(modelFilePath, urdfFilePath, show = False):
+def ModeltoURDF(modelFilePath, URDFFilePath, flangeLinkName = "", show = False):
     """! Modifies an URDF file according to a calibrated model file.
 
-    @param modelFilePath    The original URDF file.
-    @param urdfFilePath     The path to the robot URDF or XACRO description file.
+    @param modelFilePath    The path to the calibrated robot model.
+    @param URDFFilePath     The path to the robot URDF or XACRO description file.
+    @param flangeLinkName   The name of the robot's flange link.
     @param show             Wether to visualize the 3D result or not - default = False.
     """
 
@@ -54,133 +59,167 @@ def ModeltoURDF(modelFilePath, urdfFilePath, show = False):
     piFull = modelParameters["robotParameters"]
     jointsAxis = modelParameters["jointsAxis"]
 
+    ### Reading nominal model parameters
+    JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN = URDFtoModel(URDFFilePath,flangeLinkName)
+
+    piFullN = np.zeros(JOINTS_NUMBER*7)
+    PARAMETERS_INDEX = np.array([sum(JOINTS_OFFSET[:i]) + size(LINKS_TRANSLATIONS[:i]) + size(LINKS_ROTATIONS[:i]) for i in range(JOINTS_NUMBER+1)])
+
+    for i,jointAxis in enumerate(JOINTS_AXIS):
+        localParameters = pi0[PARAMETERS_INDEX[i]:PARAMETERS_INDEX[i+1]]
+        currentIndex = 0
+
+        #Joint offset
+        if(JOINTS_OFFSET[i] == 1):
+            piFullN[i*7] = localParameters[0]
+            currentIndex += 1
+
+        #Link translations
+        for k,axis in enumerate(LINKS_TRANSLATIONS[i]):
+            piFullN[i*7+1:i*7+4][np.abs(axis)-1] = localParameters[currentIndex]
+            currentIndex += 1
+
+        #Link rotations
+        for k,axis in enumerate(LINKS_ROTATIONS[i]):
+            piFullN[i*7+4:i*7+7][np.abs(axis)-1] = localParameters[currentIndex]
+            currentIndex += 1
+
+    ### Getting Joints 
     def localT(parameters):
         T = np.eye(4)
         T[:3,-1] = parameters[1:4]
         T[:3,:3] = R.from_euler("xyz",parameters[4:7]).as_matrix()
         return(T)
-
     Joints = []
+    JointsN = []
 
-    #Step 1 : Robot base
-    Joints.append(Joint(TBase,"joint0",jointsAxis[0]))
+    #Step 1 : Robot base joint
+    Joints.append(Joint(TBase,jointsAxis[0],piFull[0]))
+    JointsN.append(Joint(TBaseN,JOINTS_AXIS[0],piFullN[0]))
 
-    #Step 2 : Robot links
+    #Step 2 : Robot actuated joints
     piFull = np.array(piFull)
     for i,parameters in enumerate(np.split(piFull,len(piFull)//7)[:-1]):
         deltaT = localT(parameters)
-        Joints.append(Joint(deltaT,"joint" + str(i+1),jointsAxis[i+1]))      
+        Joints.append(Joint(deltaT,jointsAxis[i+1],piFull[(i+1)*7]))  
+    piFullN = np.array(piFullN)
+    for i,parameters in enumerate(np.split(piFullN,len(piFullN)//7)[:-1]):
+        deltaT = localT(parameters)
+        JointsN.append(Joint(deltaT,JOINTS_AXIS[i+1],piFullN[(i+1)*7]))       
 
-    #Step 3 : Robot flange
-    Joints.append(Joint(TFlange,"joint" + str(len(jointsAxis)-1),3))
+    #Step 3 : Robot flange joint
+    Joints.append(Joint(TFlange,3,0))
+    JointsN.append(Joint(TFlangeN,3,0))
 
     ### Load URDF file
+    robot = getURDF(URDFFilePath)
 
-    #XACRO file
-    if(urdfFilePath.split(".")[-1] == "xacro"):
-        xacro = "echo $(xacro " + urdfFilePath + ")"
-        xacroProcess = subprocess.run(xacro,shell=True,stdout=subprocess.PIPE)
-        xacroOutput = str(xacroProcess.stdout)[2:-3]
+    #Create output folder
+    URDFFolderName = os.getcwd() + "/" + URDFFilePath.split("/")[-1].split(".")[0] + "_urdf"
+    try:
+        os.makedirs(URDFFolderName)
+    except OSError:
+        pass
 
-        packages = np.unique(np.array([xacroOutput[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', xacroOutput)]))
+    globalTRobot = np.eye(4)    #For the complete transformation without calibration
+    globalTCalibration = np.eye(4)  #For the complete transformation with calibration
+    globalTN = np.eye(4)  #For the complete transformation without calibration using the nominal model
 
-        for package in packages:
-            rosFind = "rospack find " + package.split("/")[-2]
-            rosFindProcess = subprocess.run(rosFind,shell=True,stdout=subprocess.PIPE)
-            rosFindOutput = str(rosFindProcess.stdout)[2:-3] + "/" 
-            xacroOutput = xacroOutput.replace(package,rosFindOutput)
-
-        xacroOutput = xacroOutput.replace("file://","")
-
-        URDFfile = open("/tmp/tmp.urdf", "w")
-        URDFfile.write(xacroOutput)
-        URDFfile.close()
-
-        ### Modify URDF file
-        robot = URDF.load('/tmp/tmp.urdf')
-
-    #URDF file
-    else:
-        robot = URDF.load(urdfFilePath)
-
-    globalTRobot = np.eye(4)    #For the complete transformation with all joints (even unactuated)
-    globalTCalibration = np.eye(4)  #For the calibrated model transformation with only actuated joints
-    linksNames = np.array([link.name for link in robot.links])
-
-    #Skip intermediate conventionnal joints if needed
-    if(len(robot.joints) == len(Joints)):
-        robotJoints = robot.joints
-        baseJoints = []
-        flangeJoints = []
-    else:
-        robotJoints = []
-        baseJoints = []
-        flangeJoints = []
-        for joint in robot.joints:
-            #Investigating not actuated intermediate joints...
-            if(joint not in robot.actuated_joints):
-                #Conventionnal base joints (e.g. "base_inertial")
-                if(len(robotJoints) == 0):
-                    baseJoints.append(joint)
-                #Needed kinematic chain closing joint !
-                elif(joint == robot.joints[-1]):
-                    robotJoints.append(joint)
-                #Conventionnal flange joints (e.g. "flange")
-                else:
-                    flangeJoints.append(joint)
-            else:
-                robotJoints.append(joint)
+    #Get URDF sorted joints, in the correct order
+    baseJoints,actuatedJoints,flangeJoints = getSortedJoints(robot,flangeLinkName)
 
     #Adding base joints to the robot model
     for joint in baseJoints:
         globalTRobot = np.dot(globalTRobot,joint.origin)
-        joint.origin = np.eye(4)
+        globalTCalibration = np.dot(globalTCalibration,joint.origin)
+        globalTN = np.dot(globalTN,joint.origin)
 
-    for i,joint in enumerate(robotJoints):
+    #Adding actuated joints to the robot model
+    linksNames = np.array([link.name for link in robot.links])
+    for i,joint in enumerate(actuatedJoints):
 
         globalTRobot = np.dot(globalTRobot,joint.origin)
-        joint.origin = Joints[i].tranformationMatrix
+
+        if(i == 0):
+            #Default : robot base joint is aligned on the reference world frame
+            joint.origin = np.dot(np.linalg.inv(globalTCalibration),Joints[i].tranformationMatrix) 
+            globalTN = JointsN[i].tranformationMatrix
+        else:
+            joint.origin = Joints[i].tranformationMatrix
+            globalTN = np.dot(globalTN,JointsN[i].tranformationMatrix)
+
         joint.axis = Joints[i].axis
+
         globalTCalibration = np.dot(globalTCalibration,joint.origin)
-
-        #Debug
-        #print(globalTRobot)
-        #print(globalTCalibration)
-
+        
         link = robot.links[np.where(linksNames == joint.child)[0][0]]
         
         #Inertial parameters
-        link.inertial.origin = np.dot(np.linalg.inv(globalTCalibration),np.dot(globalTRobot,link.inertial.origin))
+        link.inertial.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,link.inertial.origin))
 
         #Visual parameters
-        for visual in link.visuals:
-            visual.origin = np.dot(np.linalg.inv(globalTCalibration),np.dot(globalTRobot,visual.origin))
+        for visual in link.visuals:  
+            visual.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,visual.origin))      
 
         #Collision parameters
         for collision in link.collisions:
-            collision.origin = np.dot(np.linalg.inv(globalTCalibration),np.dot(globalTRobot,collision.origin))
+            collision.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,collision.origin))
 
-    for joint in flangeJoints:
-        joint.origin = np.eye(4)
+
+    #Adding flange joints to the robot model
+    TFlangeCorrection = np.eye(4)
+    for i,joint in enumerate(flangeJoints):
+
+        globalTRobot = np.dot(globalTRobot,joint.origin)
+
+        if(i == len(flangeJoints) - 1):
+            globalTN = np.dot(globalTN,np.dot(np.linalg.inv(TFlangeCorrection),JointsN[-1].tranformationMatrix))
+            joint.origin = np.dot(np.linalg.inv(TFlangeCorrection),Joints[-1].tranformationMatrix)
+            joint.axis = Joints[-1].axis  
+        else:
+            globalTN = np.dot(globalTN,joint.origin)
+            TFlangeCorrection = np.dot(TFlangeCorrection,joint.origin)    
+
+        globalTCalibration = np.dot(globalTCalibration,joint.origin)
+            
+        link = robot.links[np.where(linksNames == joint.child)[0][0]]
+        
+        #Inertial parameters
+        link.inertial.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,link.inertial.origin))
+
+        #Visual parameters
+        for visual in link.visuals:
+            visual.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,visual.origin))
+
+        #Collision parameters
+        for collision in link.collisions:
+            collision.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,collision.origin))
 
     ### Save URDF file
-    robot.save(os.getcwd() + "/" + urdfFilePath.split(".")[-2] + ".urdf")
+    setLocalVisuals(robot,URDFFolderName)
+    robot.save(URDFFolderName + "/" + URDFFilePath.split("/")[-1].split(".")[0] + ".urdf")
 
     if(show):
+
         import trimesh
         scene = trimesh.Scene()
 
+        #Create display configuration
         cfg = {}
         for joint in robot.actuated_joints:
             cfg[joint.name] = 0.0
 
-        print(robot.link_fk(cfg=cfg)[robot.links[-1]])
+        #print(np.round(globalTN,3))
+        #print(np.round(globalTRobot,3))
+        #print(np.round(globalTCalibration,3))
+        #print(np.round(robot.link_fk(cfg=cfg)[robot.links[-1]],3))
 
-        axis = trimesh.creation.axis(origin_size=0.01,axis_radius=0.01,axis_length=0.15,transform = robot.link_fk(cfg=cfg)[robot.links[-1]])
-        scene.add_geometry(axis)
+        #Add frames
+        for link in robot.links:
+            scene.add_geometry(trimesh.creation.axis(origin_size=0.01,axis_radius=0.01,axis_length=0.15,transform = robot.link_fk(cfg=cfg)[link]))
 
+        #Handle robot visual meshes
         meshes = robot.visual_trimesh_fk(cfg=cfg)
-
         mesh = trimesh.Trimesh()
 
         for submesh in meshes:
@@ -200,9 +239,13 @@ def ModeltoURDF(modelFilePath, urdfFilePath, show = False):
 if __name__ == "__main__":
     try : 
         modelFilePath = sys.argv[1]
-        urdfFilePath = sys.argv[2]
+        URDFFilePath = sys.argv[2]
+        try:
+            flangeLinkName = sys.argv[3]
+        except:
+            flangeLinkName = ""
     except:
         print("Invalid model and URDF/XACRO file paths !")
         sys.exit(1)
     
-    ModeltoURDF(modelFilePath,urdfFilePath)
+    ModeltoURDF(modelFilePath,URDFFilePath,flangeLinkName,True)
