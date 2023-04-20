@@ -21,6 +21,26 @@ def size(L):
     else:
         return(1)
 
+def cleanXACROOutput(XACROOutput):
+    """! Cleans the raw XACRO output by parsing unrecognized "package://" and "file://" tags.
+
+    @param XACROOutput The raw XACRO output.
+
+    @return  The cleaned XACRO output.
+    """
+
+    packages = np.unique(np.array([XACROOutput[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', XACROOutput)]))
+
+    for package in packages:
+        rosFind = "rospack find " + package.split("/")[-2]
+        rosFindProcess = subprocess.run(rosFind,shell=True,stdout=subprocess.PIPE)
+        rosFindOutput = str(rosFindProcess.stdout)[2:-3] + "/" 
+        XACROOutput = XACROOutput.replace(package,rosFindOutput)
+
+    XACROOutput = XACROOutput.replace("file://","")
+    return(XACROOutput)
+
+
 def getURDF(URDFFilePath, **kwargs):
     """! Extract the URDF model contained in an URDF or a XACRO file.
 
@@ -39,21 +59,10 @@ def getURDF(URDFFilePath, **kwargs):
             xacro += " " + key + ":=" + str(value)
         xacro += ")" 
         xacroProcess = subprocess.run(xacro,shell=True,stdout=subprocess.PIPE)
-        xacroOutput = str(xacroProcess.stdout)[2:-3]
+        XACROOutput = cleanXACROOutput(str(xacroProcess.stdout)[2:-3])
 
-        packages = np.unique(np.array([xacroOutput[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', xacroOutput)]))
-
-        for package in packages:
-            rosFind = "rospack find " + package.split("/")[-2]
-            rosFindProcess = subprocess.run(rosFind,shell=True,stdout=subprocess.PIPE)
-            rosFindOutput = str(rosFindProcess.stdout)[2:-3] + "/" 
-            xacroOutput = xacroOutput.replace(package,rosFindOutput)
-
-        xacroOutput = xacroOutput.replace("file://","")
-
-        URDFfile = open("/tmp/tmp.urdf", "w")
-        URDFfile.write(xacroOutput)
-        URDFfile.close()
+        with open("/tmp/tmp.urdf", "w") as f:
+            f.write(XACROOutput)
 
         ### Modify URDF file
         robot = URDF.load('/tmp/tmp.urdf')
@@ -154,6 +163,7 @@ def setLocalVisuals(robot,localFolderName):
                 shutil.copyfile(visual.geometry.mesh.filename, localFolderName + "/" + visual.geometry.mesh.filename.split("/")[-1])
                 #Update model
                 visual.geometry.mesh = Mesh(localFolderName + "/" + visual.geometry.mesh.filename.split("/")[-1])
+                visual.geometry.mesh.filename = "file://" + visual.geometry.mesh.filename
 
         #Collision visual parameters
         for collision in link.collisions:
@@ -162,3 +172,4 @@ def setLocalVisuals(robot,localFolderName):
                 shutil.copyfile(collision.geometry.mesh.filename, localFolderName + "/" + collision.geometry.mesh.filename.split("/")[-1])
                 #Update model
                 collision.geometry.mesh = Mesh(localFolderName + "/" + collision.geometry.mesh.filename.split("/")[-1])
+                collision.geometry.mesh.filename = "file://" + collision.geometry.mesh.filename
