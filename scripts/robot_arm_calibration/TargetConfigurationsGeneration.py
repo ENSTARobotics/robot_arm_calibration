@@ -28,29 +28,9 @@ def sortConfigurations(configurations):
 
     @return  The sorted angular configurations.
     """
-
-    #Single joint case
-    if(np.shape(configurations)[1] == 1):
-        return(np.sort(configurations))
-
-    #Mutliple joints case
-    else:
-
-        #Sort according to the first joint
-        sortedConfigurations = configurations[np.argsort(configurations[:,0])]
-        uniqueValues = np.unique(sortedConfigurations[:,0])
-
-        previousIndex = 0
-        nextIndex = previousIndex
-        output = np.empty((0,len(sortedConfigurations[0])-1))
-
-        #Sort according to the next joints, incrementally
-        for value in uniqueValues:
-            nextIndex = np.where(sortedConfigurations[:,0] == value)[0][-1] + 1
-            output = np.vstack((output,sortConfigurations(sortedConfigurations[previousIndex:nextIndex,1:])))
-            previousIndex = nextIndex
-
-        return(np.hstack((np.array([sortedConfigurations[:,0]]).T,output)))
+    
+    #TODO improve with a traveling salesman solving method !
+    return(configurations[np.lexsort(configurations.T[::-1])])  
 
 ### Retreive nominal parameters
 parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
