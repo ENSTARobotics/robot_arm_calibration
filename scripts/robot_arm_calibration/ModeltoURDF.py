@@ -15,8 +15,8 @@ from scipy.spatial.transform import Rotation as R
 from urdfpy import URDF,Mesh
 
 #Custom package
-from URDFTools import getURDF, getSortedJoints, setLocalVisuals, size
-from URDFtoModel import URDFtoModel
+from robot_arm_calibration.URDFTools import getURDF, getSortedJoints, setLocalVisuals, size
+from robot_arm_calibration.URDFtoModel import URDFtoModel
 
 class Joint:
     """! The Joint class.
@@ -62,7 +62,7 @@ def ModeltoURDF(modelFilePath, URDFFilePath, flangeLinkName = "", URDFFolderName
     piFull = modelParameters["robotParameters"]
     jointsAxis = modelParameters["jointsAxis"]
 
-    return(ModeltoURDF_(TBase,TFlange,piFull,jointsAxis,URDFFilePath,flangeLinkName,show))
+    return(ModeltoURDF_(TBase,TFlange,piFull,jointsAxis,URDFFilePath,flangeLinkName,URDFFolderName,show))
 
 def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, URDFFilePath, flangeLinkName = "", URDFFolderName = "", show = False):
     """! Modifies an URDF file according to a calibrated model file.

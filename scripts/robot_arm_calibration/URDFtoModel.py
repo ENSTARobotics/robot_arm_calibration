@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation as R
 from urdfpy import URDF 
 
 #Custom package
-from URDFTools import getURDF, getSortedJoints, size
+from robot_arm_calibration.URDFTools import getURDF, getSortedJoints, size
 
 def URDFtoModel(URDFFilePath, flangeLinkName):
     """! Converts an URDF description to identifiable geometric parameters.
