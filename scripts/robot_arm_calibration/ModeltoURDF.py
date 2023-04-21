@@ -12,7 +12,7 @@ import glob
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from urdfpy import URDF,Mesh
+from urchin import URDF,Mesh
 
 #Custom package
 from robot_arm_calibration.URDFTools import getURDF, getSortedJoints, setLocalVisuals, size

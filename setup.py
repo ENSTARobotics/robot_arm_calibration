@@ -17,11 +17,11 @@ setup_args = generate_distutils_setup(
         #YAML file handling
         "pyyaml",
         #URDF handling and visualization
-        "urdfpy",
+        "urchin"
         "trimesh",
         #Combinatorial optimization
         "pygad",
-        "simanneal"
+        "simanneal",
     ]
 )
 setup(**setup_args)

@@ -155,7 +155,7 @@ The calibration procedure can also be splitted into separated steps as follows :
 #### Step 1: modeling (`scripts/robot_arm_calibration/AnalyticGeometricModel.py` `scripts/robot_arm_calibration/DHtoModel.py` `scripts/robot_arm_calibration/URDFtoModel.py`)
 
 *   [x] Basic **geometric** modeling, using the method proposed by this [article](https://doi.org/10.1016/j.rcim.2015.03.007)
-*   [x] Automatic model generation using either **modified Denavit-Hartenberg parameters** or an **URDF description** with [urdfpy](https://github.com/mmatl/urdfpy)
+*   [x] Automatic model generation using either **modified Denavit-Hartenberg parameters** or an **URDF description** with [urchin](https://github.com/fishbotics/urchin)
 *   [x] Generation of a formal expression for the robot model and identification Jacobian matrix using [sympy](https://github.com/sympy/sympy). This model provides the position of several end effector points given a robot joints angular configuration.
 *   [ ] Handling **unconventional geometries** : prismatic joints, unaligned joints (i.e. not with a $\frac{\pi}{2}$ offset), parallel mechanisms, ...
 *   [ ] Introduction of **more complex models**, including joints flexibilities

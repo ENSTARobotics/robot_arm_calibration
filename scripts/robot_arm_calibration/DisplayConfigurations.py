@@ -107,7 +107,7 @@ elif(plotMode == "mesh"):
     URDFfile.write(xacroOutput)
     URDFfile.close()
 
-    from urdfpy import URDF
+    from urchin import URDF
 
     scene = trimesh.Scene()
     cfg = {}

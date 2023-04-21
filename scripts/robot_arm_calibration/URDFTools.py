@@ -7,7 +7,7 @@ import shutil
 
 #Utility packages
 import numpy as np
-from urdfpy import URDF, Mesh
+from urchin import URDF, Mesh
 
 def size(L):
     """! Computes the size of a nested list as the sum of the sizes of all contained lists
@@ -45,9 +45,9 @@ def getURDF(URDFFilePath, **kwargs):
     """! Extract the URDF model contained in an URDF or a XACRO file.
 
     @param URDFFilePath The path to the URDF/XACRO file.
-    @param **kwargs The eventual arguments to pass to the xacro command while parsing the XACRO file.
+    @param **kwargs     The eventual arguments to pass to the xacro command while parsing the XACRO file.
 
-    @return  The URDF model extracted using urdfpy.
+    @return  The URDF model extracted using urchin.
     """
 
     #XACRO file
@@ -76,7 +76,7 @@ def getURDF(URDFFilePath, **kwargs):
 def getDistanceToBaseLink(robot, link):
     """! Computes the distance (as number of "real" joints) between a given link and the robot base link
 
-    @param robot    The urdfpy robot URDF model.
+    @param robot    The urchin robot URDF model.
     @param link     The considered link.
 
     @return  The distance.
@@ -101,8 +101,8 @@ def getDistanceToBaseLink(robot, link):
 def getSortedJoints(robot,flangeLinkName):
     """! Stores and sorts the joints linking the robot flange to the robot base.
 
-    @param robot The urdfpy robot URDF model.
-    @param flangeLinkName The name of the robot flange link.
+    @param robot            The urchin robot URDF model.
+    @param flangeLinkName   The name of the robot flange link.
 
     @return  The robot base joints.
     @return  The robot actuated joints.
@@ -147,11 +147,12 @@ def getSortedJoints(robot,flangeLinkName):
     #Put everything in the correct order and return
     return(baseJoints[::-1],actuatedJoints[::-1],flangeJoints[::-1])
 
+#TODO Switch to urchin to avoid mesh loading !
 def setLocalVisuals(robot,localFolderName):
-    """! Create local copies of the URDF visuals (needed to save modified URDF with urdfpy)
+    """! Create local copies of the URDF visuals (needed to save modified URDF with urchin)
 
-    @param robot The urdfpy robot URDF model.
-    @param localFolderName The name of the local folder in which to save visuals copies.
+    @param robot            The urchin robot URDF model.
+    @param localFolderName  The name of the local folder in which to save visuals copies.
     """
 
     for link in robot.links:
@@ -162,7 +163,7 @@ def setLocalVisuals(robot,localFolderName):
                 #Copy file
                 shutil.copyfile(visual.geometry.mesh.filename, localFolderName + "/" + visual.geometry.mesh.filename.split("/")[-1])
                 #Update model
-                visual.geometry.mesh = Mesh(localFolderName + "/" + visual.geometry.mesh.filename.split("/")[-1])
+                visual.geometry.mesh = Mesh(localFolderName + "/" + visual.geometry.mesh.filename.split("/")[-1],True)
                 visual.geometry.mesh.filename = "file://" + visual.geometry.mesh.filename
 
         #Collision visual parameters
@@ -171,5 +172,5 @@ def setLocalVisuals(robot,localFolderName):
                 #Copy file
                 shutil.copyfile(collision.geometry.mesh.filename, localFolderName + "/" + collision.geometry.mesh.filename.split("/")[-1])
                 #Update model
-                collision.geometry.mesh = Mesh(localFolderName + "/" + collision.geometry.mesh.filename.split("/")[-1])
+                collision.geometry.mesh = Mesh(localFolderName + "/" + collision.geometry.mesh.filename.split("/")[-1],True)
                 collision.geometry.mesh.filename = "file://" + collision.geometry.mesh.filename
