@@ -65,11 +65,11 @@ def getURDF(URDFFilePath, **kwargs):
             f.write(XACROOutput)
 
         ### Modify URDF file
-        robot = URDF.load('/tmp/tmp.urdf')
+        robot = URDF.load('/tmp/tmp.urdf',True)
 
     #URDF file
     else:
-        robot = URDF.load(URDFFilePath)
+        robot = URDF.load(URDFFilePath,True)
 
     return(robot)
 
@@ -146,31 +146,3 @@ def getSortedJoints(robot,flangeLinkName):
 
     #Put everything in the correct order and return
     return(baseJoints[::-1],actuatedJoints[::-1],flangeJoints[::-1])
-
-#TODO Switch to urchin to avoid mesh loading !
-def setLocalVisuals(robot,localFolderName):
-    """! Create local copies of the URDF visuals (needed to save modified URDF with urchin)
-
-    @param robot            The urchin robot URDF model.
-    @param localFolderName  The name of the local folder in which to save visuals copies.
-    """
-
-    for link in robot.links:
-
-        #Visual parameters
-        for visual in link.visuals:
-            if visual.geometry.mesh is not None:
-                #Copy file
-                shutil.copyfile(visual.geometry.mesh.filename, localFolderName + "/" + visual.geometry.mesh.filename.split("/")[-1])
-                #Update model
-                visual.geometry.mesh = Mesh(localFolderName + "/" + visual.geometry.mesh.filename.split("/")[-1],True)
-                visual.geometry.mesh.filename = "file://" + visual.geometry.mesh.filename
-
-        #Collision visual parameters
-        for collision in link.collisions:
-            if collision.geometry.mesh is not None:
-                #Copy file
-                shutil.copyfile(collision.geometry.mesh.filename, localFolderName + "/" + collision.geometry.mesh.filename.split("/")[-1])
-                #Update model
-                collision.geometry.mesh = Mesh(localFolderName + "/" + collision.geometry.mesh.filename.split("/")[-1],True)
-                collision.geometry.mesh.filename = "file://" + collision.geometry.mesh.filename

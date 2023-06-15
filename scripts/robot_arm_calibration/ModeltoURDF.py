@@ -12,10 +12,10 @@ import glob
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from urchin import URDF,Mesh
+from urchin import URDF
 
 #Custom package
-from robot_arm_calibration.URDFTools import getURDF, getSortedJoints, setLocalVisuals, size
+from robot_arm_calibration.URDFTools import getURDF, getSortedJoints, size
 from robot_arm_calibration.URDFtoModel import URDFtoModel
 
 class Joint:
@@ -41,14 +41,15 @@ class Joint:
         offsetTransformationMatrix[:3,:3] = R.from_rotvec(self.axis*self.offset).as_matrix()
         self.tranformationMatrix = np.dot(tranformationMatrix,offsetTransformationMatrix)
 
-def ModeltoURDF(modelFilePath, URDFFilePath, flangeLinkName = "", URDFFolderName = "", show = False):
+def ModeltoURDF(modelFilePath, inputURDFFilePath, flangeLinkName = "", outputURDFFilePath = "", show = False):
     """! Modifies an URDF file according to a calibrated model file.
 
-    @param modelFilePath    The path to the calibrated robot model.
-    @param URDFFilePath     The path to the robot URDF or XACRO description file.
-    @param flangeLinkName   The name of the robot's flange link.
-    @param URDFFolderName   The name of the folder where the output file will be saved - defaut = current_folder/robot_name/
-    @param show             Wether to visualize the 3D result or not - default = False.
+    @param modelFilePath        The path to the calibrated robot model.
+    @param inputURDFFilePath    The path to the robot URDF or XACRO description file.
+    @param flangeLinkName       The name of the robot's flange link.
+    @param outputURDFFilePath   The path where the output URDF file will be saved - defaut = current_folder/inputURDFBaseName_output.urdf
+    name of the folder where the output file will be saved - defaut = current_folder/robot_name/
+    @param show                 Wether to visualize the 3D result or not - default = False.
 
     @return The generated URDF as a string.
     """
@@ -62,19 +63,19 @@ def ModeltoURDF(modelFilePath, URDFFilePath, flangeLinkName = "", URDFFolderName
     piFull = modelParameters["robotParameters"]
     jointsAxis = modelParameters["jointsAxis"]
 
-    return(ModeltoURDF_(TBase,TFlange,piFull,jointsAxis,URDFFilePath,flangeLinkName,URDFFolderName,show))
+    return(ModeltoURDF_(TBase,TFlange,piFull,jointsAxis,inputURDFFilePath,flangeLinkName,outputURDFFilePath,show))
 
-def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, URDFFilePath, flangeLinkName = "", URDFFolderName = "", show = False):
+def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, inputURDFFilePath, flangeLinkName = "", outputURDFFilePath = "", show = False):
     """! Modifies an URDF file according to a calibrated model file.
 
-    @param TBase            The calibrated robot base transformation.
-    @param TFlange          The calibrated robot flange transformation.
-    @param piFull           The full robot parameters vector.
-    @param jointsAxis       The joints axis vector.
-    @param URDFFilePath     The path to the robot URDF or XACRO description file.
-    @param flangeLinkName   The name of the robot's flange link.
-    @param URDFFolderName   The name of the folder where the output file will be saved - defaut = current_folder/robot_name/
-    @param show             Wether to visualize the 3D result or not - default = False.
+    @param TBase                The calibrated robot base transformation.
+    @param TFlange              The calibrated robot flange transformation.
+    @param piFull               The full robot parameters vector.
+    @param jointsAxis           The joints axis vector.
+    @param inputURDFFilePath    The path to the robot URDF or XACRO description file.
+    @param flangeLinkName       The name of the robot's flange link.
+    @param outputURDFFilePath   The path where the output URDF file will be saved - defaut = current_folder/inputURDFBaseName_output.urdf
+    @param show                 Wether to visualize the 3D result or not - default = False.
 
     @return The generated URDF as a string.
     """
@@ -83,7 +84,7 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, URDFFilePath, flan
     piFull = robotParameters
 
     ### Reading nominal model parameters
-    JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN = URDFtoModel(URDFFilePath,flangeLinkName)
+    JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN = URDFtoModel(inputURDFFilePath,flangeLinkName)
 
     piFullN = np.zeros(JOINTS_NUMBER*7)
     PARAMETERS_INDEX = np.array([sum(JOINTS_OFFSET[:i]) + size(LINKS_TRANSLATIONS[:i]) + size(LINKS_ROTATIONS[:i]) for i in range(JOINTS_NUMBER+1)])
@@ -135,15 +136,7 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, URDFFilePath, flan
     JointsN.append(Joint(TFlangeN,3,0))
 
     ### Load URDF file
-    robot = getURDF(URDFFilePath)
-
-    #Create output folder
-    if(URDFFolderName==""):
-        URDFFolderName = os.getcwd() + "/" + URDFFilePath.split("/")[-1].split(".")[0] + "_urdf"
-    try:
-        os.makedirs(URDFFolderName)
-    except OSError:
-        pass
+    robot = getURDF(inputURDFFilePath)
 
     globalTRobot = np.eye(4)    #For the complete transformation without calibration and "native" frames conventions
     globalTCalibration = np.eye(4)  #For the complete transformation with calibration
@@ -220,10 +213,14 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, URDFFilePath, flan
             collision.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,collision.origin))
 
     ### Save URDF file
-    setLocalVisuals(robot,URDFFolderName)
-    robot.save(URDFFolderName + "/" + URDFFilePath.split("/")[-1].split(".")[0] + ".urdf")
+    if(outputURDFFilePath == ""):
+        outputURDFFilePath = os.getcwd() + "/" + os.path.basename(inputURDFFilePath).split(".")[0] + "_output.urdf"
+
+    robot.save(outputURDFFilePath)
 
     if(show):
+
+        robot = URDF.load(outputURDFFilePath)
 
         import trimesh
         scene = trimesh.Scene()
@@ -260,14 +257,14 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, URDFFilePath, flan
         scene.set_camera((np.pi/3,0.0,3*np.pi/4),3.5,(0,0,0.5))
         scene.show()
 
-    with open(URDFFolderName + "/" + URDFFilePath.split("/")[-1].split(".")[0] + ".urdf","r") as f:
+    with open(outputURDFFilePath,"r") as f:
         output = f.read()
     return(output)
 
 if __name__ == "__main__":
     try : 
         modelFilePath = sys.argv[1]
-        URDFFilePath = sys.argv[2]
+        inputURDFFilePath = sys.argv[2]
         try:
             flangeLinkName = sys.argv[3]
         except:
@@ -276,4 +273,4 @@ if __name__ == "__main__":
         print("Invalid model and URDF/XACRO file paths !")
         sys.exit(1)
     
-    ModeltoURDF(modelFilePath,URDFFilePath,flangeLinkName,False)
+    ModeltoURDF(modelFilePath,inputURDFFilePath,flangeLinkName,False)
