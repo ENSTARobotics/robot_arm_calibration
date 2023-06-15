@@ -3,11 +3,11 @@
 #System packages
 import yaml
 import glob
+import os
 
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-import re
 from functools import reduce
 import matplotlib.pyplot as plt
 
@@ -112,8 +112,6 @@ tmpInput = input("Parameters identification methods ? " + str(identificationMeth
 identificationMethods = tmpInput.split(" ") if tmpInput != "*" else identificationMethods
 foldersNames = np.array([folder for folder in foldersNames if folder.split("/")[3] in identificationMethods])
 
-foldersNames = np.concatenate([np.array([method+"/"+folder for folder in foldersNames]) for method in learningSamplingMethod])
-
 learningScores = False
 tmpInput = input("Compute learning scores values ? y/n")
 learningScores = True if tmpInput == "y" else False
@@ -136,12 +134,14 @@ for i,item in enumerate(EEPointsItemsNames):
 avgLocalError = np.average(localError,axis=1)
 stdLocalError = np.std(localError,axis=1)
 ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label="uncalibrated", marker='o',linestyle="none",markersize=4,capsize=4)
-print("Testing error raw : " + str(computeGlobalError(parameters0)))
+print("Testing error raw : " + str(computeGlobalError(parameters0)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)))
+print(np.average(localError.flatten()))
+print(np.std(localError.flatten()))
 
 #Plot calibrated errors
 samplingSelectionMethod = ""
 for folder in foldersNames:
-
+    print(folder)
     label = folder.split("/")[0] + " " + folder.split("/")[1] + " " + folder.split("/")[3]
     with open(folder + "/CalibratedModel.yaml",'r') as file:
         calibratedModel = yaml.load(file, Loader=yaml.FullLoader)
@@ -155,7 +155,9 @@ for folder in foldersNames:
     avgLocalError = np.average(localError,axis=1)
     stdLocalError = np.std(localError,axis=1)
     ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label=label, marker='o',linestyle="none",markersize=4,capsize=4)
-    print("Testing error for " + label + " : " + str(computeGlobalError(parameters)))
+    print("Testing error for " + label + " : " + str(computeGlobalError(parameters)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)))
+    print(np.average(localError.flatten()))
+    print(np.std(localError.flatten()))
 
     #Compute learning scores
     if(learningScores):
