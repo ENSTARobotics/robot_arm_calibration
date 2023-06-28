@@ -66,7 +66,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
         globalT = np.dot(globalT,joint.origin)
 
         #Retrive current joint axis - ej (completed by uj and vj to form an orthonormal frame)
-        currentjointIndex = np.where(np.abs(globalT[:3,2])==1)[0][0]
+        currentjointIndex = np.where(np.round(np.abs(globalT[:3,2]),4)==1)[0][0]
         JOINTS_AXIS.append(int(np.sign(globalT[:3,2][currentjointIndex])*(currentjointIndex + 1)))
 
         #Get identifiable links translations and rotations - Tej/uj/vj and Rej/uj/vj
@@ -138,7 +138,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
                 for k in LINKS_TRANSLATIONS[j]:
                     if(k not in LINKS_TRANSLATIONS[i] and np.abs(deltaP[k-1]) > 1e-10):
                         pi0[sum(JOINTS_OFFSET[:j]) + size(LINKS_TRANSLATIONS[:j]) + size(LINKS_ROTATIONS[:j]) + k - 1] = np.round(deltaP[k-1],10)
-                        del needFill[j]
+                        needFill.remove(j)
 
         #Links translations and rotations
         pi0.extend([np.round(deltaP[i-1],10) for i in LINKS_TRANSLATIONS[i]])
