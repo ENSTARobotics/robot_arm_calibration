@@ -44,7 +44,8 @@ utilityScores = {"A" : "A-optimality",
                  "O3" : "O3-optimality",
                  "O4" : "O4-optimality",
                  "O5" : "O5-optimality",
-                 "A_accuracy" : "Accuracy driven A-optimality"}
+                 "A_accuracy" : "Accuracy driven A-optimality",
+                 "A_accuracy_max" : "Variant of the accuracy driven A-optimality"}
 
 def A(TargetConfigurations):
     """! Computes the A-optimality score
@@ -135,15 +136,26 @@ def O5(TargetConfigurations):
 qStar = np.zeros(JOINTS_NUMBER)
 
 def A_accuracy(TargetConfigurations):
-    """! Computes the accuracy drivent A-optimality score
+    """! Computes the accuracy driven "A-optimality" score (i.e. Inverted A-optimality weighted with specific target configurations Jacobian identification matrices)
 
     @param TargetConfigurations   The selected configurations.
 
     @return  The computed score.
     """
     J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
-    JStar = np.vstack([Jfunc(parameters0,qStar) for q in TargetConfigurations])
+    JStar = np.vstack([Jfunc(parameters0,qStar) for qStar in TargetConfigurations])
     return(1/np.trace(np.dot(np.dot(JStar,np.linalg.inv(np.dot(J.T,J))),JStar.T)))
+
+def A_accuracy_max(TargetConfigurations):
+    """! Computes the variant accuracy driven A-optimality score (i.e. maximum value among inverted A-optimalities weighted with each specific target configuration Jacobian identification matrix separately)
+
+    @param TargetConfigurations   The selected configurations.
+
+    @return  The computed score.
+    """
+    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
+    JStarAll = [Jfunc(parameters0,qStar) for qStar in TargetConfigurations]
+    return(1/max([np.trace(np.dot(np.dot(JStar,np.linalg.inv(np.dot(J.T,J))),JStar.T)) for JStar in JStarAll]))
 
 ### Optimization method
 

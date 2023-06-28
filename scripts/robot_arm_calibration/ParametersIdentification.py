@@ -117,7 +117,7 @@ def BH(initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest):
     @param PijLear              The learning measured positions vector.
     @param JointiLear           The learning measured joints positions vector.
     @param maxIterations        The maximum number of iterations.
-    @param algorithm            The optimization algorithm to be used.
+    @param algorithm            The identification algorithm to be used.
     @param PijTest              The testing measured positions vector.
     @param JointiTest           The testing measured joints positions vector.
 
@@ -142,9 +142,11 @@ def BH(initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest):
     return(optimizedParameters)
 
 localAlgorithms = {"GN":"Gauss-Newton",
+                   "TLS":"Total Least-Squares",
                    "GD":"Gradient descent",
                    "LM":"Levendberg-Marquardt",
                    "BFGS":"Broyden-Fletcher-Goldfarb-Shanno"}
+#TODO Add stochastic gradient descent ? Not relevant here...
 
 def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=10):
     """! Performs the robot model parameters identification using the specified locally iterative algorithm.
@@ -153,7 +155,7 @@ def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,
     @param PijLear      The learning measured positions vector.
     @param JointiLear   The learning measured joints positions vector.
     @param stopDelta    The relative delta stopping criterion.
-    @param algorithm    The optimization algorithm to be used.
+    @param algorithm    The identification algorithm to be used.
     @param PijTest      The testing measured positions vector.
     @param JointiTest   The testing measured joints positions vector.
     @param maxIterations  The maximum number of iterations - default = 10.
@@ -194,7 +196,7 @@ def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,
     return(parameters,errorLear,errorTest)
 
 def GN(parameters,Pij,Jointi):
-    """! Performs the robot model parameters optimization using the Gauss-Newton algorithm.
+    """! Performs the robot model parameters identification using the Gauss-Newton algorithm.
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
@@ -207,8 +209,27 @@ def GN(parameters,Pij,Jointi):
 
     return(optimizedParameters)
 
+def TLS(parameters,Pij,Jointi,covarianceMatrix = np.eye(JOINTS_NUMBER)):
+    """! Performs the robot model parameters identification using the Total Least-Squares algorithm.
+
+    @param parameters       The current robot parameters vector.
+    @param Pij              The measured positions vector.
+    @param Jointi           The measured joints values vector.
+    @param covarianceMatrix The covariance matrix associated to the measurements.
+
+    @return  The optimized parameters vector.
+    """
+
+    J = computeIdentificationJacobian(parameters,Jointi)
+    tJW = np.dot(J.T,np.linalg.inv(covarianceMatrix))
+    tJWJ = np.dot(tJW,J)
+
+    optimizedParameters = parameters + np.dot(np.dot(np.linalg.inv(tJWJ),tJW),computeDelta(parameters,Pij,Jointi))
+
+    return(optimizedParameters)
+
 def GD(parameters,Pij,Jointi):
-    """! Performs the robot model parameters optimization using the gradient descent algorithm.
+    """! Performs the robot model parameters identification using the gradient descent algorithm.
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
@@ -223,7 +244,7 @@ def GD(parameters,Pij,Jointi):
     return(optimizedParameters)
 
 def LM(parameters,Pij,Jointi):
-    """! Performs the robot model parameters optimization using the Levendberg-Marquardt algorithm.
+    """! Performs the robot model parameters identification using the Levendberg-Marquardt algorithm.
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
@@ -243,7 +264,7 @@ def LM(parameters,Pij,Jointi):
     return(optimizedParameters)
 
 def BFGS(parameters,Pij,Jointi):
-    """! Performs the robot model parameters optimization using the Broyden-Fletcher-Goldfarb-Shanno algorithm.
+    """! Performs the robot model parameters identification using the Broyden-Fletcher-Goldfarb-Shanno algorithm.
 
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
@@ -417,7 +438,7 @@ if __name__ == "__main__":
             raise ValueError
         algorithmName = tmpAlgorithmName
     except:
-        print("No or invalid optimization method given, defaulting to " + algorithmType + " " + algorithmName)
+        print("No or invalid identification method given, defaulting to " + algorithmType + " " + algorithmName)
 
     if(algorithmType == "local"):
         stopDelta = 1e-8
@@ -426,7 +447,27 @@ if __name__ == "__main__":
         except:
             print("No stop delta criterion given, defaulting to " + str(stopDelta))
 
+        initialisations = 3
+        try : 
+            initialisations = float(sys.argv[2])
+        except:
+            print("No initialisations number given, defaulting to " + str(initialisations))
+
+        #First standard initialisation with nominal parameters
         parameters,finalError,finalTestError = localIdentifyParameters(parameters0,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+
+        #TODO Parallel computation !
+        for i in range(initialisations-1):
+            #Create small initial disturbance...
+            initialisationDelta = np.random.random(len(parameters0))
+
+            deltaParameters,deltaFinalError,deltaFinalTestingError = localIdentifyParameters(parameters0+initialisationDelta,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+
+            if (deltaFinalError/finalError < 1 - stopDelta):
+                print("Found better minimum with a small initial disturbance !")
+                parameters = deltaParameters 
+                finalError = deltaFinalError 
+                finalTestingError = deltaFinalTestingError
 
     elif(algorithmType == "global"):
         maxIterations = 10
