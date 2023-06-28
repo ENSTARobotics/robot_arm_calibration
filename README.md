@@ -83,6 +83,14 @@ rosdep update
 rosdep install --from_paths src --ignore-src -y
 ```
 
+> :warning: The package depends on a modified version of the `urchin` python module, which can be installed as follows :
+> 
+> ```
+> cd ~/catkin_ws/src
+> git clone -b bugfix/lazy-save https://github.com/CarolinePascal/urchin.git
+> cd urchin && python3 -m pip install .
+> ```
+
 And build packages :
 
 ```bash
