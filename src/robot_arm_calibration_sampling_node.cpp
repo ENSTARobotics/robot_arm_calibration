@@ -264,6 +264,7 @@ int main(int argc, char **argv)
                 {
                     Q.push_back(jointsLimits[j][0] + (jointsLimits[j][1] - jointsLimits[j][0])*i/(samplingValue - 1));
                 }
+                //Case where the lower and upper joints limits are the same (modulo 2*pi)
                 else
                 {
                     Q.push_back(jointsLimits[j][0] + (jointsLimits[j][1] - jointsLimits[j][0])*i/(samplingValue));
