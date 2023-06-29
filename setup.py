@@ -17,7 +17,7 @@ setup_args = generate_distutils_setup(
         #YAML file handling
         "pyyaml",
         #URDF handling and visualization
-        "urchin"
+        #"urchin" #c.f. README
         "trimesh",
         #Combinatorial optimization
         "pygad",
