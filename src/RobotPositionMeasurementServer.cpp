@@ -59,7 +59,7 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
     computeRobotBaseTransform(); 
 }
 
-bool RobotPositionMeasurementServer::measure(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+bool RobotPositionMeasurementServer::measure()
 {
     //Get last robot base points measurements
     std::vector<geometry_msgs::Point> robotBase, endEffectorPoints;

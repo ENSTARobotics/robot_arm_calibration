@@ -32,7 +32,7 @@ class RobotPositionMeasurementServer:MeasurementServer
         /*!
          *  \brief Triggers a calibration measurement
          */
-        bool measure(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+        bool measure();
        
     private:
 
