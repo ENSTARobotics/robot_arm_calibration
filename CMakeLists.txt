@@ -173,10 +173,15 @@ target_link_libraries(robot_position_measurement_server
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-catkin_install_python(PROGRAMS
+# catkin_install_python(PROGRAMS
+#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
+
+# Mark bash executables for installation
+install(PROGRAMS 
   scripts/CompleteProcedure.sh
   scripts/NominalParametersSetting.sh
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}/scripts
 )
 
 ## Mark executables for installation
