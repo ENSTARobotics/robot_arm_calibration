@@ -115,7 +115,7 @@ source devel/setup.bash
 Simply execute the corresponding script : 
 
 ```bash
-rosrun robot_arm_calibration CompleteProcedure <robot_name> <robot_parameters_file> <robot_base_parameters_file> <marker_name> <marker_parameters_file>
+rosrun robot_arm_calibration CompleteProcedure.sh <robot_name> <robot_parameters_file> <robot_base_parameters_file> <marker_name> <marker_parameters_file>
 ```
 
 ### Separated steps
@@ -123,7 +123,7 @@ rosrun robot_arm_calibration CompleteProcedure <robot_name> <robot_parameters_fi
 The calibration procedure can also be splitted into separated steps as follows : 
 1.  Modeling step
     ```bash
-    rosrun robot_arm_calibration InitParameters robot_name robot_parameters_file robot_base_parameters_file marker_name marker_parameters_file
+    rosrun robot_arm_calibration NominalParametersSetting.sh robot_name robot_parameters_file robot_base_parameters_file marker_name marker_parameters_file
     roscd robot_arm_calibration && cd config/calibratedModels/<robot_name>_<marker_name>
     python3 -m robot_arm_calibration.AnalyticGeometricModel.py
     ```

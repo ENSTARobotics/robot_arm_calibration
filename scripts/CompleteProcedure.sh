@@ -73,7 +73,8 @@ eval $(parse_yaml robot_default_params.yaml)
 rm robot_default_params.yaml
 
 #Setup robot/marker nominal parameters files
-bash NominalParametersSetting.sh $1 $2 $3 $4 $5 ${flangeLinkName}|| exit 1
+rosrun robot_arm_calibration NominalParametersSetting.sh $1 $2 $3 $4 $5 ${flangeLinkName}|| exit 1
+#Also works : bash NominalParametersSetting.sh $1 $2 $3 $4 $5 ${flangeLinkName}|| exit 1
 
 ### MODELING
 
