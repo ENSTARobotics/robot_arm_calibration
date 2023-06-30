@@ -77,7 +77,7 @@ bash NominalParametersSetting.sh $1 $2 $3 $4 $5 ${flangeLinkName}|| exit 1
 
 ### MODELING
 
-python3 -m robot_arm_calibration.AnalyticGeometricModel.py $1 $4
+python3 -m robot_arm_calibration.AnalyticGeometricModel $1 $4
 cd "$package_folder/config/calibratedModels/$1_$4"
 
 ### SAMPLING
@@ -129,7 +129,7 @@ if [ -z "$9" ]; then
     $9="random"
 fi
 
-python3 _m robot_arm_calibration.TargetConfigurationsGeneration.py $9
+python3 -m robot_arm_calibration.TargetConfigurationsGeneration $9
 cd "$9"
 
 ### MEASUREMENTS
@@ -149,12 +149,12 @@ if [ -z "$10" ]; then
     $10="GN"
 fi
 
-python3 -m robot_arm_calibration.ParametersIdentification.py $10
+python3 -m robot_arm_calibration.ParametersIdentification $10
 
 ### VERIFICATION
 
 cd "$package_folder/config/calibratedModels/$1_$4"
-python3 -m robot_arm_calibration.ResultsDisplay.py
+python3 -m robot_arm_calibration.ResultsDisplay
 
 ### OUTPUTS GENERATION
 
@@ -164,5 +164,5 @@ if [ -z "$11" ]; then
     else
         URDF_path=$2
 
-    python3 -m robot_arm_calibration.ModeltoURDF.py "$package_folder/config/calibratedModels/$1_$4/$(basename $7)/$8/measurements/$9/CalibratedModel.yaml" $URDF_path ${flangeLinkName}
+    python3 -m robot_arm_calibration.ModeltoURDF "$package_folder/config/calibratedModels/$1_$4/$(basename $7)/$8/measurements/$9/CalibratedModel.yaml" $URDF_path ${flangeLinkName}
 fi
