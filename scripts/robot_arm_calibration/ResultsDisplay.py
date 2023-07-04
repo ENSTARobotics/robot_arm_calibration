@@ -134,9 +134,7 @@ for i,item in enumerate(EEPointsItemsNames):
 avgLocalError = np.average(localError,axis=1)
 stdLocalError = np.std(localError,axis=1)
 ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label="uncalibrated", marker='o',linestyle="none",markersize=4,capsize=4)
-print("Testing error raw : " + str(computeGlobalError(parameters0)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)))
-print(np.average(localError.flatten()))
-print(np.std(localError.flatten()))
+print("Testing error raw " + label + " : " + str(computeGlobalError(parameters0)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
 
 #Plot calibrated errors
 samplingSelectionMethod = ""
@@ -155,9 +153,7 @@ for folder in foldersNames:
     avgLocalError = np.average(localError,axis=1)
     stdLocalError = np.std(localError,axis=1)
     ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label=label, marker='o',linestyle="none",markersize=4,capsize=4)
-    print("Testing error for " + label + " : " + str(computeGlobalError(parameters)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)))
-    print(np.average(localError.flatten()))
-    print(np.std(localError.flatten()))
+    print("Testing error for " + label + " : " + str(computeGlobalError(parameters)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
 
     #Compute learning scores
     if(learningScores):
@@ -193,4 +189,4 @@ ax.grid(which = "minor", linestyle = '--')
 
 ax.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left", mode="expand", borderaxespad=0, ncol=2)
 
-plt.savefig("./output.pdf",bbox_inches='tight',pad_inches=0.01)
+plt.savefig("./ResultsDisplayOutput.pdf",bbox_inches='tight',pad_inches=0.01)
