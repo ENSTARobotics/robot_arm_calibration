@@ -46,6 +46,7 @@ else
     if [[ $answer =~ ^[Yy]$ ]]; then
         rm "$package_folder/config/nominalModels/$1/*.py"
         rm "$package_folder/config/nominalModels/$1/*.pickle"
+        rm "$package_folder/config/nominalModels/$1/$1_parameters.py"
         touch "$package_folder/config/nominalModels/$1/$1_parameters.py"
     #...Or skip initialisation
     else
@@ -57,7 +58,7 @@ fi
 filename=$(basename -- "$2")
 extension="${filename##*.}"
 
-if [ skip_init = 0 ]; then
+if [ $skip_init = 0 ]; then
     #Case where DH parameters are used
     #TODO DH from parameters file rather than from python script
     if [ "$extension" = "py" ]; then
@@ -85,7 +86,7 @@ fi
 ### MARKER NOMINAL PARAMETERS
 
 #Create marker nominal parameters importation python script (will be called via "import" later)
-if ! [ -f "$package_folder/config/nominalModel/markers/$4_parameters.py" ]; then
+if ! [ -f "$package_folder/config/nominalModels/markers/$4_parameters.py" ]; then
     #touch "$package_folder/config/nominalModels/markers/$4_parameters.py"
     cp $5 "$package_folder/config/nominalModels/markers/$4_parameters.py"
 else
