@@ -6,12 +6,13 @@ robotBaseOffset:
   - 1.0
   - 0.0
   - 0.0
-  - 0.051
+  - 0.051 #Forward Panda offset (0.120/2) - 0.020 + 0.011 (UR base / 2 + UR base adaptator offset + remaining panda base offset)
   - 0.0
   - 0.0
   - 1.0
-  - -0.00565
+  - 0.01605 #UR base adaptator offset (0.0217) + Optitrack spheres offset (-0.00565)
   - 0.0
   - 0.0
   - 0.0
   - 1.0
+  #(TODO : Add UR base adaptator CAD file)
