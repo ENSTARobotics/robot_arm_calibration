@@ -24,6 +24,8 @@ markerName = currentParameters[1]
 ### GET ROBOT CONFIG DIRECTORY PATH
 configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/" + robotName + "/"
 sys.path.append(configPath)
+configPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) + "/config/nominalModels/markers/"
+sys.path.append(configPath)
 
 ### IMPORT ROBOT PARAMETERS FROM DEDICATED FILE
 try:
