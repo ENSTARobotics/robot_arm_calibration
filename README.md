@@ -63,7 +63,7 @@ More details are provided in the [Used technologies](#used-technologies) section
 
 ### Requirements
 
-* [ROS Melodic](http://wiki.ros.org/melodic/Installation/Ubuntu) 
+* [ROS Melodic](http://wiki.ros.org/melodic/Installation/Ubuntu) or [ROS Noetic](http://wiki.ros.org/noetic/Installation/Ubuntu)
 
 ### Install
 
