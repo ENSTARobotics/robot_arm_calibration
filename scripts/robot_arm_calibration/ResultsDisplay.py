@@ -112,6 +112,9 @@ tmpInput = input("Parameters identification methods ? " + str(identificationMeth
 identificationMethods = tmpInput.split(" ") if tmpInput != "*" else identificationMethods
 foldersNames = np.array([folder for folder in foldersNames if folder.split("/")[3] in identificationMethods])
 
+#Sorting folders names...
+foldersNames = np.sort(foldersNames)
+
 learningScores = False
 tmpInput = input("Compute learning scores values ? y/n")
 learningScores = True if tmpInput == "y" else False

@@ -386,7 +386,7 @@ if __name__ == "__main__":
     calibratedModel = {}
 
     #Joints axis
-    calibratedModel["jointsAxis"] = JOINTS_AXIS.tolist()
+    calibratedModel["jointsAxis"] = JOINTS_AXIS
 
     #Robot base
     PBase = np.array([parameters[:3]]).T
