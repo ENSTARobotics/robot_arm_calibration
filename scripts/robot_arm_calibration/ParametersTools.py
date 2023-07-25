@@ -4,36 +4,22 @@
 from importlib import machinery
 import sys
 import os
-import subprocess
 
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-def importParameters():
-    """! Imports robot and marker paramters depending on how the file is called (run or import).
+#ROS package
+import rospkg
+rospack = rospkg.RosPack()
+
+def importParameters(robotName = "", markerName = ""):
+    """! Imports robot and marker paramters
     """
 
     ### Retreive robot and marker names
-    robotName = ""
-    markerName = ""
-
     caller = sys._getframe(1)
-
-    #Run case
-    if caller.f_globals['__name__'] == "__main__":
-        try:
-            robotName = sys.argv[1]
-            markerName = sys.argv[2]
-        except:
-            import re
-            currentParameters = np.array(re.split('/|_',os.getcwd()))
-            currentParameters = currentParameters[np.where(currentParameters == "calibratedModels")[0][0] + 1:]
-            robotName = currentParameters[0]
-            markerName = currentParameters[1]
-
-    #Import case
-    else:
+    if(robotName == "" and markerName == ""):
         try:
             import re
             currentParameters = np.array(re.split('/|_',os.getcwd()))
@@ -41,13 +27,11 @@ def importParameters():
             robotName = currentParameters[0]
             markerName = currentParameters[1]
         except:
-            pass
+            print("Invalid robot name for robot parameters importation ! Are you in a proper calibrated model folder or have you specified a correct robot name ? ")
+            exit(1)
 
     ### Get config directory path
-    packagePath = "rospack find robot_arm_calibration"
-    packageProcess = subprocess.run(packagePath,shell=True,stdout=subprocess.PIPE)
-    packageOutput = str(packageProcess.stdout)[2:-3]
-    configPath = packageOutput + "/config/nominalModels"
+    configPath = rospack.get_path("robot_arm_calibration") + "/config/nominalModels"
 
     ### Import robot parameters from dedicated file
     configPathRobot = configPath + "/" + robotName + "/"

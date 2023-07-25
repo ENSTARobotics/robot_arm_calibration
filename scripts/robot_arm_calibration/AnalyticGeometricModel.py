@@ -3,22 +3,16 @@
 #System packages
 import os
 import dill
-import subprocess
+import sys
 
 #Utility packages
 import sympy as sp
 import numpy as np
 
-### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import importParameters
-importParameters()
-
-### Get robot config directory path
-packagePath = "rospack find robot_arm_calibration"
-packageProcess = subprocess.run(packagePath,shell=True,stdout=subprocess.PIPE)
-packageOutput = str(packageProcess.stdout)[2:-3]
-configPath = packageOutput + "/config/nominalModels/" + robotName + "/"
-configPathRobot = "/".join(os.path.dirname(os.path.realpath(__file__)).split("/")[:-2]) + "/config/nominalModels" + "/" + robotName + "/"
+#ROS package
+#TODO Create dedicated function in ParametersTools ?
+import rospkg
+rospack = rospkg.RosPack()
 
 ### Tool functions
 def size(L):
@@ -53,6 +47,27 @@ def rot_axis(angle,axisIndex):
 #TODO 
 #1) Non cartesian aligned axes (ie, not X(1),Y(2),Z(3) aligned)
 #2) Joints flexibilities
+
+robotName = ""
+markerName = ""
+
+### Standalone execution => Get command line robot and marker names
+if __name__ == "__main__":
+    try:
+        robotName = sys.argv[1]
+    except:
+        print("No selection method given, defaulting to " + robotName)
+    try:
+        markerName = sys.argv[2]
+    except:
+        print("No maximum utility function calls number given, defaulting to " + markerName)
+
+### Import robot and marker parameters
+from robot_arm_calibration.ParametersTools import importParameters
+importParameters(robotName,markerName)
+
+### Get robot config directory path
+configPathRobot = rospack.get_path("robot_arm_calibration") + "/config/nominalModels/" + robotName + "/"
 
 #If the analytic model does not exist, it is generated
 if(not os.path.exists(configPathRobot + "Jacobian_" + robotName + "_" + markerName + ".pickle") or not os.path.exists(configPathRobot + "GeometricModel_" + robotName + "_" + markerName + ".pickle")):

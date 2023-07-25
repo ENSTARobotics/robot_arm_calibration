@@ -88,23 +88,23 @@ elif(plotMode == "mesh"):
     import numpy as np
     import trimesh
 
+    import rospkg
+    rospack = rospkg.RosPack()
+
     xacro = "echo $(xacro $(rospack find robot_arm_tools)/config/tools/" + markerName + "/" + robotName + "/" + robotName + "_" + markerName + ".urdf.xacro)"
     xacroProcess = subprocess.run(xacro,shell=True,stdout=subprocess.PIPE)
-    xacroOutput = str(xacroProcess.stdout)[2:-3]
+    XACROOutput = str(xacroProcess.stdout)[2:-3]
 
     import re
-    packages = np.unique(np.array([xacroOutput[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', xacroOutput)]))
+    packages = np.unique(np.array([XACROOutput[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', XACROOutput)]))
 
     for package in packages:
-        rosFind = "rospack find " + package.split("/")[-2]
-        rosFindProcess = subprocess.run(rosFind,shell=True,stdout=subprocess.PIPE)
-        rosFindOutput = str(rosFindProcess.stdout)[2:-3] + "/" 
-        xacroOutput = xacroOutput.replace(package,rosFindOutput)
+        XACROOutput = XACROOutput.replace(package,rospack.get_path(package.split("/")[-2]) + "/")
 
-    xacroOutput = xacroOutput.replace("file://","")
+    XACROOutput = XACROOutput.replace("file://","")
 
     URDFfile = open("/tmp/tmp.urdf", "w")
-    URDFfile.write(xacroOutput)
+    URDFfile.write(XACROOutput)
     URDFfile.close()
 
     from urchin import URDF

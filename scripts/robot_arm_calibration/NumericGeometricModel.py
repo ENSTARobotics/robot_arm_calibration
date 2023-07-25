@@ -1,12 +1,11 @@
 #!/usr/bin/python3
 
+#System packages
+import sys
+
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-
-### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import importParameters
-importParameters()
 
 ### Useful matrices and functions
 
@@ -51,6 +50,24 @@ def size(L):
         return(sum(size(l) for l in L))
     else:
         return(1) 
+
+robotName = ""
+markerName = ""
+
+### Standalone execution => Get command line robot and marker names
+if __name__ == "__main__":
+    try:
+        robotName = sys.argv[1]
+    except:
+        print("No selection method given, defaulting to " + robotName)
+    try:
+        markerName = sys.argv[2]
+    except:
+        print("No maximum utility function calls number given, defaulting to " + markerName)
+
+ ### Import robot and marker parameters
+from robot_arm_calibration.ParametersTools import importParameters
+importParameters(robotName,markerName)       
 
 ### Robot geometric model (revolute joints only)
 

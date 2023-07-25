@@ -9,6 +9,10 @@ import shutil
 import numpy as np
 from urchin import URDF, Mesh
 
+#ROS package
+import rospkg
+rospack = rospkg.RosPack()
+
 def size(L):
     """! Computes the size of a nested list as the sum of the sizes of all contained lists
 
@@ -32,10 +36,7 @@ def cleanXACROOutput(XACROOutput):
     packages = np.unique(np.array([XACROOutput[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', XACROOutput)]))
 
     for package in packages:
-        rosFind = "rospack find " + package.split("/")[-2]
-        rosFindProcess = subprocess.run(rosFind,shell=True,stdout=subprocess.PIPE)
-        rosFindOutput = str(rosFindProcess.stdout)[2:-3] + "/" 
-        XACROOutput = XACROOutput.replace(package,rosFindOutput)
+        XACROOutput = XACROOutput.replace(package,rospack.get_path(package.split("/")[-2]) + "/")
 
     XACROOutput = XACROOutput.replace("file://","")
     return(XACROOutput)
