@@ -65,7 +65,8 @@ def D(TargetConfigurations):
     @return  The computed score.
     """
     J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
-    return(np.linalg.det(np.dot(J.T,J)))
+    _,logabsdet = np.linalg.slogdet(np.dot(J.T,J))
+    return(logabsdet)
 
 def E(TargetConfigurations):
     """! Computes the E-optimality score
@@ -85,9 +86,7 @@ def O1(TargetConfigurations):
 
     @return  The computed score.
     """
-    J = np.vstack([Jfunc(parameters0,q) for q in TargetConfigurations])
-    measurementsNumber = float(len(TargetConfigurations))
-    return(np.power(np.linalg.det(np.dot(J.T,J)),1/measurementsNumber)/measurementsNumber)
+    return(D(TargetConfigurations))
 
 def O2(TargetConfigurations):
     """! Computes the O2-optimality score
@@ -107,7 +106,7 @@ def O3(TargetConfigurations):
 
     @return  The computed score.
     """
-    return(e_optimality(TargetConfigurations))
+    return(E(TargetConfigurations))
 
 def O4(TargetConfigurations):
     """! Computes the O4-optimality score
@@ -154,7 +153,7 @@ selectionMethods = {"random" : "Random selection",
                  "genetic" : "Genetic algorithm",
                  "annealing" : "Simulated annealing algorithm"}
 
-def random(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,utilityScore=O1):
+def random(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=None,maxCallsNumber=150,utilityScore=O1):
     """! Randomly extract a given number of angular configurations 
 
     @param sampledConfigurations        The initial configurations set.   
@@ -167,19 +166,23 @@ def random(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,u
 
     print("Random selection...")
 
-    randomIndices = np.random.permutation(len(sampledConfigurations))
-    CalibrationIndices = randomIndices[:targetConfigurationsNumber]
-    TargetConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
+    if(configurationsSeed is not None):
+        TargetConfigurations = configurationsSeed
 
-    TargetConfigurations = np.random.normal(0.0,1.0,(targetConfigurationsNumber,JOINTS_NUMBER))
+    else:
+        randomIndices = np.random.permutation(len(sampledConfigurations))
+        CalibrationIndices = randomIndices[:targetConfigurationsNumber]
+        TargetConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
 
-    score = utilityScore(TargetConfigurations)
+        TargetConfigurations = np.random.normal(0.0,1.0,(targetConfigurationsNumber,JOINTS_NUMBER))
+
+    score = utilityScore(TargetConfigurations)  #No optimization
     print("Final score = " + str(score))
 
     print("Done !")
     return(TargetConfigurations,score)
 
-def greedy(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,utilityScore=O1):
+def greedy(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=None,maxCallsNumber=150,utilityScore=O1):
     """! Extract a given number of angular configurations trying to maximize an utility score with the greedy exchange algorithm.
 
     @param sampledConfigurations      The initial configurations set.   
@@ -192,9 +195,13 @@ def greedy(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,u
 
     print("Greedy algorithm...")
 
-    randomIndices = np.random.permutation(len(sampledConfigurations))
-    CalibrationIndices = randomIndices[:targetConfigurationsNumber]
-    RemainingIndices = randomIndices[targetConfigurationsNumber:]
+    if(configurationsSeed is not None):
+        CalibrationIndices = np.where((configurationsSeed[:,None] == sampledConfigurations).all(2).any(0))[0]
+        RemainingIndices = np.delete(np.arange(len(sampledConfigurations)),CalibrationIndices)
+    else:
+        randomIndices = np.random.permutation(len(sampledConfigurations))
+        CalibrationIndices = randomIndices[:targetConfigurationsNumber]
+        RemainingIndices = randomIndices[targetConfigurationsNumber:]
 
     TargetConfigurations = sampledConfigurations[CalibrationIndices]
     newScore = utilityScore(TargetConfigurations)
@@ -219,7 +226,8 @@ def greedy(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,u
         TargetConfigurations = sampledConfigurations[CalibrationIndices]
         score = utilityScore(TargetConfigurations)
 
-        if(score > prevScore):
+        #Utility score maximization => Reject minimization
+        if(score <= prevScore):
             CalibrationIndices = np.delete(CalibrationIndices,-1)
             CalibrationIndices = np.append(CalibrationIndices,delIndex)
             RemainingIndices = np.delete(RemainingIndices,-1)
@@ -237,7 +245,7 @@ def greedy(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,u
     print("Done !")
     return(TargetConfigurations,score)
 
-def genetic(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,utilityScore=O1):
+def genetic(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=None,maxCallsNumber=150,utilityScore=O1):
     """! Extract a given number of angular configurations trying to maximize an utility score with the genetic algorithm.
 
     @param sampledConfigurations      The initial configurations set.   
@@ -265,13 +273,21 @@ def genetic(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,
 
     def fitnessFunction(solution,index):
         configurations = sampledConfigurations[solution].reshape((-1,JOINTS_NUMBER))
-        score = 1/utilityScore(configurations)
+
+        #Utility score maximization => Fitness function maximization
+        score = utilityScore(configurations)
 
         global counter
         counter+=1
-        print("score " + str(counter) + "/" + str(maxCounter) + " = " + str(1/score))
+        print("score " + str(counter) + "/" + str(maxCounter) + " = " + str(score))
 
         return(score)
+
+    if(configurationsSeed is not None):
+        CalibrationIndices = np.where((configurationsSeed[:,None] == sampledConfigurations).all(2).any(0))[0]
+    else:
+        randomIndices = np.random.permutation(len(sampledConfigurations))
+        CalibrationIndices = randomIndices[:targetConfigurationsNumber]
 
     instanceGA = GA(num_generations=num_generations,
                     sol_per_pop=sol_per_pop,
@@ -281,17 +297,19 @@ def genetic(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,
                     gene_type=int,
                     allow_duplicate_genes=False,
                     fitness_func=fitnessFunction)
+    
+    instanceGA.initial_population[0] = CalibrationIndices
 
     instanceGA.run()
     TargetConfigurations = sampledConfigurations[np.sort(instanceGA.best_solution()[0])].reshape((-1,JOINTS_NUMBER))
 
-    score = 1/instanceGA.best_solution()[1]
+    score = instanceGA.best_solution()[1]
     print("Final score = " + str(score))
 
     print("Done !")
     return(TargetConfigurations,score)
     
-def annealing(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=150,utilityScore=O1):
+def annealing(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=None,maxCallsNumber=150,utilityScore=O1):
     """! Extract a given number of angular configurations trying to maximize an utility score with the simulated annealing algorithm.
 
     @param sampledConfigurations      The initial configurations set.   
@@ -309,9 +327,17 @@ def annealing(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=15
 
     class CalibrationConfigurationsProblem(Annealer):
         def __init__(self):
-            initialPick = np.random.permutation(len(sampledConfigurations))
-            self.state = initialPick[:targetConfigurationsNumber]
-            self.heap = initialPick[targetConfigurationsNumber:]
+
+            if(configurationsSeed is not None):
+                CalibrationIndices = np.where((configurationsSeed[:,None] == sampledConfigurations).all(2).any(0))[0]
+                RemainingIndices = np.delete(np.arange(len(sampledConfigurations)),CalibrationIndices)
+            else:
+                randomIndices = np.random.permutation(len(sampledConfigurations))
+                CalibrationIndices = randomIndices[:targetConfigurationsNumber]
+                RemainingIndices = randomIndices[targetConfigurationsNumber:]
+
+            self.state = CalibrationIndices
+            self.heap = RemainingIndices
             super().__init__(self.state)
 
         def move(self):
@@ -323,10 +349,14 @@ def annealing(sampledConfigurations,targetConfigurationsNumber,maxCallsNumber=15
         
         def energy(self):
             configurations = sampledConfigurations[self.state]
+
+            #Utility score maximization => Energy minimization
             score = utilityScore(configurations)
 
             global counter
             counter+=1
+
+            #Utility score maximization => Energy minimization
             print("score " + str(counter) + "/" + str(maxCallsNumber) + " = " + str(score))
 
             return(score)
@@ -363,7 +393,10 @@ if __name__ == "__main__":
 
     selectionMethod = "random"
     try:
-        selectionMethod = sys.argv[1]
+        tmpSelectionMethod = sys.argv[1].lower()
+        if(tmpSelectionMethod not in selectionMethods):
+            raise ValueError
+        selectionMethod = tmpSelectionMethod
     except:
         print("No selection method given, defaulting to " + selectionMethod)
 
@@ -373,26 +406,40 @@ if __name__ == "__main__":
     except:
         print("No maximum utility function calls number given, defaulting to " + str(maxCallsNumber))
 
-    targetConfigurationsNumber = int(np.round(2*len(parameters0)*1.0))  #1.1 ?
+    targetConfigurationsNumber = int(np.round(2*len(parameters0)*1.1))  #1.1 ?
     try:
         targetConfigurationsNumber = int(sys.argv[3])
     except:
-        print("No target configurations number given, defaulting to twice as much as parameters to identify " + str(targetConfigurationsNumber))
+        print("No target configurations number given, defaulting to twice as much as parameters to identify + 10% = " + str(targetConfigurationsNumber))
 
     utilityScore = "O1"
     try:
-        utilityScore = sys.argv[4]
+        tmpUtilityScore = sys.argv[4].upper()
+        if(tmpUtilityScore not in utilityScores):
+            raise ValueError
+        utilityScore = tmpUtilityScore
     except:
         print("No utility score given, defaulting to " + utilityScores[utilityScore])
 
-    TargetConfigurations,score = sortConfigurations(locals()[selectionMethods[selectionMethod]](SampledCalibrationConfigurations,targetConfigurationsNumber,maxCallsNumber,locals()[utilityScores[utilityScore]]))
+    configurationsSeedPath = ""
+    configurationsSeed = None
+    try:
+        configurationsSeedPath = sys.argv[5]
+        with open(configurationsSeedPath,'r') as f:
+            configurationsSeed = np.array(yaml.load(f, Loader=yaml.FullLoader)["targetConfigurations"])
+    except:
+        print("No utility score given, defaulting to random choice")
+
+    #Get and sort target configurations
+    TargetConfigurations,score = locals()[selectionMethod](SampledCalibrationConfigurations,targetConfigurationsNumber,configurationsSeed,maxCallsNumber,locals()[utilityScore])   #TODO TEST
+    TargetConfigurations = sortConfigurations(TargetConfigurations)
 
     print("Saving optimized target configurations...")
 
-    saveDirectory = os.getcwd() + "/" + utilityScore.lower()  + "/" + selectionMethod.lower() + "/"
+    saveDirectory = os.getcwd() + "/" + utilityScore + "_" + selectionMethod + "/"
 
     if(not os.path.isdir(saveDirectory)):
-        os.mkdir(saveDirectory)
+        os.makedirs(saveDirectory)
     with open(saveDirectory + "/TargetConfigurations.yaml",'w') as file:
         yaml.dump({"targetConfigurations":TargetConfigurations.tolist(),"score":score}, file)
     print("Done !")
