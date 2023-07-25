@@ -1,0 +1,12 @@
+numpy
+matplotlib
+PyYAML
+scipy
+dill
+sympy
+trimesh
+pygad
+simanneal
+
+urchin @ git+https://github.com/CarolinePascal/urchin@bugfix/lazy-save
+

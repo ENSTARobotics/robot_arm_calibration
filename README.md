@@ -88,7 +88,9 @@ Install dependencies :
 cd ~/catkin_ws
 sudo apt update
 rosdep update
-rosdep install --from_paths src --ignore-src -y
+rosdep install --from-paths src --ignore-src -y
+
+python3 -m pip install -r ~/catkin_ws/src/robot_arm_calibration/requirements.txt
 ```
 
 And build packages :
@@ -99,14 +101,6 @@ source devel/setup.bash
 ```
 
 > :warning: _Remark_ : before use, attention must be paid to the proper functioning of the _robot\_arm\_tool_ package, which involve the installation of the robot ROS driver !
-
-> :warning: The package depends on a modified version of the `urchin` python module, which can be installed as follows :
-> 
-> ```
-> cd ~/catkin_ws/src
-> git clone -b bugfix/lazy-save https://github.com/CarolinePascal/urchin.git
-> cd urchin && python3 -m pip install .
-> ```
 
 ## Usage
 
