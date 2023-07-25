@@ -102,7 +102,7 @@ def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations=
 
     print(globalAlgorithms[algorithmName] + " algorithm")
 
-    parameters = globals()[algorithmName.upper()](initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest)
+    parameters = globals()[algorithmName](initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest)
 
     errorLear = computeError(parameters,PijLear,JointiLear)
     errorTest = None
@@ -176,7 +176,7 @@ def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,
 
         print("Iteration " + str(i+1))
 
-        parameters = globals()[algorithmName.upper()](parameters,PijLear,JointiLear)
+        parameters = globals()[algorithmName](parameters,PijLear,JointiLear)
 
         #Intermediate error
         errorLearPrev = errorLear
@@ -351,7 +351,14 @@ if __name__ == "__main__":
     algorithmName = "GN"
     algorithmType = "local"
     try : 
-        algorithmType = (localAlgorithms.keys()+globalAlgorithms.keys())[sys.argv[1]]
+        tmpAlgorithmName = sys.argv[1].upper()
+        if(tmpAlgorithmName in localAlgorithms.keys()):
+            algorithmType = "local"
+        elif(tmpAlgorithmName in globalAlgorithms.keys()):
+            algorithmType = "global"
+        else:
+            raise ValueError
+        algorithmName = tmpAlgorithmName
     except:
         print("No or invalid optimization method given, defaulting to " + algorithmType + " " + algorithmName)
 
@@ -449,7 +456,7 @@ if __name__ == "__main__":
     calibratedModel["finalError"] = float(finalError)
 
     if(not os.path.isdir(os.getcwd() + "/" + algorithmName + "/")):
-        os.mkdir(os.getcwd() + "/" + algorithmName + "/")
+        os.makedirs(os.getcwd() + "/" + algorithmName + "/")
     with open(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml",'w+') as file:
         yaml.dump(calibratedModel, file)
     print("Done !")
