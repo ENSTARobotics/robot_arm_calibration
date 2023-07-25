@@ -62,6 +62,16 @@ def computeGlobalError(parameters,Pij=Pij0,Jointi=Jointi0):
     positionsNumber = np.shape(Pij)[0]*np.shape(Pij)[1]
     return(np.sqrt(np.dot(delta.T,delta)/positionsNumber))
 
+def computeAxisSpecificGlobalError(parameters,Pij=Pij0,Jointi=Jointi0):
+    delta = computeGlobalDelta(parameters,Pij,Jointi)
+    positionsNumber = np.shape(Pij)[0]*np.shape(Pij)[1]
+
+    globalErrorX = np.sqrt(np.dot(delta[::3].T,delta[::3])/positionsNumber)
+    globalErrorY = np.sqrt(np.dot(delta[1::3].T,delta[1::3])/positionsNumber)
+    globalErrorZ = np.sqrt(np.dot(delta[2::3].T,delta[2::3])/positionsNumber)
+
+    return(globalErrorX,globalErrorY,globalErrorZ)
+
 def computeLocalDelta(parameters,endEffectorPointIndex,configurationIndex,Pij=Pij0,Jointi=Jointi0):
     """! Computes the local deltas between the measured and modeled positions.
 
@@ -91,6 +101,15 @@ def computeLocalError(parameters,endEffectorPointIndex,configurationIndex,Pij=Pi
     delta = computeLocalDelta(parameters,endEffectorPointIndex,configurationIndex,Pij,Jointi)
     return(np.sqrt(np.dot(delta.T,delta)))
 
+def computeAxisSpecificLocalError(parameters,endEffectorPointIndex,configurationIndex,Pij=Pij0,Jointi=Jointi0):
+    delta = computeLocalDelta(parameters,endEffectorPointIndex,configurationIndex,Pij,Jointi)
+
+    localErrorX = np.abs(delta[0])
+    localErrorY = np.abs(delta[1])
+    localErrorZ = np.abs(delta[2])
+
+    return(localErrorX,localErrorY,localErrorZ)
+    
 ### Calibrated data
 
 #Sampling method selection
@@ -137,12 +156,17 @@ for i,item in enumerate(EEPointsItemsNames):
 avgLocalError = np.average(localError,axis=1)
 stdLocalError = np.std(localError,axis=1)
 ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label="uncalibrated", marker='o',linestyle="none",markersize=4,capsize=4)
-print("Testing error raw " + label + " : " + str(computeGlobalError(parameters0)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
+print("Testing error uncalibrated : " + str(computeGlobalError(parameters0)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
+
+print("Axis specific global error uncalibrated : " + str(computeAxisSpecificGlobalError(parameters0)))
+
+#Axis specific errors
+
 
 #Plot calibrated errors
 samplingSelectionMethod = ""
 for folder in foldersNames:
-    print(folder)
+    print("Folder : " + folder)
     label = folder.split("/")[0] + " " + folder.split("/")[1] + " " + folder.split("/")[3]
     with open(folder + "/CalibratedModel.yaml",'r') as file:
         calibratedModel = yaml.load(file, Loader=yaml.FullLoader)
@@ -156,7 +180,9 @@ for folder in foldersNames:
     avgLocalError = np.average(localError,axis=1)
     stdLocalError = np.std(localError,axis=1)
     ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label=label, marker='o',linestyle="none",markersize=4,capsize=4)
-    print("Testing error for " + label + " : " + str(computeGlobalError(parameters)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
+    print("Testing error " + label + " : " + str(computeGlobalError(parameters)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
+
+    print("Axis specific global error " + label + " : " + str(computeAxisSpecificGlobalError(parameters)))
 
     #Compute learning scores
     if(learningScores):
