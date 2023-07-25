@@ -109,6 +109,7 @@ def DHtoModel(DHParameters):
         pi0.extend([deltaP[i-1] for i in LINKS_TRANSLATIONS[j]])
         pi0.extend([0.0 for i in LINKS_ROTATIONS[j]])
 
+    #DEPRECATED
     #print("Saving geometric model parameters...")
     #with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "/" + robotName + #"_parameters.npy","wb+") as file:
     #    np.save(file,JOINTS_NUMBER)

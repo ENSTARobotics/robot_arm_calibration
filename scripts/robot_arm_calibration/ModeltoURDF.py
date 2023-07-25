@@ -4,10 +4,6 @@
 import os
 import sys
 import yaml
-import subprocess
-import re
-import glob
-
 
 #Utility packages
 import numpy as np

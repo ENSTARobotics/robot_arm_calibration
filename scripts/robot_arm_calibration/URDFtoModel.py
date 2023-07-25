@@ -4,9 +4,6 @@
 import os
 import sys
 import yaml
-import subprocess
-import re
-import glob
 
 #Utility packages
 import numpy as np
@@ -151,6 +148,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
     TFlangeN[:3,:3] = globalT[:3,:3]
     TFlangeN[:3,-1][currentjointIndex] = deltaP[currentjointIndex] 
 
+    #DEPRECATED
     #print("Saving geometric model parameters...")
     #with open(os.path.dirname(os.path.realpath(__file__)) + "/" + robotName + "/" + robotName + #"_parameters.npy","wb+") as file:
     #    np.save(file,JOINTS_NUMBER)
