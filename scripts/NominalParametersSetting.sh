@@ -34,7 +34,7 @@ skip_init=0
 
 #Create robot nominal parameters folder
 if ! [ -d "$package_folder/config/nominalModels/$1" ]; then
-    mkdir "$package_folder/config/nominalModels/$1"
+    mkdir -p "$package_folder/config/nominalModels/$1"
 fi
 
 #Create robot nominal parameters importation python script (will be called via "import" later)
