@@ -70,26 +70,26 @@ More details are provided in the [Used technologies](#used-technologies) section
 First, use git to clone the required packages into your catkin workspace : 
 
 ```bash
-mkdir -p catkin_ws/src && cd catkin_ws
+mkdir -p ~/catkin_ws/src && cd catkin_ws/src
 git clone https://gitlab.ensta.fr/pascal.2020/robot_arm_tools
 git clone https://gitlab.ensta.fr/pascal.2020/robot_arm_calibration
 ```
 
+> :warning: The _Optitrack_ measurements were carried out using a modified version of the `mocap_optitrack` ROS package, which can be added to the workspace as follows :
+> 
+> ```
+> cd ~/catkin_ws/src
+> git clone -b feature/markers-broadcast https://github.com/CarolinePascal/mocap_optitrack.git
+> ```
+
 Install dependencies : 
 
 ```bash
+cd ~/catkin_ws
 sudo apt update
 rosdep update
 rosdep install --from_paths src --ignore-src -y
 ```
-
-> :warning: The package depends on a modified version of the `urchin` python module, which can be installed as follows :
-> 
-> ```
-> cd ~/catkin_ws/src
-> git clone -b bugfix/lazy-save https://github.com/CarolinePascal/urchin.git
-> cd urchin && python3 -m pip install .
-> ```
 
 And build packages :
 
@@ -99,6 +99,14 @@ source devel/setup.bash
 ```
 
 > :warning: _Remark_ : before use, attention must be paid to the proper functioning of the _robot\_arm\_tool_ package, which involve the installation of the robot ROS driver !
+
+> :warning: The package depends on a modified version of the `urchin` python module, which can be installed as follows :
+> 
+> ```
+> cd ~/catkin_ws/src
+> git clone -b bugfix/lazy-save https://github.com/CarolinePascal/urchin.git
+> cd urchin && python3 -m pip install .
+> ```
 
 ## Usage
 
