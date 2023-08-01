@@ -2,7 +2,7 @@
 import rospkg
 rospack = rospkg.RosPack()
 
-urdfFilePath = rospack.get_path("robot_arm_tools") + "/config/robots/ur10e_calibration.urdf'
+urdfFilePath = rospack.get_path("robot_arm_tools") + "/config/robots/ur10e_calibration.urdf"
 
 flangeLinkName = 'tool0'
 
