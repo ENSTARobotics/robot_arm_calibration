@@ -177,7 +177,6 @@ def random(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=N
         TargetConfigurations = np.random.normal(0.0,1.0,(targetConfigurationsNumber,JOINTS_NUMBER))
 
     score = utilityScore(TargetConfigurations)  #No optimization
-    print("Final score = " + str(score))
 
     print("Done !")
     return(TargetConfigurations,score)
@@ -240,7 +239,6 @@ def greedy(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=N
     TargetConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
 
     score = newScore
-    print("Final score = " + str(score))
 
     print("Done !")
     return(TargetConfigurations,score)
@@ -261,15 +259,10 @@ def genetic(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=
     global counter
     counter = 0
 
-    sol_per_pop = 5*int(np.round(targetConfigurationsNumber*0.1/5))
+    sol_per_pop = 10
+    num_generations = int(np.round((maxCallsNumber - sol_per_pop)/(sol_per_pop - 1)))
 
-    product = maxCallsNumber - sol_per_pop
-    decompositions = list(zip([d for d in range(2,int(np.sqrt(product))) if product % d == 0],[d for d in range(int(np.sqrt(product))+1,product) if product % d == 0][::-1]))
-
-    num_generations = decompositions[(len(decompositions)-1)//2][1]
-    num_parents_mating = sol_per_pop - decompositions[(len(decompositions)-1)//2][0]
-
-    maxCounter = num_generations*(sol_per_pop - num_parents_mating) + sol_per_pop
+    maxCounter = num_generations*(sol_per_pop-1) + sol_per_pop
 
     def fitnessFunction(solution,index):
         configurations = sampledConfigurations[solution].reshape((-1,JOINTS_NUMBER))
@@ -291,20 +284,21 @@ def genetic(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=
 
     instanceGA = GA(num_generations=num_generations,
                     sol_per_pop=sol_per_pop,
-                    num_parents_mating=num_parents_mating,
+                    num_parents_mating=int(sol_per_pop/2),
                     num_genes=targetConfigurationsNumber,
+                    mutation_percent_genes=int(max(10,1 + 100/targetConfigurationsNumber)),
                     gene_space=np.arange(0,len(sampledConfigurations)),
                     gene_type=int,
                     allow_duplicate_genes=False,
-                    fitness_func=fitnessFunction)
-    
+                    fitness_func=fitnessFunction,
+                    save_best_solutions=True)
+
     instanceGA.initial_population[0] = CalibrationIndices
 
     instanceGA.run()
-    TargetConfigurations = sampledConfigurations[np.sort(instanceGA.best_solution()[0])].reshape((-1,JOINTS_NUMBER))
+    TargetConfigurations = sampledConfigurations[instanceGA.best_solutions[-1]].reshape((-1,JOINTS_NUMBER))
 
-    score = instanceGA.best_solution()[1]
-    print("Final score = " + str(score))
+    score = instanceGA.best_solutions_fitness[-1]
 
     print("Done !")
     return(TargetConfigurations,score)
@@ -350,25 +344,25 @@ def annealing(sampledConfigurations,targetConfigurationsNumber,configurationsSee
         def energy(self):
             configurations = sampledConfigurations[self.state]
 
-            #Utility score maximization => Energy minimization
             score = utilityScore(configurations)
 
             global counter
             counter+=1
 
-            #Utility score maximization => Energy minimization
             print("score " + str(counter) + "/" + str(maxCallsNumber) + " = " + str(score))
-
-            return(score)
+            
+	        #Utility score maximization => Energy minimization
+            return(-score)
 
     CCP = CalibrationConfigurationsProblem()
     CCP.steps = maxCallsNumber
     CCP.updates = 5
     result,score = CCP.anneal()
 
-    TargetConfigurations = sampledConfigurations[np.sort(result)].reshape((-1,JOINTS_NUMBER))
+    #Utility score maximization => Energy minimization
+    score = -score
 
-    print("Final score = " + str(score))
+    TargetConfigurations = sampledConfigurations[np.sort(result)].reshape((-1,JOINTS_NUMBER))
 
     print("Done !")
     return(TargetConfigurations,score)
@@ -406,11 +400,12 @@ if __name__ == "__main__":
     except:
         print("No maximum utility function calls number given, defaulting to " + str(maxCallsNumber))
 
-    targetConfigurationsNumber = int(np.round(2*len(parameters0)*1.1))  #1.1 ?
+    #targetConfigurationsNumber = int(np.round(2*len(parameters0)*1.1))  #1.1 ?
+    targetConfigurationsNumber = int(2*np.ceil(len(parameters0)/(3*N_EEPOINTS)))
     try:
         targetConfigurationsNumber = int(sys.argv[3])
     except:
-        print("No target configurations number given, defaulting to twice as much as parameters to identify + 10% = " + str(targetConfigurationsNumber))
+        print("No target configurations number given, defaulting to twice the minimal required number = " + str(targetConfigurationsNumber))
 
     utilityScore = "O1"
     try:
@@ -427,16 +422,33 @@ if __name__ == "__main__":
         configurationsSeedPath = sys.argv[5]
         with open(configurationsSeedPath,'r') as f:
             configurationsSeed = np.array(yaml.load(f, Loader=yaml.FullLoader)["targetConfigurations"])
+
+        if(len(configurationsSeed) > targetConfigurationsNumber):
+            print("Too many configurations in seed, cropping to the right length !")
+            configurationsSeed = configurationsSeed[:targetConfigurationsNumber]
+        elif(len(configurationsSeed) < targetConfigurationsNumber):
+            raise ValueError
     except:
-        print("No utility score given, defaulting to random choice")
+        print("Not enough configurations in given seed, defaulting to random choice")
+
+    redundancy = 1
+    try:
+        redundancy = int(sys.argv[6])
+    except:
+        print("Not redundancy factor give, defaulting to " + str(redundancy))
 
     #Get and sort target configurations
     TargetConfigurations,score = locals()[selectionMethod](SampledCalibrationConfigurations,targetConfigurationsNumber,configurationsSeed,maxCallsNumber,locals()[utilityScore])   #TODO TEST
-    TargetConfigurations = sortConfigurations(TargetConfigurations)
+    
+    #Adding redundancy...
+    TargetConfigurations = np.tile(sortConfigurations(TargetConfigurations),(redundancy,1))
+    score = float(locals()[utilityScore](TargetConfigurations))
+
+    print("Final score with redundancy : " + str(score))
 
     print("Saving optimized target configurations...")
 
-    saveDirectory = os.getcwd() + "/" + utilityScore + "_" + selectionMethod + "/"
+    saveDirectory = os.getcwd() + "/" + utilityScore + "_" + selectionMethod + "_" + str(len(TargetConfigurations)) + "/"
 
     if(not os.path.isdir(saveDirectory)):
         os.makedirs(saveDirectory)
