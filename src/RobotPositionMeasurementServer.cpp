@@ -261,7 +261,7 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
         }
 
         //Get robot base pose position
-        Eigen::Vector3d baseCentroid;
+        Eigen::Vector3d baseCentroid = Eigen::Vector3d::Zero();
         for(int i = 0; i < robotBaseMarkers.size() - 1; i++)
         {
             baseCentroid(0) += robotBaseMarkers[i].x/(robotBaseMarkers.size() - 1);
@@ -280,7 +280,12 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
             onesVector(i) = 1.0;
         }
 
-        Eigen::Vector3d robotBaseNormalZ = robotBaseMatrix.completeOrthogonalDecomposition().pseudoInverse()*onesVector;
+        //Computing Moore-Penrose pseudo inverse
+        Eigen::JacobiSVD<Eigen::MatrixXd> svd(robotBaseMatrix ,Eigen::ComputeThinU | Eigen::ComputeThinV);
+        double tolerance = std::numeric_limits<double>::epsilon() * std::max(robotBaseMatrix.cols(), robotBaseMatrix.rows()) *svd.singularValues().array().abs()(0);
+	    Eigen::MatrixXd pseudoInverse = svd.matrixV() *  (svd.singularValues().array().abs() > tolerance).select(svd.singularValues().array().inverse(), 0).matrix().asDiagonal() * svd.matrixU().adjoint();
+
+        Eigen::Vector3d robotBaseNormalZ = pseudoInverse*onesVector;
         robotBaseNormalZ /= robotBaseNormalZ.norm();
 
         if(robotBaseNormalZ(2) < 0)
