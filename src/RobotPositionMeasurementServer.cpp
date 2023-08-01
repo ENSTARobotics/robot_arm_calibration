@@ -59,6 +59,7 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
     computeRobotBaseTransform(); 
 }
 
+//TODO !! Average value for force and position measurements !!
 bool RobotPositionMeasurementServer::measure()
 {
     //Get last robot base points measurements
@@ -109,15 +110,34 @@ bool RobotPositionMeasurementServer::measure()
         return(true);
     }
 
-    //Get last joints values values measurement
-    boost::shared_ptr<const sensor_msgs::JointState> jointState = ros::topic::waitForMessage<sensor_msgs::JointState>("/joint_states");
-    ROS_INFO("Joints values");
+    //Get last end effector wrench measurement
+    boost::shared_ptr<const geometry_msgs::WrenchStamped> wrench = ros::topic::waitForMessage<geometry_msgs::WrenchStamped>("/wrench");
 
     if(m_measurementServerDisplay)
     {
+        ROS_INFO("Wrench values");
+        ROS_INFO("FX: %f, FY: %f, FZ: %f, TX: %f, TY: %f, TZ: %f", wrench->wrench.force.x, wrench->wrench.force.y, wrench->wrench.force.z, wrench->wrench.torque.x, wrench->wrench.torque.y, wrench->wrench.torque.z);
+    }
+
+    //Get last joints values measurement
+    boost::shared_ptr<const sensor_msgs::JointState> jointState = ros::topic::waitForMessage<sensor_msgs::JointState>("/joint_states");
+
+    if(m_measurementServerDisplay)
+    {
+        ROS_INFO("Joints values");
         for(int i = 0; i < jointState->position.size(); i++)
         {
             ROS_INFO("J%d: %f", i+1, jointState->position[m_jointsNamesMapping[i]]);
+        }
+    }
+
+    //Get last joints efforts measurement
+    if(m_measurementServerDisplay)
+    {
+        ROS_INFO("Joints efforts");
+        for(int i = 0; i < jointState->effort.size(); i++)
+        {
+            ROS_INFO("J%d: %f", i+1, jointState->effort[m_jointsNamesMapping[i]]);
         }
     }
 
@@ -139,6 +159,22 @@ bool RobotPositionMeasurementServer::measure()
 
     ROS_INFO("Fill end effector points - OK");
 
+    //Record the end effector wrench measurement
+    myfile << wrench->wrench.force.x;
+    myfile << ",";
+    myfile << wrench->wrench.force.y;
+    myfile << ",";
+    myfile << wrench->wrench.force.z;
+    myfile << ",";
+    myfile << wrench->wrench.torque.x;
+    myfile << ",";
+    myfile << wrench->wrench.torque.y;
+    myfile << ",";
+    myfile << wrench->wrench.torque.z;
+    myfile << "\n";
+
+    ROS_INFO("Fill end effector wrench - OK");
+
     //Record the joints values values
     for(int i = 0; i < jointState->position.size(); i++)
     {
@@ -150,7 +186,20 @@ bool RobotPositionMeasurementServer::measure()
         }
     }
 
-    ROS_INFO("Fill joints values - OK");
+    ROS_INFO("Fill joints efforts - OK");
+
+    //Record the joints efforts values
+    for(int i = 0; i < jointState->effort.size(); i++)
+    {
+        myfile << jointState->effort[m_jointsNamesMapping[i]];
+
+        if(i != jointState->effort.size() - 1)
+        {
+            myfile << ",";
+        }
+    }
+
+    ROS_INFO("Fill joints efforts - OK");
 
     myfile << "\n---\n";
 
