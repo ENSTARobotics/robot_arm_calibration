@@ -4,6 +4,8 @@
     <!-- TO BE ADAPTED DEPENDING ON THE MEASURING TOOL -->
     <!-- Positions are sent as a geometry_msgs::PointStamped message-->
 
+    <arg name="tool_name" default=""/>
+
     <!-- TODO Remove base name ? -->
     <arg name="topic_base_name" value="position_measurement_topic_base_name"/>
     <param name="topicBaseName" value="$(arg topic_base_name)"/>
@@ -17,5 +19,11 @@
 
     <remap from="/markerPointsNumber" to="/ROS_param_giving_the_number_of_end effector_markers"/>
     <remap from="/$(arg topic_base_name)/$(arg tool_name)i" to="/topic_associated_to_the_ith_end_effector_marker"/>
+
+    <!-- ROBOT POSITION MEASUREMENT SERVER -->
+    <param name="measurementServerName" value="/robot_position_measurement_server"/>
+    <param name="measurementServerStorageFolder" value="$(eval eval('_' + '_import_' + '_(\'os\')').path.dirname(arg('target_configurations_file')) + '/measurements/')"/>
+    <param name="measurementServerDisplay" value="true"/>
+    <node pkg="robot_arm_calibration" type="robot_position_measurement_server" name="robot_position_measurement_server" output="screen"/>
     
 </launch>
