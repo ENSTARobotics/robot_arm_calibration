@@ -83,13 +83,7 @@ bool RobotPositionMeasurementServer::measure()
                 measurementOK = false;
                 break;
             }
-
-            if(m_measurementServerDisplay)
-            {
-                ROS_INFO("End effector Point - %d",i+1);
-                ROS_INFO("X: %f, Y: %f, Z: %f", point.x, point.y, point.z);
-            }
-            
+           
             //Apply robot base transform
             Eigen::Vector4d pointVector;
             pointVector << point.x, point.y, point.z, 1;
@@ -98,6 +92,12 @@ bool RobotPositionMeasurementServer::measure()
             point.x = pointVector(0);
             point.y = pointVector(1);
             point.z = pointVector(2);
+
+            if(m_measurementServerDisplay)
+            {
+                ROS_INFO("End effector Point - %d",i+1);
+                ROS_INFO("X: %f, Y: %f, Z: %f", point.x, point.y, point.z);
+            }
 
             endEffectorPoints.push_back(point);
         }
@@ -188,7 +188,7 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
             throw std::runtime_error("MISSING PARAMETER");
         }
 
-        TWR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data());
+        TWR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data()).transpose();     //Warning : Eigen -> column wise !
         TRW = TWR.inverse();
     }
 
@@ -314,15 +314,15 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
             throw std::runtime_error("MISSING PARAMETER");
         }
 
-        Eigen::Matrix4d TCR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data());
+        Eigen::Matrix4d TCR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data()).transpose();    //Warning : Eigen -> column wise !
 
         //Measurement device reference frame (W) to robot base frame (R)
-        Eigen::Matrix4d TRW = (TWC*TCR).inverse();
-        TWR = TWC*TCR;        
+        TWR = TWC*TCR; 
+        TRW = TWR.inverse();
     }    
 
     //Create robot base transform
-    m_robotBaseTransform.matrix() = TRW;
+    m_robotBaseTransform = TRW;
 
     //Broadcast the measurement device reference frame
     Eigen::Isometry3d measurementDeviceTransform;

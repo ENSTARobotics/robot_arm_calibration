@@ -48,7 +48,7 @@ class RobotPositionMeasurementServer:MeasurementServer
 
         std::vector<int> m_jointsNamesMapping;  /*!< Mapping between joint states and URDF joints names */
 
-        Eigen::Isometry3d m_robotBaseTransform; /*!< Robot base pose in the measurement device reference frame */
+        Eigen::Matrix4d m_robotBaseTransform; /*!< Robot base pose in the measurement device reference frame */
 
         tf2_ros::StaticTransformBroadcaster m_broadcaster;    /*!< TF broadcaster for the measurement device reference frame */
 

@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     RobotVisualTools visualTools;
 
     //Move the robot to its initial configuration
-    robot.init();
+    robot.init(false,true);
 
     //Retrieve calibration targets
     std::vector<std::vector<double>> waypoints;
