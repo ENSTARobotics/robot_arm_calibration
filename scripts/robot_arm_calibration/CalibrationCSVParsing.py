@@ -28,7 +28,7 @@ def CSVRowToArray(CSVRow):
 def calibrationCSVParsing(itemsNames,calibrationCSVPath):
     """! Stores the contents of a calibration measurements CSV into a python ordered dict.
 
-    @param itemsNames           The names of the dict keys corresponding to the CSV data. Usually : ["pose1",..."poseN","jointsValues"]
+    @param itemsNames           The names of the dict keys corresponding to the CSV data. Usually : ["pose1",..."poseN","jointsPositions"]
     @param calibrationCSVPath   The path the the calibration CSV file.
 
     @return  The corresponding python ordered dict.
