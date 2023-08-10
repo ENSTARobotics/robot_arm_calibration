@@ -10,14 +10,16 @@
     <arg name="measuring_device" default="optitrack"/>
 
     <!-- MEASURING DEVICE SETUP -->
-    <include file="$(find robot_arm_calibration)/launch/$(arg measuring_device)_robot.launch" pass_all_args="true">
-        <arg name="tool_name" value="$(arg tool_name)"/>
+    <include file="$(find robot_arm_calibration)/launch/$(arg measuring_device)_robot.launch">
+        <arg name="robot_wrench_topic" value=""/>
+        <arg name="robot_joint_state_topic" value="joint_states"/>
+        <arg name="robot_joint_state_data" value="[position]"/>
     </include>
 
     <!-- CALIBRATION PARAMETERS --> 
     <arg name="target_configurations_file"/>
     <rosparam command="load" file="$(arg target_configurations_file)"/>
-    <remap from="/targetConfigurations" to="/sampledConfigurations" if="$(eval 'sampled' in arg('target_configurations_file'))"/>  <!-- Define sampled configurations as targets -->
+    <remap from="targetConfigurations" to="sampledConfigurations" if="$(eval 'sampled' in arg('target_configurations_file'))"/>  <!-- Define sampled configurations as targets -->
     
     <rosparam command="load" file="$(find robot_arm_calibration)/config/nominalModels/$(arg robot_name)/$(arg robot_name)_base_parameters.yaml"/>    <!-- Robot base transform regarding to robot base plate measurements or measuring device reference frame -->
     <!-- IMPORTANT REMARK : The calibrated model will be computed according to this reference ! -->
@@ -32,6 +34,13 @@
         <arg name="calibration" value="$(arg calibration)"/>
         <arg name="calibrated_model_file" value="$(arg calibrated_model_file)"/>
     </include>
+
+    <!-- ROBOT POSITION MEASUREMENT SERVER -->
+    <param name="measurementServerName" value="/robot_position_measurement_server"/>
+    <param name="measurementServerStorageFolder" value="$(eval eval('_' + '_import_' + '_(\'os\')').path.dirname(arg('target_configurations_file')) + '/measurements/')"/>
+    <param name="measurementServerDisplay" value="true"/>
+
+    <node pkg="robot_arm_calibration" type="robot_position_measurement_server" name="robot_position_measurement_server" output="screen"/>
 
     <!-- MAIN NODE -->
     <node pkg="robot_arm_calibration" type="robot_arm_calibration_measurements_node" name="robot_arm_calibration_measurements_node" output="screen" required="true"/>

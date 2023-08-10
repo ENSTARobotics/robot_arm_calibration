@@ -3,27 +3,24 @@
 
     <!-- TO BE ADAPTED DEPENDING ON THE MEASURING TOOL -->
     <!-- Positions are sent as a geometry_msgs::PointStamped message-->
+    <!-- Joint state is sent as a sensor_msgs::JointState message-->
+    <!-- Wrench is sent as a geometry_msgs::WrenchStamped message-->
 
-    <arg name="tool_name" default=""/>
+    <arg name="robot_base_points_topics" default="[]"/>
+    <arg name="robot_end_effector_points_topics" default="[]"/>
 
-    <!-- TODO Remove base name ? -->
-    <arg name="topic_base_name" value="position_measurement_topic_base_name"/>
-    <param name="topicBaseName" value="$(arg topic_base_name)"/>
+    <arg name="robot_joint_state_topic" default=""/>
+    <arg name="robot_joint_state_data" default="[position]"/>
+    <arg name="robot_wrench_topic" value=""/>
 
-    <node pkg="measuring_device_package" type="measuring_device_node" name="$(arg topic_base_name)" respawn="false" launch-prefix="" required="true">
+    <param name="robotBasePointsTopics" type="yaml" value="$(arg robot_base_points_topics)"/>
+    <param name="robotEndEffectorPointsTopics" type="yaml" value="$(arg robot_end_effector_points_topics)"/>
+    <param name="robotJointStateTopic" value="$(arg robot_joint_state_topic)"/>
+    <param name="robotJointStateData" type="yaml" value="$(arg robot_joint_state_data)"/>
+    <param name="robotWrenchTopic" value="$(arg robot_wrench_topic)"/>
+
+    <node pkg="measuring_device_package" type="measuring_device_node" name="measuring_device_node_name" respawn="true" required="true">
         <rosparam file="optional_configuration_file.yaml" command="load" />
     </node>
-
-    <remap from="/robotBasePointsNumber" to="/ROS_param_giving_the_number_of_robot_base_markers"/> <!-- Set to 0 for no robot base markers measurements -->
-    <remap from="/$(arg topic_base_name)/robotBasei" to="/topic_associated_to_the_ith_robot_base_marker"/>
-
-    <remap from="/markerPointsNumber" to="/ROS_param_giving_the_number_of_end effector_markers"/>
-    <remap from="/$(arg topic_base_name)/$(arg tool_name)i" to="/topic_associated_to_the_ith_end_effector_marker"/>
-
-    <!-- ROBOT POSITION MEASUREMENT SERVER -->
-    <param name="measurementServerName" value="/robot_position_measurement_server"/>
-    <param name="measurementServerStorageFolder" value="$(eval eval('_' + '_import_' + '_(\'os\')').path.dirname(arg('target_configurations_file')) + '/measurements/')"/>
-    <param name="measurementServerDisplay" value="true"/>
-    <node pkg="robot_arm_calibration" type="robot_position_measurement_server" name="robot_position_measurement_server" output="screen"/>
     
 </launch>

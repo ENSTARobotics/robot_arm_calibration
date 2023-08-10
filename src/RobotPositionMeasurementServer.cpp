@@ -1,143 +1,245 @@
 #include "robot_arm_calibration/RobotPositionMeasurementServer.h"
 
-#include <sensor_msgs/JointState.h>
-
 #include <iostream>
 #include <fstream>
 #include <numeric>
 
 #define MAX_TRIES 5
-#define AVG_WINDOW 5
+
+#define AVG_WINDOW 10
+#define MED_WINDOW 10
+
+#define N_THREADS 4
 
 #include <Eigen/QR> 
 #include <tf2_eigen/tf2_eigen.h>
 
-RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementServer()
+void RobotPositionMeasurementServer::pointCallback(const geometry_msgs::PointStamped::ConstPtr& msg, std::string pointLocation, int pointIndex)
 {
-    //Retrieve the robot base calibration tool end effector points number
-    std::string tmp;
-    if(!m_nodeHandle.getParam("robotBasePointsNumber",tmp))
+    //Escape eventual failed measurements
+    if(abs(msg->point.x) > 9000 || abs(msg->point.y) > 9000 || abs(msg->point.z) > 9000)
     {
-        ROS_WARN("Unable to retrieve robot base points number ! Measurements will be performed according to given robot base offset");
-        //throw std::runtime_error("MISSING PARAMETER");
-        m_robotBasePointsNumber = 0;
+        return;
     }
     else
     {
-        m_robotBasePointsNumber = stoi(tmp);
+        if(pointLocation == "robotBase" && m_robotBasePointsCounter[pointIndex] < AVG_WINDOW)
+        {
+            if(m_robotBasePointsCounter[pointIndex] == 0)
+            {
+                m_robotBasePoints[pointIndex] = geometry_msgs::Point();
+            }
+
+            m_robotBasePoints[pointIndex].x += msg->point.x/AVG_WINDOW;
+            m_robotBasePoints[pointIndex].y += msg->point.y/AVG_WINDOW;
+            m_robotBasePoints[pointIndex].z += msg->point.z/AVG_WINDOW;
+
+            m_robotBasePointsCounter[pointIndex]++;
+        }
+        else if(pointLocation == "robotEndEffector" && m_robotEndEffectorPointsCounter[pointIndex] < AVG_WINDOW)
+        {
+            if(m_robotEndEffectorPointsCounter[pointIndex] == 0)
+            {
+                m_robotEndEffectorPoints[pointIndex] = geometry_msgs::Point();
+            }
+
+            //Apply robot base transform
+            Eigen::Vector4d pointVector;
+            pointVector << msg->point.x, msg->point.y, msg->point.z, 1;
+            pointVector = m_robotBaseTransform*pointVector;
+
+            m_robotEndEffectorPoints[pointIndex].x += pointVector(0)/AVG_WINDOW;
+            m_robotEndEffectorPoints[pointIndex].y += pointVector(1)/AVG_WINDOW;
+            m_robotEndEffectorPoints[pointIndex].z += pointVector(2)/AVG_WINDOW;
+
+            m_robotEndEffectorPointsCounter[pointIndex]++;
+        }
+        else{return;}
+    }
+}
+
+void RobotPositionMeasurementServer::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
+{
+    if(m_robotJointStateCounter < AVG_WINDOW)
+    {
+        if(m_robotJointStateCounter == 0)
+        {
+           m_robotJointState.name = msg->name;
+           m_robotJointState.position = std::vector<double>(msg->position.size(),0);
+           m_robotJointState.velocity = std::vector<double>(msg->velocity.size(),0);
+           m_robotJointState.effort = std::vector<double>(msg->effort.size(),0);
+        }
+
+        for(int i = 0; i < m_robotJointState.position.size(); i++)
+        {
+            m_robotJointState.position[i] += msg->position[m_jointsNamesMapping[i]]/AVG_WINDOW;
+        }
+        for(int i = 0; i < m_robotJointState.velocity.size(); i++)
+        {
+            m_robotJointState.velocity[i] += msg->velocity[m_jointsNamesMapping[i]]/AVG_WINDOW;
+        }
+        for(int i = 0; i < m_robotJointState.effort.size(); i++)
+        {
+            m_robotJointState.effort[i] += msg->effort[m_jointsNamesMapping[i]]/AVG_WINDOW;
+        }
+
+        m_robotJointStateCounter++;
+    }
+    else{return;}
+}
+
+void RobotPositionMeasurementServer::wrenchCallback(const geometry_msgs::WrenchStamped::ConstPtr& msg)
+{
+    //Escape eventual failed measurements
+    if(abs(msg->wrench.force.x) > 9000 || abs(msg->wrench.force.y) > 9000 || abs(msg->wrench.force.z) > 9000 || abs(msg->wrench.torque.x) > 9000 || abs(msg->wrench.torque.y) > 9000 || abs(msg->wrench.torque.z) > 9000)
+    {
+        return;
+    }
+    else
+    {
+        if(m_robotWrenchCounter < AVG_WINDOW)
+        {
+            if(m_robotWrenchCounter == 0)
+            {
+                m_robotWrench = geometry_msgs::Wrench();
+            }
+
+            m_robotWrench.force.x += msg->wrench.force.x/AVG_WINDOW;
+            m_robotWrench.force.y += msg->wrench.force.y/AVG_WINDOW;
+            m_robotWrench.force.z += msg->wrench.force.z/AVG_WINDOW;
+
+            m_robotWrench.torque.x += msg->wrench.torque.x/AVG_WINDOW;
+            m_robotWrench.torque.y += msg->wrench.torque.y/AVG_WINDOW;
+            m_robotWrench.torque.z += msg->wrench.torque.z/AVG_WINDOW;
+
+            m_robotWrenchCounter++;
+        }
+        else{return;}
+    }
+}
+
+RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementServer(), m_measurementsSpinner(N_THREADS,&m_measurementsQueue)
+{
+    //Assing measurements callback to the dedicated queue. This is done to avoid the callback to be executed in the main thread along the MeasurementServer ros::spin()
+    m_measurementsNodeHandle.setCallbackQueue(&m_measurementsQueue);
+
+    //Handle robot end effector points measurements
+    if(!m_nodeHandle.getParam("robotEndEffectorPointsTopics",m_robotEndEffectorPointsTopics))
+    {
+        ROS_ERROR("Unable to retrieve robot end effector points topics !");
+        throw std::runtime_error("MISSING PARAMETER");
+    }
+    m_robotEndEffectorPoints.resize(m_robotEndEffectorPointsTopics.size());
+    for(int i = 0; i < m_robotEndEffectorPointsTopics.size(); i++)
+    {
+        m_robotEndEffectorPointsSubscribers.push_back(m_measurementsNodeHandle.subscribe<geometry_msgs::PointStamped>("/" + m_robotEndEffectorPointsTopics[i], 1, boost::bind(&RobotPositionMeasurementServer::pointCallback, this, _1, "robotEndEffector", i)));
     }
 
-    //Retrieve the robot calibration tool end effector points number and name
-    if(!m_nodeHandle.getParam("toolName",m_markerName))
+    //Handle robot joint state measurements
+    if(!m_nodeHandle.getParam("robotJointStateTopic",m_robotJointStateTopic))
     {
-        ROS_ERROR("Unable to retrieve marker tool name !");
-        throw std::runtime_error("MISSING PARAMETER");
+        ROS_WARN("Could not retrieve robot joint state topic name, defaulting to joint_states");
+        m_robotJointStateTopic = "joint_states";
     }
-    if(!m_nodeHandle.getParam("markerPointsNumber",tmp))
+    if(!m_nodeHandle.getParam("robotJointStateData",m_robotJointStateData))
     {
-        ROS_ERROR("Unable to retrieve end effector points number !");
-        throw std::runtime_error("MISSING PARAMETER");
+        ROS_WARN("Could not retrieve robot joint state measured data, defaulting to position");
+        m_robotJointStateData = {"position"};
     }
-    m_markerPointsNumber = stoi(tmp);
 
-    //TODO Remove basename ?
-    //Retrieve the basename of the topic on which the reference and robot base points will be published
-    if(!m_nodeHandle.getParam("topicBaseName",m_topicBaseName))  
-    {
-        ROS_ERROR("Unable to retrieve topic base name !");
-        throw std::runtime_error("MISSING PARAMETER");
-    }
-    
     double startTime = ros::WallTime::now().toSec();
-    while(!m_nodeHandle.getParam("jointsNamesMapping",m_jointsNamesMapping) && ros::WallTime::now().toSec() - startTime < 10.0){}
+    while(!m_nodeHandle.getParam("jointsNamesMapping",m_jointsNamesMapping) && ros::WallTime::now().toSec() - startTime < 10.0){continue;}
     if(m_jointsNamesMapping.empty())
     {
         ROS_ERROR("Unable to retrieve joints names mapping !");
         throw std::runtime_error("MISSING PARAMETER");
-    }  
+    } 
+    m_robotJointStateSubscriber = m_measurementsNodeHandle.subscribe("/" + m_robotJointStateTopic, 1, &RobotPositionMeasurementServer::jointStateCallback, this);
 
-    computeRobotBaseTransform(); 
+    //Handle robot flange wrench measurements
+    if(!m_nodeHandle.getParam("robotWrenchTopic",m_robotWrenchTopic))
+    {
+        ROS_WARN("Could not retrieve robot flange wrench topic name, no wrench measurement will be performed !");
+        m_robotWrenchTopic = "";
+    }
+    else
+    {
+        m_robotWrenchSubscriber = m_measurementsNodeHandle.subscribe("/" + m_robotWrenchTopic, 1, &RobotPositionMeasurementServer::wrenchCallback, this);
+    }
+
+    //Handle robot base points measurements
+    if(!m_nodeHandle.getParam("robotBasePointsTopics",m_robotBasePointsTopics))
+    {
+        ROS_WARN("Unable to retrieve robot base points number ! Measurements will be performed according to given robot base offset");
+        m_robotBasePointsTopics = std::vector<std::string>();
+    }
+    m_robotBasePoints.resize(m_robotBasePointsTopics.size());
+    for(int i = 0; i < m_robotBasePointsTopics.size(); i++)
+    {
+        m_robotBasePointsSubscribers.push_back(m_measurementsNodeHandle.subscribe<geometry_msgs::PointStamped>("/" + m_robotBasePointsTopics[i], 1, boost::bind(&RobotPositionMeasurementServer::pointCallback, this, _1, "robotBase", i)));
+    }
+
+    //Initialise (reset) all measurements counters
+    resetMeasurementsCounters();
 }
 
 //TODO !! Average value for force and position measurements !!
 bool RobotPositionMeasurementServer::measure()
 {
-    //Get last robot base points measurements
-    std::vector<geometry_msgs::Point> robotBase, endEffectorPoints;
-    geometry_msgs::Point point;
-
-    bool measurementOK = false;
-    int counterTries = 0;
-
-    while(!measurementOK && counterTries < MAX_TRIES)
+    //Compute robot base transform
+    if(m_measurementServerCounter == 0)
     {
-        measurementOK = true;
+        computeRobotBaseTransform();
+    }
 
-        //End effector points
-        for(int i = 0; i < m_markerPointsNumber; i++)
+    //Reset all measurements counters
+    resetMeasurementsCounters();
+
+    //Get last robot measurements
+    m_measurementsSpinner.start();
+    while(std::accumulate(m_robotEndEffectorPointsCounter.begin(), m_robotEndEffectorPointsCounter.end(), 0) < m_robotEndEffectorPoints.size()*AVG_WINDOW || m_robotJointStateCounter < AVG_WINDOW || (m_robotWrenchTopic != "" && m_robotWrenchCounter < AVG_WINDOW))
+    {
+        continue;
+    }
+    m_measurementsSpinner.stop();
+
+    //Display measurements
+    if(m_measurementServerDisplay)
+    {
+        for(int i = 0; i < m_robotEndEffectorPoints.size(); i++)
         {
-            point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/" + m_topicBaseName + "/" + m_markerName + std::to_string(i+1))->point;
-
-            if(abs(point.x) > 9000 || abs(point.y) > 9000 || abs(point.z) > 9000)
-            {
-                counterTries++;
-                measurementOK = false;
-                break;
-            }
-           
-            //Apply robot base transform
-            Eigen::Vector4d pointVector;
-            pointVector << point.x, point.y, point.z, 1;
-            pointVector = m_robotBaseTransform*pointVector;
-
-            point.x = pointVector(0);
-            point.y = pointVector(1);
-            point.z = pointVector(2);
-
-            if(m_measurementServerDisplay)
-            {
-                ROS_INFO("End effector Point - %d",i+1);
-                ROS_INFO("X: %f, Y: %f, Z: %f", point.x, point.y, point.z);
-            }
-
-            endEffectorPoints.push_back(point);
+            ROS_INFO("End effector point - %d",i+1);
+            ROS_INFO("X: %f, Y: %f, Z: %f", m_robotEndEffectorPoints[i].x, m_robotEndEffectorPoints[i].y, m_robotEndEffectorPoints[i].z);
         }
-        if(!measurementOK){continue;}
-    }
-    if(!measurementOK && counterTries == MAX_TRIES)
-    {
-        ROS_WARN("Skipping un-measurable pose !");
-        return(true);
-    }
-
-    //Get last end effector wrench measurement
-    boost::shared_ptr<const geometry_msgs::WrenchStamped> wrench = ros::topic::waitForMessage<geometry_msgs::WrenchStamped>("/wrench");
-
-    if(m_measurementServerDisplay)
-    {
-        ROS_INFO("Wrench values");
-        ROS_INFO("FX: %f, FY: %f, FZ: %f, TX: %f, TY: %f, TZ: %f", wrench->wrench.force.x, wrench->wrench.force.y, wrench->wrench.force.z, wrench->wrench.torque.x, wrench->wrench.torque.y, wrench->wrench.torque.z);
-    }
-
-    //Get last joints values measurement
-    boost::shared_ptr<const sensor_msgs::JointState> jointState = ros::topic::waitForMessage<sensor_msgs::JointState>("/joint_states");
-
-    if(m_measurementServerDisplay)
-    {
-        ROS_INFO("Joints values");
-        for(int i = 0; i < jointState->position.size(); i++)
+        
+        if(std::find(m_robotJointStateData.begin(),m_robotJointStateData.end(), "position") != m_robotJointStateData.end())
         {
-            ROS_INFO("J%d: %f", i+1, jointState->position[m_jointsNamesMapping[i]]);
+            for(int i = 0; i < m_robotJointState.position.size(); i++)
+            {
+                ROS_INFO("Position J%d: %f", i+1, m_robotJointState.position[i]);
+            }
         }
-    }
-
-    //Get last joints efforts measurement
-    if(m_measurementServerDisplay)
-    {
-        ROS_INFO("Joints efforts");
-        for(int i = 0; i < jointState->effort.size(); i++)
+        
+        if(std::find(m_robotJointStateData.begin(),m_robotJointStateData.end(), "velocity") != m_robotJointStateData.end())
         {
-            ROS_INFO("J%d: %f", i+1, jointState->effort[m_jointsNamesMapping[i]]);
+            for(int i = 0; i < m_robotJointState.velocity.size(); i++)
+            {
+                ROS_INFO("Velocity J%d: %f", i+1, m_robotJointState.velocity[i]);
+            }
+        }
+        
+        if(std::find(m_robotJointStateData.begin(),m_robotJointStateData.end(), "effort") != m_robotJointStateData.end())
+        {
+            for(int i = 0; i < m_robotJointState.effort.size(); i++)
+            {
+                ROS_INFO("Effort J%d: %f", i+1, m_robotJointState.effort[i]);
+            }
+        }
+
+        if(m_robotWrenchTopic != "")
+        {
+            ROS_INFO("Wrench values");
+            ROS_INFO("FX: %f, FY: %f, FZ: %f, TX: %f, TY: %f, TZ: %f", m_robotWrench.force.x, m_robotWrench.force.y, m_robotWrench.force.z, m_robotWrench.torque.x, m_robotWrench.torque.y, m_robotWrench.torque.z);
         }
     }
 
@@ -147,61 +249,85 @@ bool RobotPositionMeasurementServer::measure()
     ROS_INFO("Open CSV - OK");
 
     //Record the end effector points measurements
-    for(int i = 0; i < m_markerPointsNumber; i++)
+    for(int i = 0; i < m_robotEndEffectorPoints.size(); i++)
     {
-        myfile << endEffectorPoints[i].x;
+        myfile << m_robotEndEffectorPoints[i].x;
         myfile << ",";
-        myfile << endEffectorPoints[i].y;
+        myfile << m_robotEndEffectorPoints[i].y;
         myfile << ",";
-        myfile << endEffectorPoints[i].z;
+        myfile << m_robotEndEffectorPoints[i].z;
         myfile << "\n";
     }
 
-    ROS_INFO("Fill end effector points - OK");
+    ROS_INFO("Fill robot end effector points - OK");
 
-    //Record the end effector wrench measurement
-    myfile << wrench->wrench.force.x;
-    myfile << ",";
-    myfile << wrench->wrench.force.y;
-    myfile << ",";
-    myfile << wrench->wrench.force.z;
-    myfile << ",";
-    myfile << wrench->wrench.torque.x;
-    myfile << ",";
-    myfile << wrench->wrench.torque.y;
-    myfile << ",";
-    myfile << wrench->wrench.torque.z;
-    myfile << "\n";
-
-    ROS_INFO("Fill end effector wrench - OK");
-
-    //Record the joints values values
-    for(int i = 0; i < jointState->position.size(); i++)
+    //Record the joints positions values
+    if(std::find(m_robotJointStateData.begin(),m_robotJointStateData.end(), "position") != m_robotJointStateData.end())
     {
-        myfile << jointState->position[m_jointsNamesMapping[i]];
-
-        if(i != jointState->position.size() - 1)
+        for(int i = 0; i < m_robotJointState.position.size(); i++)
         {
-            myfile << ",";
+            myfile << m_robotJointState.position[i];
+
+            if(i != m_robotJointState.position.size() - 1)
+            {
+                myfile << ",";
+            }
         }
+        myfile << "\n";
     }
 
-    ROS_INFO("Fill joints efforts - OK");
+    //Record the joints velocities values
+    if(std::find(m_robotJointStateData.begin(),m_robotJointStateData.end(), "velocity") != m_robotJointStateData.end())
+    {
+        for(int i = 0; i < m_robotJointState.velocity.size(); i++)
+        {
+            myfile << m_robotJointState.velocity[i];
+
+            if(i < m_robotJointState.velocity.size() - 1)
+            {
+                myfile << ",";
+            }
+        }
+        myfile << "\n";
+    }
 
     //Record the joints efforts values
-    for(int i = 0; i < jointState->effort.size(); i++)
+    if(std::find(m_robotJointStateData.begin(),m_robotJointStateData.end(), "effort") != m_robotJointStateData.end())
     {
-        myfile << jointState->effort[m_jointsNamesMapping[i]];
-
-        if(i != jointState->effort.size() - 1)
+        for(int i = 0; i < m_robotJointState.effort.size(); i++)
         {
-            myfile << ",";
+            myfile << m_robotJointState.effort[i];
+
+            if(i < m_robotJointState.effort.size() - 1)
+            {
+                myfile << ",";
+            }
         }
+        myfile << "\n";
     }
 
-    ROS_INFO("Fill joints efforts - OK");
+    ROS_INFO("Fill robot joint state - OK");
 
-    myfile << "\n---\n";
+    if(m_robotWrenchTopic != "")
+    {
+        //Record the flange wrench measurement
+        myfile << m_robotWrench.force.x;
+        myfile << ",";
+        myfile << m_robotWrench.force.y;
+        myfile << ",";
+        myfile << m_robotWrench.force.z;
+        myfile << ",";
+        myfile << m_robotWrench.torque.x;
+        myfile << ",";
+        myfile << m_robotWrench.torque.y;
+        myfile << ",";
+        myfile << m_robotWrench.torque.z;
+        myfile << "\n";
+
+        ROS_INFO("Fill robot flange wrench - OK");
+    }
+
+    myfile << "---\n";
 
     //Close the file
     myfile.close();
@@ -211,6 +337,12 @@ bool RobotPositionMeasurementServer::measure()
 	return(true);
 }
 
+/*!
+ *  \brief Computes the projection of a point on a plane given its normal and a point on the plane.
+ *  \param point The point to project.
+ *  \param planeNormal The normal of the plane.
+ *  \param planePoint A point on the plane.
+ */
 Eigen::Vector3d planeProjection(Eigen::Vector3d point, Eigen::Vector3d planeNormal, Eigen::Vector3d planePoint)
 {
     Eigen::Vector3d v = point - planePoint;
@@ -218,26 +350,28 @@ Eigen::Vector3d planeProjection(Eigen::Vector3d point, Eigen::Vector3d planeNorm
     return(point - dist*planeNormal);
 }
 
-//TODO Custom layout !
+//TODO Custom layout for robot base points !
 void RobotPositionMeasurementServer::computeRobotBaseTransform()
 {
-
     //Mandatory transformation matrix 
     //Robot base frame (R) to world frame (W)
-    Eigen::Matrix4d TWR, TRW;
+    Eigen::Matrix4d TRW, TWR = Eigen::Matrix4d::Identity();
 
-    if(m_robotBasePointsNumber == 0)
+    if(m_robotBasePointsTopics.size() == 0)
     {
         //Robot base frame (R) to world frame (W) - Estimated.
         std::vector<double> tmpMatrix;
 
         if(!m_nodeHandle.getParam("robotBaseOffset",tmpMatrix))
         {
-            ROS_ERROR("Unable to retrieve robot base offset !");
-            throw std::runtime_error("MISSING PARAMETER");
+            ROS_WARN("Unable to retrieve robot base offset, defaulting to identity !");
+            //throw std::runtime_error("MISSING PARAMETER");
+            
         }
-
-        TWR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data()).transpose();     //Warning : Eigen -> column wise !
+        else
+        {
+            TWR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data()).transpose();     //Warning : Eigen -> column wise !
+        }
         TRW = TWR.inverse();
     }
 
@@ -257,75 +391,41 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
         //                
             
         //Get last robot base points measurements
-        std::vector<geometry_msgs::Point> robotBaseMarkers(m_robotBasePointsNumber), tmpRobotBaseMarkers(m_robotBasePointsNumber);
-        geometry_msgs::Point point;
-
-        bool measurementOK = false;
-        int counterTries = 0, counterMeasurements = 0;
-
-        for(int i = 0; i < AVG_WINDOW; i++)
-        {        
-            while(!measurementOK && counterTries < MAX_TRIES)
-            {
-                measurementOK = true;
-
-                //Robot Base
-                for(int j = 0; j < m_robotBasePointsNumber; j++)
-                {
-                    point = ros::topic::waitForMessage<geometry_msgs::PointStamped>("/" + m_topicBaseName + "/robotBase" + std::to_string(j+1))->point;
-
-                    if(abs(point.x) > 9000 || abs(point.y) > 9000 || abs(point.z) > 9000)
-                    {
-                        counterTries++;
-                        measurementOK = false;
-                        break;
-                    }
-                    
-                    tmpRobotBaseMarkers[j].x = point.x;
-                    tmpRobotBaseMarkers[j].y = point.y;
-                    tmpRobotBaseMarkers[j].z = point.z;
-                }
-            }
-
-            if(counterTries < MAX_TRIES)
-            {
-                counterMeasurements++;
-                for(int j = 0; j < m_robotBasePointsNumber; j++)
-                {
-                    robotBaseMarkers[j].x += tmpRobotBaseMarkers[j].x;
-                    robotBaseMarkers[j].y += tmpRobotBaseMarkers[j].y;
-                    robotBaseMarkers[j].z += tmpRobotBaseMarkers[j].z;
-                }  
-            }
-
-            counterTries = 0;
-            measurementOK = false;
-        }
-
-        for(int j = 0; j < m_robotBasePointsNumber; j++)
+        m_measurementsSpinner.start();
+        while(std::accumulate(m_robotBasePointsCounter.begin(), m_robotBasePointsCounter.end(), 0) < m_robotBasePoints.size()*AVG_WINDOW)
         {
-            robotBaseMarkers[j].x /= counterMeasurements;
-            robotBaseMarkers[j].y /= counterMeasurements;
-            robotBaseMarkers[j].z /= counterMeasurements;
+            continue;
+        }
+        m_measurementsSpinner.stop();
+
+        for(int i = 0; i < m_robotBasePoints.size(); i++)
+        {
+            m_robotBasePointsSubscribers[i].shutdown(); //Optional
+            
+            if(m_measurementServerDisplay)
+            {
+                ROS_INFO("Base point - %d",i+1);
+                ROS_INFO("X: %f, Y: %f, Z: %f", m_robotBasePoints[i].x, m_robotBasePoints[i].y, m_robotBasePoints[i].z);
+            }
         }
 
         //Get robot base pose position
         Eigen::Vector3d baseCentroid = Eigen::Vector3d::Zero();
-        for(int i = 0; i < robotBaseMarkers.size() - 1; i++)
+        for(int i = 0; i < m_robotBasePoints.size() - 1; i++)
         {
-            baseCentroid(0) += robotBaseMarkers[i].x/(robotBaseMarkers.size() - 1);
-            baseCentroid(1) += robotBaseMarkers[i].y/(robotBaseMarkers.size() - 1);
-            baseCentroid(2) += robotBaseMarkers[i].z/(robotBaseMarkers.size() - 1);
+            baseCentroid(0) += m_robotBasePoints[i].x/(m_robotBasePoints.size() - 1);
+            baseCentroid(1) += m_robotBasePoints[i].y/(m_robotBasePoints.size() - 1);
+            baseCentroid(2) += m_robotBasePoints[i].z/(m_robotBasePoints.size() - 1);
         }
 
         //Find the robot base plane normal vector
-        Eigen::MatrixXd robotBaseMatrix(robotBaseMarkers.size(),3);
-        Eigen::VectorXd onesVector(robotBaseMarkers.size());
-        for(int i = 0; i < robotBaseMarkers.size(); i++)
+        Eigen::MatrixXd robotBaseMatrix(m_robotBasePoints.size(),3);
+        Eigen::VectorXd onesVector(m_robotBasePoints.size());
+        for(int i = 0; i < m_robotBasePoints.size(); i++)
         {
-            robotBaseMatrix(i,0) = robotBaseMarkers[i].x;
-            robotBaseMatrix(i,1) = robotBaseMarkers[i].y;
-            robotBaseMatrix(i,2) = robotBaseMarkers[i].z;
+            robotBaseMatrix(i,0) = m_robotBasePoints[i].x;
+            robotBaseMatrix(i,1) = m_robotBasePoints[i].y;
+            robotBaseMatrix(i,2) = m_robotBasePoints[i].z;
             onesVector(i) = 1.0;
         }
 
@@ -343,27 +443,30 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
         }
 
         //Find the other axis
-        Eigen::Vector3d robotBaseNormalX = planeProjection(robotBaseMatrix.row(0),robotBaseNormalZ,baseCentroid) - planeProjection(robotBaseMatrix.row(robotBaseMarkers.size()-2),robotBaseNormalZ,baseCentroid);
+        Eigen::Vector3d robotBaseNormalX = planeProjection(robotBaseMatrix.row(0),robotBaseNormalZ,baseCentroid) - planeProjection(robotBaseMatrix.row(m_robotBasePoints.size()-2),robotBaseNormalZ,baseCentroid);
         robotBaseNormalX /= robotBaseNormalX.norm();
         Eigen::Vector3d robotBaseNormalY = robotBaseNormalZ.cross(robotBaseNormalX);
 
         //Retreive robot base transformation
         
         //Interpolated frame (C) to measurement device reference frame (W)
-        Eigen::Matrix4d TWC = Eigen::MatrixXd::Identity(4,4);
+        Eigen::Matrix4d TWC = Eigen::Matrix4d::Identity();
         TWC.topLeftCorner(3,3) << robotBaseNormalX,robotBaseNormalY,robotBaseNormalZ;
         TWC.topRightCorner(3,1) << baseCentroid;
 
         //Robot base frame (R) to interpolated frame (C)
+        Eigen::Matrix4d TCR = Eigen::Matrix4d::Identity();
         std::vector<double> tmpMatrix;
 
         if(!m_nodeHandle.getParam("robotBaseOffset",tmpMatrix))
         {
-            ROS_ERROR("Unable to retrieve robot base offset !");
-            throw std::runtime_error("MISSING PARAMETER");
+            ROS_WARN("Unable to retrieve robot base offset, defaulting to identity !");
+            //throw std::runtime_error("MISSING PARAMETER");
         }
-
-        Eigen::Matrix4d TCR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data()).transpose();    //Warning : Eigen -> column wise !
+        else
+        {
+            TCR = Eigen::Map<Eigen::Matrix4d>(tmpMatrix.data()).transpose();    //Warning : Eigen -> column wise !
+        }
 
         //Measurement device reference frame (W) to robot base frame (R)
         TWR = TWC*TCR; 
@@ -382,7 +485,7 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
     transformStamped.header.frame_id = "world";
     transformStamped.child_frame_id = "measurement_device_reference";
 
-    m_broadcaster.sendTransform(transformStamped);
+    m_tfBroadcaster.sendTransform(transformStamped);
 }
 
 int main( int argc, char **argv)
