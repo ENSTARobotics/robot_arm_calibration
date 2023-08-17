@@ -4,11 +4,15 @@
 import sys
 import os
 import yaml
+from multiprocessing import Pool
 
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from scipy.optimize import basinhopping
+
+from pygad import GA
+from simanneal import Annealer
 
 ### Import robot and marker parameters
 from robot_arm_calibration.ParametersTools import getIdentifiableParameters, saveParameters
@@ -106,7 +110,7 @@ def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations=
     errorLear = computeError(parameters,PijLear,JointiLear)
     errorTest = None
     if(len(JointiTest)!=0):
-        errorTest = computeError(parameters,PijTest,JointiLear)
+        errorTest = computeError(parameters,PijTest,JointiTest)
 
     return(parameters,errorLear,errorTest)
 
@@ -185,7 +189,7 @@ def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,
         print("Intermediate error :  " + str(errorLear))
 
         if(len(JointiTest)!=0):
-            errorTest = computeError(parameters,PijTest,JointiLear)
+            errorTest = computeError(parameters,PijTest,JointiTest)
             print("Intermediate test error :  " + str(errorTest))
 
         #Stopping criterion
@@ -447,27 +451,42 @@ if __name__ == "__main__":
         except:
             print("No stop delta criterion given, defaulting to " + str(stopDelta))
 
-        initialisations = 3
+        initialisations = 5
         try : 
             initialisations = float(sys.argv[2])
         except:
             print("No initialisations number given, defaulting to " + str(initialisations))
 
-        #First standard initialisation with nominal parameters
-        parameters,finalError,finalTestError = localIdentifyParameters(parameters0,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+        #Create small initial disturbances...
+        initialisationDeltas = np.zeros((np.max(10,2*initialisations),len(parameters0)))
+        initialisationDeltas[1:] = np.random.uniform(-1.0, 1.0, (np.max(10,2*initialisations)-1,len(parameters0)))
 
-        #TODO Parallel computation !
-        for i in range(initialisations-1):
-            #Create small initial disturbance...
-            initialisationDelta = np.random.random(len(parameters0))
+        #...But optimized !
+        geneticAlgorithm = GA(num_generations=20,
+                              num_parents_mating=np.max(10,2*initialisations)/2,
+                              fitness_func=lambda instance, solution, solution_idx : (-1)*computeError(parameters0 + solution,PijLear,JointiLear),
+                              initial_population=initialisationDeltas,
+                              init_range_low=-1,
+                              init_range_high=1,
+                              keep_elitism=initialisations)
+        geneticAlgorithm.run()
+        bestInitialisationDeltas = geneticAlgorithm.last_generation_elitism
 
-            deltaParameters,deltaFinalError,deltaFinalTestingError = localIdentifyParameters(parameters0+initialisationDelta,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+        #Run parameters identification (in parallel)
+        pool = Pool(processes=os.cpu_count()-1) #Just in case
 
-            if (deltaFinalError/finalError < 1 - stopDelta):
-                print("Found better minimum with a small initial disturbance !")
-                parameters = deltaParameters 
-                finalError = deltaFinalError 
-                finalTestingError = deltaFinalTestingError
+        def tmp(x):
+            return localIdentifyParameters(parameters0 + x,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+        
+        identificationOutputs = pool.map(tmp,bestInitialisationDeltas)
+        finalError = 10**10
+
+        #Get best parameters with lowest identification error
+        for output in identificationOutputs:
+            if(output[1] < finalError):
+                parameters = output[0]
+                finalError = output[1]
+                finalTestingError = output[2]
 
     elif(algorithmType == "global"):
         maxIterations = 10
