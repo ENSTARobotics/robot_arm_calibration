@@ -65,7 +65,7 @@ More details are provided in the [Used technologies](#used-technologies) section
 
 * [ROS Melodic](http://wiki.ros.org/melodic/Installation/Ubuntu) or [ROS Noetic](http://wiki.ros.org/noetic/Installation/Ubuntu)
 
-### Install
+### Install from source
 
 First, use git to clone the required packages into your catkin workspace : 
 
@@ -101,6 +101,10 @@ source devel/setup.bash
 ```
 
 > :warning: _Remark_ : before use, attention must be paid to the proper functioning of the _robot\_arm\_tool_ package, which involve the installation of the robot ROS driver !
+
+### Install via Docker
+
+Thanks to Adrien Poiré, it is possible to directly use _robot\_arm\_calibration_ and _robot\_arm\_tool_ with Docker ! See this [repository](https://gitlab.ensta.fr/poire/robot_arm_tools-docker) for more details.
 
 ## Usage
 
