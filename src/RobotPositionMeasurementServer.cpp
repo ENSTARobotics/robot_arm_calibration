@@ -186,7 +186,7 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
 //TODO !! Average value for force and position measurements !!
 bool RobotPositionMeasurementServer::measure()
 {
-    //Compute robot base transform
+    //Compute robot base transform (and any kind of other static measurement)
     if(m_measurementServerCounter == 0)
     {
         computeRobotBaseTransform();
@@ -392,7 +392,7 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
             
         //Get last robot base points measurements
         m_measurementsSpinner.start();
-        while(std::accumulate(m_robotBasePointsCounter.begin(), m_robotBasePointsCounter.end(), 0) < m_robotBasePoints.size()*AVG_WINDOW)
+        while(std::accumulate(m_robotBasePointsCounter.begin(), m_robotBasePointsCounter.end(), 0) < m_robotBasePoints.size()*AVG_WINDOW*5)
         {
             continue;
         }
