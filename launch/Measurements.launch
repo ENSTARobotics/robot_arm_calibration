@@ -19,7 +19,7 @@
     <!-- CALIBRATION PARAMETERS --> 
     <arg name="target_configurations_file"/>
     <rosparam command="load" file="$(arg target_configurations_file)"/>
-    <remap from="targetConfigurations" to="sampledConfigurations" if="$(eval 'sampled' in arg('target_configurations_file'))"/>  <!-- Define sampled configurations as targets -->
+    <remap from="targetConfigurations" to="sampledConfigurations" if="$(eval 'sampled' in arg('target_configurations_file').lower())"/>  <!-- Define sampled configurations as targets -->
     
     <rosparam command="load" file="$(find robot_arm_calibration)/config/nominalModels/$(arg robot_name)/$(arg robot_name)_base_parameters.yaml"/>    <!-- Robot base transform regarding to robot base plate measurements or measuring device reference frame -->
     <!-- IMPORTANT REMARK : The calibrated model will be computed according to this reference ! -->
