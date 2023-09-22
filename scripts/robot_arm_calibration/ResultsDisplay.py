@@ -72,6 +72,18 @@ def computeAxisSpecificGlobalError(parameters,Pij=Pij0,Jointi=Jointi0):
 
     return(globalErrorX,globalErrorY,globalErrorZ)
 
+def computeAxisSpecificGlobalDifference(parameters,Pij=Pij0,Jointi=Jointi0):
+    delta = computeGlobalDelta(parameters,Pij,Jointi)
+
+    globalDifferenceX = np.mean(delta[::3])
+    globalDifferenceX_std = np.std(delta[::3])
+    globalDifferenceY = np.mean(delta[1::3])
+    globalDifferenceY_std = np.std(delta[1::3])
+    globalDifferenceZ = np.mean(delta[2::3])
+    globalDifferenceZ_std = np.std(delta[2::3])
+
+    return(globalDifferenceX,globalDifferenceX_std,globalDifferenceY,globalDifferenceY_std,globalDifferenceZ,globalDifferenceZ_std)
+
 def computeLocalDelta(parameters,endEffectorPointIndex,configurationIndex,Pij=Pij0,Jointi=Jointi0):
     """! Computes the local deltas between the measured and modeled positions.
 
@@ -159,9 +171,7 @@ ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label="un
 print("Testing error uncalibrated : " + str(computeGlobalError(parameters0)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
 
 print("Axis specific global error uncalibrated : " + str(computeAxisSpecificGlobalError(parameters0)))
-
-#Axis specific errors
-
+print("Axis specific global difference uncalibrated : " + str(computeAxisSpecificGlobalDifference(parameters0)))
 
 #Plot calibrated errors
 samplingSelectionMethod = ""
@@ -183,6 +193,7 @@ for folder in foldersNames:
     print("Testing error " + label + " : " + str(computeGlobalError(parameters)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
 
     print("Axis specific global error " + label + " : " + str(computeAxisSpecificGlobalError(parameters)))
+    print("Axis specific global difference " + label + " : " + str(computeAxisSpecificGlobalDifference(parameters)))
 
     #Compute learning scores
     if(learningScores):
