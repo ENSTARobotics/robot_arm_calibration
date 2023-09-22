@@ -116,6 +116,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
 
     #Set robot nominal values for identifiable parameters
     globalT = np.dot(TBaseInter,actuatedJoints[0].origin)
+
     for i,joint in enumerate(actuatedJoints[1:]):
 
         #Joints rotation offsets
@@ -126,15 +127,15 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
         globalT = np.dot(globalT,joint.origin)
 
         #If all identifiable link translation parameters do not have a corresponding non-zero nominal value, they might be found later (except if the next link is the last - excluded - one) ! For now, we pin it somewhere.
-        if(i != len(actuatedJoints)-2 and (np.array([deltaP[j-1] for j in LINKS_TRANSLATIONS[i]]) < 1e-10).all()):
-            needFill.append(i)
+        if(i != len(actuatedJoints)-2 and (np.abs(np.array([deltaP[j-1] for j in LINKS_TRANSLATIONS[i]])) < 1e-5).any()):
+            needFill.append(i)  #TODO Also store the correspondings LINKS_TRANSLATIONS
 
         #If not, a non-zero nominal value may have been left behind (i.e. not associated to an identifiable link translation parameter). It may be related to a previously pined link translation parameter.
         else:
             for j in needFill:
-                for k in LINKS_TRANSLATIONS[j]:
-                    if(k not in LINKS_TRANSLATIONS[i] and np.abs(deltaP[k-1]) > 1e-10):
-                        pi0[sum(JOINTS_OFFSET[:j]) + size(LINKS_TRANSLATIONS[:j]) + size(LINKS_ROTATIONS[:j]) + k - 1] = np.round(deltaP[k-1],10)
+                for n,k in enumerate(LINKS_TRANSLATIONS[j]):
+                    if(k not in LINKS_TRANSLATIONS[i] and np.abs(deltaP[k-1]) > 1e-5):
+                        pi0[sum(JOINTS_OFFSET[:j+1]) + size(LINKS_TRANSLATIONS[:j]) + size(LINKS_ROTATIONS[:j]) + n] = np.round(deltaP[k-1],6)
                         needFill.remove(j)
 
         #Links translations and rotations
