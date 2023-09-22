@@ -224,7 +224,7 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, inputURDFFilePath,
         #Create display configuration
         cfg = {}
         for joint in robot.actuated_joints:
-            cfg[joint.name] = 0.0
+            cfg[joint.name] = (np.random.random() - 0.5)*np.pi
 
         #print(np.round(globalTN,3))
         #print(np.round(globalTRobot,3))
@@ -269,4 +269,4 @@ if __name__ == "__main__":
         print("Invalid model and URDF/XACRO file paths !")
         sys.exit(1)
     
-    ModeltoURDF(modelFilePath,inputURDFFilePath,flangeLinkName,False)
+    ModeltoURDF(modelFilePath,inputURDFFilePath,flangeLinkName,"/tmp/output.urdf",True)
