@@ -315,9 +315,15 @@ if __name__ == "__main__":
 
     print("Test on first measurement :")
     for i,item in enumerate(EEPointsItemsNames):
+        print("Delta end effector point " + item)
+        print(Items[item][0] - Pfunc(parameters0,Items["jointsPositions"][0])[3*i:3*i+3].T[0])
+
+    randomIndex = np.random.randint(0,N_MEASUREMENTS)
+    print("Test on random measurement (" + str(randomIndex) + ") :")
+    randomIndex = np.random.randint(0,N_MEASUREMENTS)
+    for i,item in enumerate(EEPointsItemsNames):
         print("End effector point " + item)
-        print(Items[item][0])
-        print(Pfunc(parameters0,Items["jointsPositions"][0])[3*i:3*i+3].T[0])
+        print(Items[item][randomIndex] - Pfunc(parameters0,Items["jointsPositions"][randomIndex])[3*i:3*i+3].T[0])
 
     PijLear = np.empty((N_LEARNING,N_EEPOINTS,3))
     JointiLear = np.empty((N_LEARNING,JOINTS_NUMBER))
