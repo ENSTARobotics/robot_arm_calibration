@@ -787,7 +787,8 @@ if __name__ == "__main__":
 
     ### Retrieve measurements data
     print("Retrieving calibration measurement data...")
-    itemsNames = EEItemsNames + ["jointsPositions"]
+    itemsNames = EEItemsNames + ["jointsPositions","jointsTorques","EndEffectorWrench"]
+    
     try:
         Items = calibrationCSVParsing(itemsNames, "Calibration.csv")
     except:

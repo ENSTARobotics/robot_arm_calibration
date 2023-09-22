@@ -45,7 +45,7 @@ from robot_arm_calibration.ParametersIdentification import computeError
 
 ### Retrieve measurements data
 
-itemsNames = EEItemsNames + ["jointsPositions"]
+itemsNames = EEItemsNames + ["jointsPositions","jointsTorques","EndEffectorWrench"]
 
 ### Uncalibrated data
 testingSamplingMethod = input("Testing configurations ? " + str([folder[:-1] for folder in glob.glob("*/")]))
