@@ -6,8 +6,9 @@
 
 #define MAX_TRIES 5
 
-#define AVG_WINDOW 10
-#define MED_WINDOW 10
+#define AVG_WINDOW_STATIC 200
+#define AVG_WINDOW_DYNAMIC 100
+#define MED_WINDOW 50
 
 #define N_THREADS 4
 
@@ -23,20 +24,20 @@ void RobotPositionMeasurementServer::pointCallback(const geometry_msgs::PointSta
     }
     else
     {
-        if(pointLocation == "robotBase" && m_robotBasePointsCounter[pointIndex] < AVG_WINDOW)
+        if(pointLocation == "robotBase" && m_robotBasePointsCounter[pointIndex] < AVG_WINDOW_STATIC)
         {
             if(m_robotBasePointsCounter[pointIndex] == 0)
             {
                 m_robotBasePoints[pointIndex] = geometry_msgs::Point();
             }
 
-            m_robotBasePoints[pointIndex].x += msg->point.x/AVG_WINDOW;
-            m_robotBasePoints[pointIndex].y += msg->point.y/AVG_WINDOW;
-            m_robotBasePoints[pointIndex].z += msg->point.z/AVG_WINDOW;
+            m_robotBasePoints[pointIndex].x += msg->point.x/AVG_WINDOW_STATIC;
+            m_robotBasePoints[pointIndex].y += msg->point.y/AVG_WINDOW_STATIC;
+            m_robotBasePoints[pointIndex].z += msg->point.z/AVG_WINDOW_STATIC;
 
             m_robotBasePointsCounter[pointIndex]++;
         }
-        else if(pointLocation == "robotEndEffector" && m_robotEndEffectorPointsCounter[pointIndex] < AVG_WINDOW)
+        else if(pointLocation == "robotEndEffector" && m_robotEndEffectorPointsCounter[pointIndex] < AVG_WINDOW_DYNAMIC)
         {
             if(m_robotEndEffectorPointsCounter[pointIndex] == 0)
             {
@@ -48,9 +49,9 @@ void RobotPositionMeasurementServer::pointCallback(const geometry_msgs::PointSta
             pointVector << msg->point.x, msg->point.y, msg->point.z, 1;
             pointVector = m_robotBaseTransform*pointVector;
 
-            m_robotEndEffectorPoints[pointIndex].x += pointVector(0)/AVG_WINDOW;
-            m_robotEndEffectorPoints[pointIndex].y += pointVector(1)/AVG_WINDOW;
-            m_robotEndEffectorPoints[pointIndex].z += pointVector(2)/AVG_WINDOW;
+            m_robotEndEffectorPoints[pointIndex].x += pointVector(0)/AVG_WINDOW_DYNAMIC;
+            m_robotEndEffectorPoints[pointIndex].y += pointVector(1)/AVG_WINDOW_DYNAMIC;
+            m_robotEndEffectorPoints[pointIndex].z += pointVector(2)/AVG_WINDOW_DYNAMIC;
 
             m_robotEndEffectorPointsCounter[pointIndex]++;
         }
@@ -60,7 +61,7 @@ void RobotPositionMeasurementServer::pointCallback(const geometry_msgs::PointSta
 
 void RobotPositionMeasurementServer::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {
-    if(m_robotJointStateCounter < AVG_WINDOW)
+    if(m_robotJointStateCounter < AVG_WINDOW_DYNAMIC)
     {
         if(m_robotJointStateCounter == 0)
         {
@@ -72,15 +73,15 @@ void RobotPositionMeasurementServer::jointStateCallback(const sensor_msgs::Joint
 
         for(int i = 0; i < m_robotJointState.position.size(); i++)
         {
-            m_robotJointState.position[i] += msg->position[m_jointsNamesMapping[i]]/AVG_WINDOW;
+            m_robotJointState.position[i] += msg->position[m_jointsNamesMapping[i]]/AVG_WINDOW_DYNAMIC;
         }
         for(int i = 0; i < m_robotJointState.velocity.size(); i++)
         {
-            m_robotJointState.velocity[i] += msg->velocity[m_jointsNamesMapping[i]]/AVG_WINDOW;
+            m_robotJointState.velocity[i] += msg->velocity[m_jointsNamesMapping[i]]/AVG_WINDOW_DYNAMIC;
         }
         for(int i = 0; i < m_robotJointState.effort.size(); i++)
         {
-            m_robotJointState.effort[i] += msg->effort[m_jointsNamesMapping[i]]/AVG_WINDOW;
+            m_robotJointState.effort[i] += msg->effort[m_jointsNamesMapping[i]]/AVG_WINDOW_DYNAMIC;
         }
 
         m_robotJointStateCounter++;
@@ -97,20 +98,20 @@ void RobotPositionMeasurementServer::wrenchCallback(const geometry_msgs::WrenchS
     }
     else
     {
-        if(m_robotWrenchCounter < AVG_WINDOW)
+        if(m_robotWrenchCounter < AVG_WINDOW_DYNAMIC)
         {
             if(m_robotWrenchCounter == 0)
             {
                 m_robotWrench = geometry_msgs::Wrench();
             }
 
-            m_robotWrench.force.x += msg->wrench.force.x/AVG_WINDOW;
-            m_robotWrench.force.y += msg->wrench.force.y/AVG_WINDOW;
-            m_robotWrench.force.z += msg->wrench.force.z/AVG_WINDOW;
+            m_robotWrench.force.x += msg->wrench.force.x/AVG_WINDOW_DYNAMIC;
+            m_robotWrench.force.y += msg->wrench.force.y/AVG_WINDOW_DYNAMIC;
+            m_robotWrench.force.z += msg->wrench.force.z/AVG_WINDOW_DYNAMIC;
 
-            m_robotWrench.torque.x += msg->wrench.torque.x/AVG_WINDOW;
-            m_robotWrench.torque.y += msg->wrench.torque.y/AVG_WINDOW;
-            m_robotWrench.torque.z += msg->wrench.torque.z/AVG_WINDOW;
+            m_robotWrench.torque.x += msg->wrench.torque.x/AVG_WINDOW_DYNAMIC;
+            m_robotWrench.torque.y += msg->wrench.torque.y/AVG_WINDOW_DYNAMIC;
+            m_robotWrench.torque.z += msg->wrench.torque.z/AVG_WINDOW_DYNAMIC;
 
             m_robotWrenchCounter++;
         }
@@ -197,7 +198,7 @@ bool RobotPositionMeasurementServer::measure()
 
     //Get last robot measurements
     m_measurementsSpinner.start();
-    while(std::accumulate(m_robotEndEffectorPointsCounter.begin(), m_robotEndEffectorPointsCounter.end(), 0) < m_robotEndEffectorPoints.size()*AVG_WINDOW || m_robotJointStateCounter < AVG_WINDOW || (m_robotWrenchTopic != "" && m_robotWrenchCounter < AVG_WINDOW))
+    while(std::accumulate(m_robotEndEffectorPointsCounter.begin(), m_robotEndEffectorPointsCounter.end(), 0) < m_robotEndEffectorPoints.size()*AVG_WINDOW_DYNAMIC || m_robotJointStateCounter < AVG_WINDOW_DYNAMIC || (m_robotWrenchTopic != "" && m_robotWrenchCounter < AVG_WINDOW_DYNAMIC))
     {
         continue;
     }
@@ -392,7 +393,7 @@ void RobotPositionMeasurementServer::computeRobotBaseTransform()
             
         //Get last robot base points measurements
         m_measurementsSpinner.start();
-        while(std::accumulate(m_robotBasePointsCounter.begin(), m_robotBasePointsCounter.end(), 0) < m_robotBasePoints.size()*AVG_WINDOW*5)
+        while(std::accumulate(m_robotBasePointsCounter.begin(), m_robotBasePointsCounter.end(), 0) < m_robotBasePoints.size()*AVG_WINDOW_STATIC)
         {
             continue;
         }
