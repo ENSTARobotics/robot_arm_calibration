@@ -1,12 +1,16 @@
 <?xml version="1.0" ?>
 <launch>
 
-    <arg name="robot_base_points_topics" default="[mocap_node/robotBase1,mocap_node/robotBase2,mocap_node/robotBase3,mocap_node/robotBase4,mocap_node/robotBase5,mocap_node/robotBase6,mocap_node/robotBase7]"/>
+     <!-- Modified mocap_optitrack (https://github.com/CarolinePascal/mocap_optitrack) based version -->
+
+    <arg name="node_name" value="optitrack_node"/>
+
+    <arg name="robot_base_points_topics" default="[$(arg node_name)/robotBase1,$(arg node_name)/robotBase2,$(arg node_name)/robotBase3,$(arg node_name)/robotBase4,$(arg node_name)/robotBase5,$(arg node_name)/robotBase6,$(arg node_name)/robotBase7]"/>
 
     <arg name="robot_joint_state_topic" default="joint_states"/>
     <arg name="robot_joint_state_data" default="[position]"/>
 
-    <arg name="robot_end_effector_points_topics" default="[mocap_node/marker3D1,mocap_node/marker3D2,mocap_node/marker3D3,mocap_node/marker3D4,mocap_node/marker3D5,mocap_node/marker3D6,mocap_node/marker3D7]"/>
+    <arg name="robot_end_effector_points_topics" default="[$(arg node_name)/marker3D1,$(arg node_name)/marker3D2,$(arg node_name)/marker3D3,$(arg node_name)/marker3D4,$(arg node_name)/marker3D5,$(arg node_name)/marker3D6,$(arg node_name)/marker3D7]"/>
 
     <arg name="robot_wrench_topic" default=""/>
 
@@ -16,7 +20,7 @@
     <param name="robotJointStateData" type="yaml" value="$(arg robot_joint_state_data)"/>
     <param name="robotWrenchTopic" value="$(arg robot_wrench_topic)"/>
 
-    <node pkg="mocap_optitrack" type="mocap_node" name="mocap_node">
+    <node pkg="mocap_optitrack" type="mocap_node" name="$(arg node_name)">
         <rosparam file="$(find robot_arm_calibration)/config/optitrack_parameters.yaml" command="load" />
     </node>
     

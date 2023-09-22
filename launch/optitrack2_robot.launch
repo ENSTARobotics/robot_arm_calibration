@@ -1,0 +1,24 @@
+<?xml version="1.0" ?>
+<launch>
+
+    <!-- natnet_ros based version -->
+    <arg name="node_name" value="optitrack_node"/>
+
+    <arg name="robot_base_points_topics" default="[$(arg node_name)/rigid_bodies/robotBase/marker1,$(arg node_name)/rigid_bodies/robotBase/marker2,$(arg node_name)/rigid_bodies/robotBase/marker3,$(arg node_name)/rigid_bodies/robotBase/marker4,$(arg node_name)/rigid_bodies/robotBase/marker5,$(arg node_name)/rigid_bodies/robotBase/marker6,$(arg node_name)/rigid_bodies/robotBase/marker7]"/>
+
+    <arg name="robot_joint_state_topic" default="joint_states"/>
+    <arg name="robot_joint_state_data" default="[position]"/>
+
+    <arg name="robot_end_effector_points_topics" default="[$(arg node_name)/rigid_bodies/marker3D/marker1,$(arg node_name)/rigid_bodies/marker3D/marker2,$(arg node_name)/rigid_bodies/marker3D/marker3,$(arg node_name)/rigid_bodies/marker3D/marker4,$(arg node_name)/rigid_bodies/marker3D/marker5,$(arg node_name)/rigid_bodies/marker3D/marker6,$(arg node_name)/rigid_bodies/marker3D/marker7]"/>
+
+    <arg name="robot_wrench_topic" default=""/>
+
+    <param name="robotBasePointsTopics" type="yaml" value="$(arg robot_base_points_topics)"/>
+    <param name="robotEndEffectorPointsTopics" type="yaml" value="$(arg robot_end_effector_points_topics)"/>
+    <param name="robotJointStateTopic" value="$(arg robot_joint_state_topic)"/>
+    <param name="robotJointStateData" type="yaml" value="$(arg robot_joint_state_data)"/>
+    <param name="robotWrenchTopic" value="$(arg robot_wrench_topic)"/>
+
+    <node pkg="natnet_ros" type="client" name="$(arg node_name)"/>
+    
+</launch>
