@@ -1,4 +1,4 @@
-sampledConfigurations:
+sampledConfigurtions:
   - 
     - -2.896
     - -0.8814
@@ -45120,7 +45120,10 @@ sampledConfigurations:
     - 0.925
     - -1.44865
   -
+<<<<<<< HEAD
     - 
+=======
+>>>>>>> Fixing YAML formatting issue
     - -1.44865
     - 0.8813999999999997
     - -1.44865
@@ -57920,7 +57923,11 @@ sampledConfigurations:
     - -1.44865
     - 1.8675
     - -1.44865
+<<<<<<< HEAD
   -
+=======
+  - 
+>>>>>>> Fixing YAML formatting issue
     - 0
     - 0.8813999999999997
     - -1.44865
@@ -57929,7 +57936,10 @@ sampledConfigurations:
     - 1.8675
     - -1.44865
   -
+<<<<<<< HEAD
     - 
+=======
+>>>>>>> Fixing YAML formatting issue
     - 1.44865
     - 0.8813999999999997
     - -1.44865
@@ -58810,7 +58820,10 @@ sampledConfigurations:
     - 1.8675
     - -1.44865
   -
+<<<<<<< HEAD
     - 
+=======
+>>>>>>> Fixing YAML formatting issue
     - 1.44865
     - 0.8813999999999997
     - -1.44865
@@ -59731,7 +59744,10 @@ sampledConfigurations:
     - 1.8675
     - -1.44865
   -
+<<<<<<< HEAD
     - 
+=======
+>>>>>>> Fixing YAML formatting issue
     - 1.44865
     - 0.8813999999999997
     - -1.44865
