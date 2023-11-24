@@ -57,14 +57,19 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
         TBaseInter = np.dot(TBaseInter,joint.origin)
 
     ### Get robot identifiable parameters distribution (joint offsets, link translations & rotations)
+    axisNorm = all(all(joint.axis == np.array([0,0,1])) for joint in actuatedJoints)
     for i,joint in enumerate(actuatedJoints):
 
         deltaP = np.dot(globalT,joint.origin)[:3,-1] - globalT[:3,-1]
         globalT = np.dot(globalT,joint.origin)
 
         #Retrive current joint axis - ej (completed by uj and vj to form an orthonormal frame)
-        currentjointIndex = np.where(np.round(np.abs(globalT[:3,2]),4)==1)[0][0]
-        JOINTS_AXIS.append(int(np.sign(globalT[:3,2][currentjointIndex])*(currentjointIndex + 1)))
+        if(axisNorm):
+            currentjointIndex = np.where(np.round(np.abs(globalT[:3,2]),4)==1)[0][0]
+            JOINTS_AXIS.append(int(np.sign(globalT[:3,2][currentjointIndex])*(currentjointIndex + 1)))
+        else:
+            currentjointIndex = np.where(np.round(np.abs(joint.axis),4)==1)[0][0]
+            JOINTS_AXIS.append(int(np.sign(joint.axis[currentjointIndex])*(currentjointIndex + 1)))
 
         #Get identifiable links translations and rotations - Tej/uj/vj and Rej/uj/vj
         
@@ -73,9 +78,12 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
             #If ej-1 // ej, we delete Tuj-k/vj-k which defines the translation orthogonal to ej, with k minimal
             if(abs(JOINTS_AXIS[-1]) == abs(JOINTS_AXIS[-2])):
                 k = 1
-                while(abs(JOINTS_AXIS[-1]) in LINKS_TRANSLATIONS[-k]):
-                    k+=1
-                LINKS_TRANSLATIONS[-k] = np.delete(LINKS_TRANSLATIONS[-k],np.where(LINKS_TRANSLATIONS[-k] != abs(JOINTS_AXIS[-1]))[0][-1])
+                while(k < len(JOINTS_AXIS)):
+                    if((abs(JOINTS_AXIS[-1])+1)%3 in LINKS_TRANSLATIONS[-k] or (abs(JOINTS_AXIS[-1])+2)%3 in LINKS_TRANSLATIONS[-k]):
+                        break
+                    else:
+                        k+=1
+                LINKS_TRANSLATIONS[-k] = np.delete(LINKS_TRANSLATIONS[-k],np.argmin(deltaP[np.where(LINKS_TRANSLATIONS[-k] != abs(JOINTS_AXIS[-1]))]))
 
             #If ej-1 _|_ ej, we delete Ruj-1/vj-1 which corresponds to Rej
             else:
@@ -84,7 +92,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
         #Exclude last link: it will be handled with flange joint/link
         if(i == JOINTS_NUMBER - 1):
 
-            #Delete redundant link translation colinear to the last joint axis
+            #Delete redundant link translation colinear to the last joint axis, and add it to the flange
             if(abs(JOINTS_AXIS[-1]) in LINKS_TRANSLATIONS[-1]):
                 LINKS_TRANSLATIONS[-1] = np.delete(LINKS_TRANSLATIONS[-1],np.where(LINKS_TRANSLATIONS[-1] == abs(JOINTS_AXIS[-1]))[0][-1])
             
@@ -117,6 +125,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
     #Set robot nominal values for identifiable parameters
     globalT = np.dot(TBaseInter,actuatedJoints[0].origin)
 
+    deltaFlange = np.zeros(3)
     for i,joint in enumerate(actuatedJoints[1:]):
 
         #Joints rotation offsets
@@ -126,28 +135,36 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
         deltaP = np.dot(globalT,joint.origin)[:3,-1] - globalT[:3,-1]
         globalT = np.dot(globalT,joint.origin)
 
-        #If all identifiable link translation parameters do not have a corresponding non-zero nominal value, they might be found later (except if the next link is the last - excluded - one) ! For now, we pin it somewhere.
-        if(i != len(actuatedJoints)-2 and (np.abs(np.array([deltaP[j-1] for j in LINKS_TRANSLATIONS[i]])) < 1e-5).any()):
-            needFill.append(i)  #TODO Also store the correspondings LINKS_TRANSLATIONS
+        #If we have not reached the flange, we can still redistribute translations !
+        if(i != len(actuatedJoints)-2):
 
-        #If not, a non-zero nominal value may have been left behind (i.e. not associated to an identifiable link translation parameter). It may be related to a previously pined link translation parameter.
-        else:
-            for j in needFill:
-                for n,k in enumerate(LINKS_TRANSLATIONS[j]):
-                    if(k not in LINKS_TRANSLATIONS[i] and np.abs(deltaP[k-1]) > 1e-5):
-                        pi0[sum(JOINTS_OFFSET[:j+1]) + size(LINKS_TRANSLATIONS[:j]) + size(LINKS_ROTATIONS[:j]) + n] = np.round(deltaP[k-1],6)
-                        needFill.remove(j)
+            #If all identifiable link translation parameters do not have a corresponding non-zero nominal value, they might be found later (except if the next link is the last - excluded - one) ! For now, we pin it somewhere.
+            fillable = np.where(np.abs(np.array([deltaP[j-1] for j in LINKS_TRANSLATIONS[i]])) < 1e-5)[0]
+            if(len(fillable) != 0):
+                needFill.append([i,[LINKS_TRANSLATIONS[i][k] for k in fillable]])
+
+            #If not, a non-zero nominal value may have been left behind (i.e. not associated to an identifiable link translation parameter). It may be related to a previously pined link translation parameter.
+            else:
+                for j in needFill:
+                    for n,k in enumerate(j[1]):
+                        if(k not in LINKS_TRANSLATIONS[i] and np.abs(deltaP[k-1]) > 1e-5):
+                            pi0[sum(JOINTS_OFFSET[:j[0]+1]) + size(LINKS_TRANSLATIONS[:j[0]]) + size(LINKS_ROTATIONS[:j[0]]) + n] = np.round(deltaP[k-1],6)
+                            needFill.remove(j)
 
         #Links translations and rotations
         pi0.extend([np.round(deltaP[i-1],10) for i in LINKS_TRANSLATIONS[i]])
         pi0.extend([0.0 for i in LINKS_ROTATIONS[i]])
 
+        #Delete redundant link translation colinear to the last joint axis, and add it to the flange
+        if(i == JOINTS_NUMBER - 3):
+            deltaFlange[abs(JOINTS_AXIS[i])-1] = deltaP[abs(JOINTS_AXIS[i])-1]
+
     #Set nominal robot flange transformation
-    deltaP += np.dot(globalT,TFlangeInter)[:3,-1] - globalT[:3,-1]
+    deltaP += np.dot(globalT,TFlangeInter)[:3,-1] - globalT[:3,-1] + deltaFlange
     globalT = np.dot(globalT,TFlangeInter)
     TFlangeN = np.eye(4)
     TFlangeN[:3,:3] = globalT[:3,:3]
-    TFlangeN[:3,-1][currentjointIndex] = deltaP[currentjointIndex] 
+    TFlangeN[:3,-1][np.abs(JOINTS_AXIS[-1]) - 1] = deltaP[np.abs(JOINTS_AXIS[-1]) - 1]
 
     #DEPRECATED
     #print("Saving geometric model parameters...")
