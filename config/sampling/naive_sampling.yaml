@@ -1,2 +1,5 @@
 samplingMethod: naive  #Naive even discretisation of each actuator angular range
 samplingValue: 5  #Angular discretisation step for each actuator
+jointsLimits:
+  lower: [-2.34 ,-3.04 ,-1.99 ,-3.12 ,-1.64 ,-3.04]
+  upper: [2.86  ,-0.1     ,2.62  ,3.12  ,1.64  ,3.04]

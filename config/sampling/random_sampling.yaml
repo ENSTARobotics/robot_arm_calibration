@@ -1,2 +1,5 @@
 samplingMethod: random  #Random sampling of the robot angular configurations
 samplingValue: 20  #Number of configurations 
+jointsLimits:
+  lower: [-2.34 ,-3.04 ,-1.99 ,-3.12 ,-1.64 ,-3.04]
+  upper: [2.86  ,-0.1     ,2.62  ,3.12  ,1.64  ,3.04]
