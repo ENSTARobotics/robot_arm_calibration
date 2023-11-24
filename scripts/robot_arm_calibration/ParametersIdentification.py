@@ -9,7 +9,8 @@ from multiprocessing import Pool
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from scipy.optimize import basinhopping
+from scipy.optimize import basinhopping, minimize, least_squares
+from cyipopt import minimize_ipopt
 
 from pygad import GA
 from simanneal import Annealer
@@ -140,7 +141,7 @@ def BH(initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest):
 
         return(accept)
 
-    result = basinhopping(function,x0=np.zeros(len(initialParameters)),niter=maxIterations,stepsize=10,minimizer_kwargs={"method":"L-BFGS-B","jac":True},disp=True,callback=callback)
+    result = basinhopping(function,x0=initialParameters,niter=maxIterations,stepsize=10,minimizer_kwargs={"method":"BFGS","jac":True},disp=True,callback=callback)
     optimizedParameters = result.x
 
     return(optimizedParameters)
@@ -309,6 +310,78 @@ def BFGS(parameters,Pij,Jointi):
 
     return(optimizedParameters)
 
+#TODO Test !
+localAlgorithmsLib = {"CG_scipy":"Conjugate gradient",
+                      "LM_scipy":"Levendberg-Marquardt",
+                      "BFGS_scipy":"Broyden-Fletcher-Goldfarb-Shanno",
+                      "IP_ipopt":"Interior point"}
+
+def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=10):
+    """! Performs the robot model parameters identification using the specified locally iterative algorithm.
+
+    @param initialParameters   The current robot parameters vector.
+    @param PijLear      The learning measured positions vector.
+    @param JointiLear   The learning measured joints positions vector.
+    @param stopDelta    The relative delta stopping criterion.
+    @param algorithm    The optimization algorithm to be used.
+    @param PijTest      The testing measured positions vector.
+    @param JointiTest   The testing measured joints positions vector.
+    @param maxIterations  The maximum number of iterations - default = 10.
+
+    @return  The identified parameters vector, final learning error and final testing error.
+    """
+
+    print(localAlgorithmsScipy[algorithmName] + " algorithm")
+
+    #Errors initialisation
+    errorLear = 0
+    errorLearPrev = 0
+    errorTest = None
+
+    #Parameters initialisation
+    parameters = initialParameters
+    result = None
+
+    def function(parameters):
+        return(computeError(parameters,PijLear,JointiLear))
+
+    def jacobian(parameters):
+        return(computeIdentificationJacobian(parameters,PijLear,JointiLear))
+
+    def callback(IntermediateResult):
+        print("Intermediate error : " + str(IntermediateResult.fun))
+
+        if(len(JointiTest)!=0):
+            print("Intermediate test error :  " + str(computeError(IntermediateResult.x,PijTest,JointiTest)))
+
+    if(algorithmName.split("_")[1] == "scipy"):
+        method = algorithmName.split("_")[0]
+
+        if(method.upper() == "LM"):
+            result = least_squares(function, x0=initialParameters, jac=jacobian, method=method.lower(), ftol=stopDelta, verbose=1)
+        else:
+            result = minimize(function, x0=initialParameters, method=method.lower(), jac=jacobian, tol=stopDelta, callback=callback)
+
+        optimizedParameters = result.x
+        errorLear = result.fun
+        if(len(JointiTest)!=0):
+            errorTest = computeError(IntermediateResult.x,PijTest,JointiTest)
+
+        return(parameters,errorLear,errorTest)
+
+    elif(algorithmName.split("_")[1] == "ipopt"):
+        result = minimize_ipopt(function, x0=initialParameters, jac=jacobian, tol=stopDelta)
+
+        optimizedParameters = result.x
+        errorLear = result.fun
+        if(len(JointiTest)!=0):
+            errorTest = computeError(IntermediateResult.x,PijTest,JointiTest)
+
+        return(parameters,errorLear,errorTest)
+
+    else:
+        return(parameters,errorLear,errorTest)
+
 ### Main loop
 if __name__ == "__main__":
 
@@ -434,7 +507,7 @@ if __name__ == "__main__":
     algorithmType = "local"
     try : 
         tmpAlgorithmName = sys.argv[1].upper()
-        if(tmpAlgorithmName in localAlgorithms.keys()):
+        if(tmpAlgorithmName in localAlgorithms.keys() or tmpAlgorithmName in localAlgorithmsLib.keys()):
             algorithmType = "local"
         elif(tmpAlgorithmName in globalAlgorithms.keys()):
             algorithmType = "global"
