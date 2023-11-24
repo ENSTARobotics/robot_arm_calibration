@@ -22,10 +22,12 @@ def importParameters(robotName = "", markerName = ""):
     if(robotName == "" and markerName == ""):
         try:
             import re
-            currentParameters = np.array(re.split('/|_',os.getcwd()))
+            currentParameters = np.array(os.getcwd().split("/"))
             currentParameters = currentParameters[np.where(currentParameters == "calibratedModels")[0][0] + 1:]
+            currentParameters = currentParameters[0].split("_")
+            #Assumption : the robot name does not contain "_", TODO better : neither the marker name, nor the robot name contains "_"
             robotName = currentParameters[0]
-            markerName = currentParameters[1]
+            markerName = "_".join(currentParameters[1:])
         except:
             print("Invalid robot name for robot parameters importation ! Are you in a proper calibrated model folder or have you specified a correct robot name ? ")
             exit(1)
