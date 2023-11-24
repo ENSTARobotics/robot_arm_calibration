@@ -3,7 +3,7 @@
 #include <robot_arm_tools/RobotTrajectories.h>
 
 #include <yaml-cpp/yaml.h>
-#include <boost/filesystem.hpp>
+#include <experimental/filesystem>
 
 #include <random>
 
@@ -45,7 +45,7 @@ int main(int argc, char **argv)
         throw std::runtime_error("MISSING PARAMETER");
     }
 
-    sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + "_" + samplingMethod + "_" + std::to_string(samplingValue);
+    sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + samplingMethod + "_" + std::to_string(samplingValue);
     if(n.hasParam("cartesianLimits"))
     {
         sampledConfigurationsStorageFolder = sampledConfigurationsStorageFolder + "_box/";
@@ -61,16 +61,16 @@ int main(int argc, char **argv)
     }
 
     //Handle sampled configurations storage folder - clean or create
-    if(boost::filesystem::exists(sampledConfigurationsStorageFolder))
+    std::experimental::filesystem::path folderPath{sampledConfigurationsStorageFolder};
+    if(std::experimental::filesystem::exists(folderPath))
     {
         ROS_WARN("%s already exists : its contents will be overwritten !", sampledConfigurationsStorageFolder.c_str());
-        for (const auto& entry : boost::filesystem::directory_iterator(sampledConfigurationsStorageFolder))
-        {
-            boost::filesystem::remove_all(entry.path());
-        }
     }
-    ROS_INFO("Creating %s ...", sampledConfigurationsStorageFolder.c_str());
-    boost::filesystem::create_directory(sampledConfigurationsStorageFolder);
+    else
+    {
+        ROS_INFO("Creating %s ...", sampledConfigurationsStorageFolder.c_str());
+        std::experimental::filesystem::create_directories(folderPath.parent_path());
+    }
 
     std::string sampledConfigurationsFileName = sampledConfigurationsStorageFolder + "SampledConfigurations.yaml";
 
@@ -81,9 +81,8 @@ int main(int argc, char **argv)
     }
     catch(const std::exception& e)
     {
-        boost::filesystem::path path(sampledConfigurationsFileName);
-        boost::filesystem::create_directories(path.parent_path());
-        boost::filesystem::ofstream {path};
+        std::experimental::filesystem::path filePath(sampledConfigurationsFileName);
+        std::ofstream {filePath};
 
         config = YAML::LoadFile(sampledConfigurationsFileName);
     }
@@ -252,106 +251,134 @@ int main(int argc, char **argv)
         }
     }
     
-    else if(samplingMethod == "naive")
+    else if(samplingMethod == "naive" || samplingMethod == "random")
     {
-        std::vector<double> Q;
-        std::vector<std::vector<double>> jointsLimits = robot.getJointsLimits();
-        for(int i = 0; i < samplingValue; i++)
+        std::vector<std::vector<double>> jointsLimits;
+
+        if(n.hasParam("jointsLimits"))
         {
-            for(int j = 0; j < robot.getJointsNumber(); j++)
+            std::vector<double> tmpLowerLimits, tmpUpperlimits;
+            n.getParam("jointsLimits/lower",tmpLowerLimits);
+            n.getParam("jointsLimits/upper",tmpUpperlimits);
+            
+            if(tmpLowerLimits.size() != tmpUpperlimits.size() || tmpLowerLimits.size() != robot.getJointsNumber() || tmpUpperlimits.size() != robot.getJointsNumber())
             {
-                if(jointsLimits[j][0] - 2*M_PI*floor(jointsLimits[j][0]/(2*M_PI)) != jointsLimits[j][1] - 2*M_PI*floor(jointsLimits[j][1]/(2*M_PI)))
+                ROS_WARN("Invalid joints limits, defaulting to robot model joints limits !");
+                jointsLimits = robot.getJointsLimits();
+            }
+            else
+            {
+                for(int i = 0; i < robot.getJointsNumber(); i++)
                 {
-                    Q.push_back(jointsLimits[j][0] + (jointsLimits[j][1] - jointsLimits[j][0])*i/(samplingValue - 1));
+                    jointsLimits.push_back({tmpLowerLimits[i],tmpUpperlimits[i]});
                 }
-                //Case where the lower and upper joints limits are the same (modulo 2*pi)
+            }
+        }
+        else    //Default to robot model joints limits
+        {
+            jointsLimits = robot.getJointsLimits(); 
+        }
+
+        if(samplingMethod == "naive")
+        {
+            std::vector<double> Q;
+            for(int i = 0; i < samplingValue; i++)
+            {
+                for(int j = 0; j < robot.getJointsNumber(); j++)
+                {
+                    if(jointsLimits[j][0] - 2*M_PI*floor(jointsLimits[j][0]/(2*M_PI)) != jointsLimits[j][1] - 2*M_PI*floor(jointsLimits[j][1]/(2*M_PI)))
+                    {
+                        Q.push_back(jointsLimits[j][0] + (jointsLimits[j][1] - jointsLimits[j][0])*i/(samplingValue - 1));
+                    }
+                    //Case where the lower and upper joints limits are the same (modulo 2*pi)
+                    else
+                    {
+                        Q.push_back(jointsLimits[j][0] + (jointsLimits[j][1] - jointsLimits[j][0])*i/(samplingValue));
+                    }
+                }
+            }
+
+            for(int k = 0; k < pow(samplingValue,robot.getJointsNumber()); k++)
+            {
+                std::vector<double> currentConfiguration {Q.begin(), Q.begin() + robot.getJointsNumber()};
+
+                ROS_INFO("Testing configuration %d/%d: ", k+1, (int)pow(samplingValue,robot.getJointsNumber()));
+                for(int i = 0; i < currentConfiguration.size(); i++)
+                {
+                    ROS_INFO("J%d : %f",i+1,currentConfiguration[i]);
+                }
+
+                if(robot.isReachable(currentConfiguration,true))
+                {
+                    ROS_INFO("Reachable !");
+                    config["sampledConfigurations"].push_back(currentConfiguration);
+                }
                 else
                 {
-                    Q.push_back(jointsLimits[j][0] + (jointsLimits[j][1] - jointsLimits[j][0])*i/(samplingValue));
+                    ROS_INFO("Unreachable...");
                 }
-            }
-        }
-
-        for(int k = 0; k < pow(samplingValue,robot.getJointsNumber()); k++)
-        {
-            std::vector<double> currentConfiguration {Q.begin(), Q.begin() + robot.getJointsNumber()};
-
-            ROS_INFO("Testing configuration %d/%d: ", k+1, (int)pow(samplingValue,robot.getJointsNumber()));
-            for(int i = 0; i < currentConfiguration.size(); i++)
-            {
-                ROS_INFO("J%d : %f",i+1,currentConfiguration[i]);
-            }
-
-            if(robot.isReachable(currentConfiguration,true))
-            {
-                ROS_INFO("Reachable !");
-                config["sampledConfigurations"].push_back(currentConfiguration);
-            }
-            else
-            {
-                ROS_INFO("Unreachable...");
-            }
-            
-            for(int l = 0; l < robot.getJointsNumber(); l++)
-            {
-                if((k+1)%(int)pow(samplingValue,l) == 0)
+                
+                for(int l = 0; l < robot.getJointsNumber(); l++)
                 {
-                    double tempValue = Q[l];
-                    for(int m = 0; m < samplingValue - 1; m++)
+                    if((k+1)%(int)pow(samplingValue,l) == 0)
                     {
-                        Q[m*robot.getJointsNumber()+l] = Q[(m+1)*robot.getJointsNumber()+l];
+                        double tempValue = Q[l];
+                        for(int m = 0; m < samplingValue - 1; m++)
+                        {
+                            Q[m*robot.getJointsNumber()+l] = Q[(m+1)*robot.getJointsNumber()+l];
+                        }
+                        Q[(samplingValue-1)*robot.getJointsNumber()+l] = tempValue;
                     }
-                    Q[(samplingValue-1)*robot.getJointsNumber()+l] = tempValue;
                 }
             }
         }
-    }
-    
-    else if(samplingMethod == "random")
-    {
-        std::vector<std::vector<double>> jointsLimits = robot.getJointsLimits();
-        std::vector<double> currentConfiguration;
 
-        //Random configuration generation
-        std::default_random_engine re;
-        std::vector<std::uniform_real_distribution<double>> unifVector;
-        std::uniform_real_distribution<double> unif;
-
-        for(int j = 0; j < robot.getJointsNumber(); j++)
+        else    //samplingMethod == "random"
         {
-            unif = std::uniform_real_distribution<double>(jointsLimits[j][0],jointsLimits[j][1]);
-            unifVector.push_back(unif);
-        }
+            std::vector<double> currentConfiguration;
 
-        for(int i = 0; i < samplingValue; i++)
-        {
-            ROS_INFO("Trying to find testing configuration %d",i+1);
+            //Random configuration generation
+            std::default_random_engine re;
+            std::vector<std::uniform_real_distribution<double>> unifVector;
+            std::uniform_real_distribution<double> unif;
+
             for(int j = 0; j < robot.getJointsNumber(); j++)
             {
-                //ROS_INFO("%f,%f",jointsLimits[j][0],jointsLimits[j][1]);
-                currentConfiguration.push_back(unifVector[j](re));
+                unif = std::uniform_real_distribution<double>(jointsLimits[j][0],jointsLimits[j][1]);
+                unifVector.push_back(unif);
             }
 
-            ROS_INFO("Testing configuration :");
-            for(int k = 0; k < currentConfiguration.size(); k++)
+            for(int i = 0; i < samplingValue; i++)
             {
-                ROS_INFO("J%d : %f",k+1,currentConfiguration[k]);
-            }
+                ROS_INFO("Trying to find testing configuration %d",i+1);
+                for(int j = 0; j < robot.getJointsNumber(); j++)
+                {
+                    //ROS_INFO("%f,%f",jointsLimits[j][0],jointsLimits[j][1]);
+                    currentConfiguration.push_back(unifVector[j](re));
+                }
 
-            if(robot.isReachable(currentConfiguration,true))
-            {
-                ROS_INFO("Reachable !");
-                config["sampledConfigurations"].push_back(currentConfiguration);
+                ROS_INFO("Testing configuration :");
+                for(int k = 0; k < currentConfiguration.size(); k++)
+                {
+                    ROS_INFO("J%d : %f",k+1,currentConfiguration[k]);
+                }
+
+                if(robot.isReachable(currentConfiguration,true))
+                {
+                    ROS_INFO("Reachable !");
+                    config["sampledConfigurations"].push_back(currentConfiguration);
+                }
+                else
+                {
+                    ROS_INFO("Unreachable...");
+                    i--;
+                }
+                currentConfiguration.clear();
             }
-            else
-            {
-                ROS_INFO("Unreachable...");
-                i--;
-            }
-            currentConfiguration.clear();
         }
-    }
 
+    }
+    
     else
     {
         ROS_ERROR("Invalid sampling parameters !");
