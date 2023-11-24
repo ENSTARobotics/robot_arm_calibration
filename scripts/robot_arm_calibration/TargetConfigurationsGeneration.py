@@ -174,8 +174,6 @@ def random(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=N
         CalibrationIndices = randomIndices[:targetConfigurationsNumber]
         TargetConfigurations = sampledConfigurations[np.sort(CalibrationIndices)]
 
-        TargetConfigurations = np.random.normal(0.0,1.0,(targetConfigurationsNumber,JOINTS_NUMBER))
-
     score = utilityScore(TargetConfigurations)  #No optimization
 
     print("Done !")
@@ -264,7 +262,7 @@ def genetic(sampledConfigurations,targetConfigurationsNumber,configurationsSeed=
 
     maxCounter = num_generations*(sol_per_pop-1) + sol_per_pop
 
-    def fitnessFunction(solution,index):
+    def fitnessFunction(self,solution,index):
         configurations = sampledConfigurations[solution].reshape((-1,JOINTS_NUMBER))
 
         #Utility score maximization => Fitness function maximization
