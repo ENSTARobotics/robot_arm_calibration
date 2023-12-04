@@ -4,6 +4,8 @@
 import yaml
 import glob
 import os
+import copy as copy
+import sys
 
 #Utility packages
 import numpy as np
@@ -17,7 +19,7 @@ importParameters()
 
 #Custom packages
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
-from robot_arm_calibration.AnalyticGeometricModel import Pfunc
+from robot_arm_calibration.AnalyticGeometricModel import Pfunc, Tfunc
 
 ### Retrieve measurements data
 
@@ -28,6 +30,50 @@ testingSamplingMethod = input("Testing configurations ? " + str([folder[:-1] for
 Items0 = calibrationCSVParsing(itemsNames,os.getcwd() + "/" + testingSamplingMethod + "/measurements/Calibration.csv")
 
 parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
+
+#Estimate the transformation between the sensor reference and the robot base
+defaultItems0 = copy.deepcopy(Items0)
+estimateTBaseN = 0
+
+try:
+    estimateTBaseN = int(sys.argv[1])
+except:
+    print("Skipping robot base transform estimation...")
+
+if(estimateTBaseN != 0):
+
+    EEPoints0 = []
+    EEPoints1 = []
+    for i,configuration in enumerate(Items0["jointsPositions"]):
+        TBaseFlange = np.dot(TBaseN,np.dot(Tfunc(parameters0,configuration),TFlangeN))
+        EEPoints0.extend(np.vstack([np.dot(np.dot(TBaseFlange,TTool),np.array([[0,0,0,1]]).T)[:-1].T for TTool in TToolN_marker]))
+        for j,item in enumerate(EEPointsItemsNames):
+            EEPoints1.append(Items0[item][i])
+
+    EEPoints0 = np.array(EEPoints0)
+    EEPoints1 = np.array(EEPoints1)
+
+    #Does not enforce rotation matrix constraints
+    #TSensorBase = np.dot(np.hstack([EEPoints1,np.ones((len(EEPoints1),1))]).T,np.linalg.pinv(np.hstack([np.dot(np.dot(TFlangeBase,TTool),np.array([[0,0,0,1]]).T) for TTool in TToolN_marker])))
+
+    #Enforces rotation matrix constraints !
+    EEPoints1Centroid = np.mean(EEPoints1,axis=0)
+    EEPoints0Centroid = np.mean(EEPoints0,axis=0)
+
+    U,S,V = np.linalg.svd(np.dot((EEPoints0 - EEPoints0Centroid).T,(EEPoints1 - EEPoints1Centroid)))
+
+    TSensorBase = np.eye(4)
+    TSensorBase[:3,:3] = np.dot(np.dot(V.T,np.diag(np.append(np.ones(len(S)-1),np.linalg.det(np.dot(V.T,U.T))))),U.T)
+    TSensorBase[:3,-1] = EEPoints1Centroid - np.dot(TSensorBase[:3,:3],EEPoints0Centroid)
+    TBaseSensor = np.linalg.inv(TSensorBase)
+
+    print("Sensor to base transformation estimation : \n" + str(TBaseSensor))
+
+    #Transfering measurements in the estimated robot base frame !
+    with open("CalibrationCorrected.csv",'wb+') as file:
+        for i,jointsPosition in enumerate(Items0["jointsPositions"]):
+            for j,item in enumerate(EEPointsItemsNames):
+                Items0[item][i] = np.dot(TBaseSensor,np.append(Items0[item][i],1).T)[:3]
 
 Jointi0 = Items0["jointsPositions"][:20]
 Pij0 = np.empty((len(Jointi0),N_EEPOINTS,3))
@@ -176,12 +222,26 @@ print("Axis specific global difference uncalibrated : " + str(computeAxisSpecifi
 #Plot calibrated errors
 samplingSelectionMethod = ""
 for folder in foldersNames:
+
+    #Resetting measurements
+    Items0 = copy.deepcopy(defaultItems0)
+
     print("Folder : " + folder)
     label = folder.split("/")[0] + " " + folder.split("/")[1] + " " + folder.split("/")[3]
     with open(folder + "/CalibratedModel.yaml",'r') as file:
         calibratedModel = yaml.load(file, Loader=yaml.FullLoader)
 
     parameters = getIdentificationParameters(np.array(calibratedModel["robotBase"]).reshape((4,4)), np.array(calibratedModel["robotFlange"]).reshape((4,4)), TToolN_marker,np.array(calibratedModel["robotParameters"])[np.array(calibratedModel["robotParameters"]) != 0])
+
+    #Transfering measurements in the estimated robot base frame
+    if("TBaseSensor" in calibratedModel):
+        TBaseSensor = np.array(calibratedModel["TBaseSensor"]).reshape((4,4))
+        print("Sensor to base transformation estimation : \n" + str(TBaseSensor))
+        for i,jointsPosition in enumerate(Items0["jointsPositions"]):
+            for j,item in enumerate(EEPointsItemsNames):
+                Items0[item][i] = np.dot(TBaseSensor,np.append(Items0[item][i],1).T)[:3]
+        for i,item in enumerate(EEPointsItemsNames):
+            Pij0[:,i,:] = Items0[item][:20]
 
     for i,item in enumerate(EEPointsItemsNames):
         for j,joint in enumerate(Jointi0):

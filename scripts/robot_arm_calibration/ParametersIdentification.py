@@ -16,7 +16,7 @@ importParameters()
 
 #Custom packages (needing robot and marker parameters inclusions)
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
-from robot_arm_calibration.AnalyticGeometricModel import Pfunc,Jfunc,size
+from robot_arm_calibration.AnalyticGeometricModel import Tfunc,Pfunc,Jfunc,size
 
 def computeDelta(parameters, Pij, Jointi):
     """! Computes the deltas between the measured and modeled positions.
@@ -188,7 +188,8 @@ def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,
             print("Intermediate test error :  " + str(errorTest))
 
         #Stopping criterion
-        if(errorLearPrev > 1e-10 and errorLear/errorLearPrev < stopDelta):
+        print(1 - errorLear/errorLearPrev)
+        if(errorLearPrev > 1e-10 and 1 - errorLear/errorLearPrev < stopDelta):
             break
 
     return(parameters,errorLear,errorTest)
@@ -292,18 +293,65 @@ if __name__ == "__main__":
     #t0 = time.time()
 
     ### Retrieve measurements data
-    print("Retrieving camibration measurement data...")
+    print("Retrieving calibration measurement data...")
     itemsNames = EEPointsItemsNames + ["jointsPositions"]
 
     try:
         Items = calibrationCSVParsing(itemsNames,"Calibration.csv")
     except:
         print("No calibration measurements CSV ! Are you in a proper calibrated model folder ? ")
-        exit(1)
+        sys.exit(-1)
     print("Done !")
+
+    estimateTBaseN = 0
+    try:
+        estimateTBaseN = int(sys.argv[3])
+    except:
+        print("Skipping robot base transform estimation...")
 
     ### Robot base, robot parameters and end effector points transformations estimations
     parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
+
+    #Estimate the transformation between the sensor reference and the robot base
+    if(estimateTBaseN != 0):
+
+        EEPoints0 = []
+        EEPoints1 = []
+        for i,configuration in enumerate(Items["jointsPositions"]):
+            TBaseFlange = np.dot(TBaseN,np.dot(Tfunc(parameters0,configuration),TFlangeN))
+            EEPoints0.extend(np.vstack([np.dot(np.dot(TBaseFlange,TTool),np.array([[0,0,0,1]]).T)[:-1].T for TTool in TToolN_marker]))
+            for j,item in enumerate(EEPointsItemsNames):
+                EEPoints1.append(Items[item][i])
+
+        EEPoints0 = np.array(EEPoints0)
+        EEPoints1 = np.array(EEPoints1)
+    
+        #Does not enforce rotation matrix constraints
+        #TSensorBase = np.dot(np.hstack([EEPoints1,np.ones((len(EEPoints1),1))]).T,np.linalg.pinv(np.hstack([np.dot(np.dot(TFlangeBase,TTool),np.array([[0,0,0,1]]).T) for TTool in TToolN_marker])))
+
+        #Enforces rotation matrix constraints !
+        EEPoints1Centroid = np.mean(EEPoints1,axis=0)
+        EEPoints0Centroid = np.mean(EEPoints0,axis=0)
+
+        U,S,V = np.linalg.svd(np.dot((EEPoints0 - EEPoints0Centroid).T,(EEPoints1 - EEPoints1Centroid)))
+
+        TSensorBase = np.eye(4)
+        TSensorBase[:3,:3] = np.dot(np.dot(V.T,np.diag(np.append(np.ones(len(S)-1),np.linalg.det(np.dot(V.T,U.T))))),U.T)
+        TSensorBase[:3,-1] = EEPoints1Centroid - np.dot(TSensorBase[:3,:3],EEPoints0Centroid)
+        TBaseSensor = np.linalg.inv(TSensorBase)
+
+        print("Sensor to base transformation estimation : \n" + str(TBaseSensor))
+
+        #Transfering measurements in the estimated robot base frame !
+        with open("CalibrationCorrected.csv",'wb+') as file:
+            for i,jointsPosition in enumerate(Items["jointsPositions"]):
+                for j,item in enumerate(EEPointsItemsNames):
+                    Items[item][i] = np.dot(TBaseSensor,np.append(Items[item][i],1).T)[:3]
+                    np.savetxt(file,np.round(Items[item][i].reshape(1,-1),6),delimiter=",",fmt='%1.6f')
+                np.savetxt(file,np.round(jointsPosition.reshape(1,-1),6),delimiter=",",fmt='%1.6f')
+                file.write(str.encode("---\n"))
+
+        #print(np.dot(TSensorBase,np.hstack([EEPoints0,np.ones((len(EEPoints0),1))]).T).T[:,:-1] - EEPoints1)
 
     ### Create learning and testing subsets
     N_MEASUREMENTS = len(Items["jointsPositions"])
@@ -318,12 +366,16 @@ if __name__ == "__main__":
         print("Delta end effector point " + item)
         print(Items[item][0] - Pfunc(parameters0,Items["jointsPositions"][0])[3*i:3*i+3].T[0])
 
+    print("---")
+
     randomIndex = np.random.randint(0,N_MEASUREMENTS)
     print("Test on random measurement (" + str(randomIndex) + ") :")
     randomIndex = np.random.randint(0,N_MEASUREMENTS)
     for i,item in enumerate(EEPointsItemsNames):
         print("End effector point " + item)
         print(Items[item][randomIndex] - Pfunc(parameters0,Items["jointsPositions"][randomIndex])[3*i:3*i+3].T[0])
+
+    tmp = input()
 
     PijLear = np.empty((N_LEARNING,N_EEPOINTS,3))
     JointiLear = np.empty((N_LEARNING,JOINTS_NUMBER))
@@ -403,7 +455,7 @@ if __name__ == "__main__":
 
     #Robot base
     PBase = np.array([parameters[:3]]).T
-    RBase = R.from_euler("xyz",parameters[3:6]).as_matrix()
+    RBase = R.from_rotvec(parameters[3:6]).as_matrix() #TODO_URGENT : Switch to rotvec !
     TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
 
     calibratedModel["robotBase"] = TBase.flatten().tolist()
@@ -457,6 +509,8 @@ if __name__ == "__main__":
 
     #calibratedModel["toolReferencesNumber"] = len(TToolN_marker)
 
+    if(estimateTBaseN != 0):
+        calibratedModel["TBaseSensor"] = TBaseSensor.flatten().tolist()
 
     calibratedModel["initialError"] = float(initialError)
     calibratedModel["finalError"] = float(finalError)
