@@ -51,23 +51,31 @@ def size(L):
     else:
         return(1) 
 
-robotName = ""
-markerName = ""
+from robot_arm_calibration.ParametersTools import importParameters, importParametersFromFile
 
-### Standalone execution => Get command line robot and marker names
-if __name__ == "__main__":
+### Default => Get model from parameters file
+try:
+    importParametersFromFile(sys.argv[1])
+except:
+
+    ###Get model from robot and tool name
+    robotName = ""
+    markerName = ""
+
     try:
         robotName = sys.argv[1]
     except:
-        print("No selection method given, defaulting to " + robotName)
+        pass
     try:
         markerName = sys.argv[2]
     except:
-        print("No maximum utility function calls number given, defaulting to " + markerName)
+        pass
 
- ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import importParameters
-importParameters(robotName,markerName)       
+    ### Import robot and marker parameters
+    try:
+        importParameters(robotName,markerName)     
+    except:
+        importParameters()  
 
 ### Robot geometric model (revolute joints only)
 
@@ -146,7 +154,7 @@ def T(q,pi,TBase=TBaseN,TTool=TFlangeN):
 
 ### Robot identification jacobian matrix
 
-def dTk(k,q,pi,TBase=TBaseN,TTool=np.dot(TFlangeN,TToolN_body)):
+def dTk(k,q,pi,TBase=TBaseN,TTool=TFlangeN):
 
     #print("Parameter index = " + str(k))
 
@@ -191,7 +199,7 @@ def dTk(k,q,pi,TBase=TBaseN,TTool=np.dot(TFlangeN,TToolN_body)):
 
     return(np.dot(np.dot(TBase,dTk),TTool))
 
-def Jpi(q,pi,TBase=TBaseN,TTool=np.dot(TFlangeN,TToolN_body)):
+def Jpi(q,pi,TBase=TBaseN,TTool=TFlangeN):
     Jpi = np.empty((6,len(pi)))
     Tinverse = np.linalg.inv(T(q,pi,TBase,TTool))
 
@@ -209,7 +217,7 @@ def Jpi(q,pi,TBase=TBaseN,TTool=np.dot(TFlangeN,TToolN_body)):
 
     return(Jpi)
 
-def JpiT(q,pi,TBase=TBaseN,TTool=np.dot(TFlangeN,TToolN_body)):
+def JpiT(q,pi,TBase=TBaseN,TTool=TFlangeN):
     JpiT = np.empty((len(pi),6))
     Tinverse = np.linalg.inv(T(q,pi,TBase,TTool))
 
