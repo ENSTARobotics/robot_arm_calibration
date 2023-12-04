@@ -48,8 +48,8 @@ int main(int argc, char **argv)
         currentConfiguration.clear();
     }
 
-    //Main loop
-    robot.runMeasurementRoutine(waypoints,"/robot_position_measurement_server");
+    //Main loop with initial measurement
+    robot.runMeasurementRoutine(waypoints, true);
 
     ros::shutdown();
     return 0;
