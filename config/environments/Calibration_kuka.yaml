@@ -65,7 +65,7 @@ camera2:
     ry: 0.0
     rz: 0.7854
   size:
-    dx: 0.15
+    dx: 0.2
     dy: 0.75
     dz: 0.75
   collisions: true
@@ -81,7 +81,7 @@ camera3:
     ry: 0.0
     rz: 0.7854
   size:
-    dx: 0.1
+    dx: 0.2
     dy: 0.75
     dz: 0.75
   collisions: true
@@ -97,7 +97,7 @@ camera4:
     ry: 0.0
     rz: -0.7854
   size:
-    dx: 0.1
+    dx: 0.2
     dy: 0.75
     dz: 0.75
   collisions: true
@@ -107,14 +107,46 @@ camera5:
   type: box
   pose:
     x: 0.0
-    y: -1.1
-    z: 1.0
+    y: -1.05
+    z: 0.95
     rx: 0.0
     ry: 0.0
     rz: 0.0
   size:
-    dx: 0.5
-    dy: 0.1
+    dx: 0.75
+    dy: 0.2
+    dz: 0.75
+  collisions: true
+  robot_base_collisions: false
+
+camera6:
+  type: box
+  pose:
+    x: 0.0
+    y: 1.05
+    z: 0.95
+    rx: 0.0
+    ry: 0.0
+    rz: 0.0
+  size:
+    dx: 0.75
+    dy: 0.2
+    dz: 0.75
+  collisions: true
+  robot_base_collisions: false
+
+camera7:
+  type: box
+  pose:
+    x: -1.05
+    y: 0.0
+    z: 0.95
+    rx: 0.0
+    ry: 0.0
+    rz: 0.0
+  size:
+    dx: 0.2
+    dy: 0.75
     dz: 0.75
   collisions: true
   robot_base_collisions: false
