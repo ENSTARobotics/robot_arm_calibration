@@ -5,7 +5,7 @@
 
     <arg name="node_name" value="optitrack_node"/>
 
-    <arg name="robot_base_points_topics" default="[$(arg node_name)/robotBase1,$(arg node_name)/robotBase2,$(arg node_name)/robotBase3,$(arg node_name)/robotBase4,$(arg node_name)/robotBase5,$(arg node_name)/robotBase6,$(arg node_name)/robotBase7]"/>
+    <arg name="robot_base_points_topics" default="[]"/>
 
     <arg name="robot_joint_state_topic" default="joint_states"/>
     <arg name="robot_joint_state_data" default="[position]"/>
