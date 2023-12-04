@@ -135,7 +135,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
         deltaP = np.dot(globalT,joint.origin)[:3,-1] - globalT[:3,-1]
         globalT = np.dot(globalT,joint.origin)
 
-        #If we have not reached the flange, we can still redistribute translations !
+        #If we have not reached the flange, we can still redistribute translations (all flange translations and rotations will be merged with the tool transformation)
         if(i != len(actuatedJoints)-2):
 
             #If all identifiable link translation parameters do not have a corresponding non-zero nominal value, they might be found later (except if the next link is the last - excluded - one) ! For now, we pin it somewhere.
@@ -143,21 +143,16 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
             if(len(fillable) != 0):
                 needFill.append([i,[LINKS_TRANSLATIONS[i][k] for k in fillable]])
 
-            #If not, a non-zero nominal value may have been left behind (i.e. not associated to an identifiable link translation parameter). It may be related to a previously pined link translation parameter.
-            else:
-                for j in needFill:
-                    for n,k in enumerate(j[1]):
-                        if(k not in LINKS_TRANSLATIONS[i] and np.abs(deltaP[k-1]) > 1e-5):
-                            pi0[sum(JOINTS_OFFSET[:j[0]+1]) + size(LINKS_TRANSLATIONS[:j[0]]) + size(LINKS_ROTATIONS[:j[0]]) + n] = np.round(deltaP[k-1],6)
-                            needFill.remove(j)
+            #A non-zero nominal value may have been left behind (i.e. not associated to an identifiable link translation parameter). It may be related to a previously pined link translation parameter.
+            for j in needFill:
+                for n,k in enumerate(j[1]):
+                    if(k not in LINKS_TRANSLATIONS[i] and np.abs(deltaP[k-1]) > 1e-5):
+                        pi0[sum(JOINTS_OFFSET[:j[0]+1]) + size(LINKS_TRANSLATIONS[:j[0]]) + size(LINKS_ROTATIONS[:j[0]]) + n] = np.round(deltaP[k-1],6)
+                        needFill.remove(j)
 
         #Links translations and rotations
         pi0.extend([np.round(deltaP[i-1],10) for i in LINKS_TRANSLATIONS[i]])
         pi0.extend([0.0 for i in LINKS_ROTATIONS[i]])
-
-        #Delete redundant link translation colinear to the last joint axis, and add it to the flange
-        if(i == JOINTS_NUMBER - 3):
-            deltaFlange[abs(JOINTS_AXIS[i])-1] = deltaP[abs(JOINTS_AXIS[i])-1]
 
     #Set nominal robot flange transformation
     deltaP += np.dot(globalT,TFlangeInter)[:3,-1] - globalT[:3,-1] + deltaFlange
@@ -180,5 +175,12 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
     #print("Done !")
 
     #print("-- Model parameters computed in " + str(time.time() - t0) + " seconds --")
+
+    #DEBUG
+    #print(LINKS_ROTATIONS)
+    #print(LINKS_TRANSLATIONS)
+    #print(pi0)
+    #print(TBaseN)
+    #print(TFlangeN)
 
     return(JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN)
