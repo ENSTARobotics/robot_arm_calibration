@@ -22,6 +22,10 @@ void RobotPositionMeasurementServer::pointCallback(const geometry_msgs::PointSta
     {
         return;
     }
+    else if(abs(msg->point.x) == 0.0 && abs(msg->point.y) == 0.0 && abs(msg->point.z) == 0.0)
+    {
+        return;
+    }
     else
     {
         if(pointLocation == "robotBase" && m_robotBasePointsCounter[pointIndex] < AVG_WINDOW_STATIC)
@@ -158,7 +162,7 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
     m_robotJointStateSubscriber = m_measurementsNodeHandle.subscribe("/" + m_robotJointStateTopic, 1, &RobotPositionMeasurementServer::jointStateCallback, this);
 
     //Handle robot flange wrench measurements
-    if(!m_nodeHandle.getParam("robotWrenchTopic",m_robotWrenchTopic))
+    if(!m_nodeHandle.getParam("robotWrenchTopic",m_robotWrenchTopic) || m_robotWrenchTopic == "")
     {
         ROS_WARN("Could not retrieve robot flange wrench topic name, no wrench measurement will be performed !");
         m_robotWrenchTopic = "";
@@ -169,7 +173,7 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
     }
 
     //Handle robot base points measurements
-    if(!m_nodeHandle.getParam("robotBasePointsTopics",m_robotBasePointsTopics))
+    if(!m_nodeHandle.getParam("robotBasePointsTopics",m_robotBasePointsTopics) || m_robotBasePointsTopics.size() == 0)
     {
         ROS_WARN("Unable to retrieve robot base points number ! Measurements will be performed according to given robot base offset");
         m_robotBasePointsTopics = std::vector<std::string>();
@@ -187,6 +191,9 @@ RobotPositionMeasurementServer::RobotPositionMeasurementServer() : MeasurementSe
 //TODO !! Average value for force and position measurements !!
 bool RobotPositionMeasurementServer::measure()
 {
+    //Vibrations...
+    ros::WallDuration(2.0).sleep();
+
     //Compute robot base transform (and any kind of other static measurement)
     if(m_measurementServerCounter == 0)
     {
@@ -198,11 +205,33 @@ bool RobotPositionMeasurementServer::measure()
 
     //Get last robot measurements
     m_measurementsSpinner.start();
-    while(std::accumulate(m_robotEndEffectorPointsCounter.begin(), m_robotEndEffectorPointsCounter.end(), 0) < m_robotEndEffectorPoints.size()*AVG_WINDOW_DYNAMIC || m_robotJointStateCounter < AVG_WINDOW_DYNAMIC || (m_robotWrenchTopic != "" && m_robotWrenchCounter < AVG_WINDOW_DYNAMIC))
+    double startTime = ros::WallTime::now().toSec();
+    while((std::accumulate(m_robotEndEffectorPointsCounter.begin(), m_robotEndEffectorPointsCounter.end(), 0) < m_robotEndEffectorPoints.size()*AVG_WINDOW_DYNAMIC || m_robotJointStateCounter < AVG_WINDOW_DYNAMIC || (m_robotWrenchTopic != "" && m_robotWrenchCounter < AVG_WINDOW_DYNAMIC)) && ros::WallTime::now().toSec() - startTime < 0.1*AVG_WINDOW_DYNAMIC)
     {
+        //DEBUG
+        ros::WallDuration(0.5).sleep();
+        double progress = std::accumulate(m_robotEndEffectorPointsCounter.begin(), m_robotEndEffectorPointsCounter.end(), 0)/(m_robotEndEffectorPoints.size()*AVG_WINDOW_DYNAMIC);
+        progress += m_robotJointStateCounter/AVG_WINDOW_DYNAMIC;
+        if(m_robotWrenchTopic != "")
+        {
+            progress += m_robotWrenchCounter/AVG_WINDOW_DYNAMIC;
+            progress /= 3.0;
+        }
+        else
+        {
+            progress /= 2.0;
+        }
+
+        ROS_INFO("Progress : %f %%",progress*100);
         continue;
     }
     m_measurementsSpinner.stop();
+
+    if(std::accumulate(m_robotEndEffectorPointsCounter.begin(), m_robotEndEffectorPointsCounter.end(), 0) < m_robotEndEffectorPoints.size()*AVG_WINDOW_DYNAMIC || m_robotJointStateCounter < AVG_WINDOW_DYNAMIC || (m_robotWrenchTopic != "" && m_robotWrenchCounter < AVG_WINDOW_DYNAMIC))
+    {
+        ROS_WARN("Timeout while waiting for measurements, skipping this configuration !");
+        return(false);
+    }
 
     //Display measurements
     if(m_measurementServerDisplay)
