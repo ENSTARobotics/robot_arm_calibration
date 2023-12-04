@@ -27,7 +27,7 @@ except:
         fileName = glob.glob("*Configurations.yaml")[0]
     except:
         print("Invalid configurations file name ! Are you in a proper calibrated model folder or have you specified a correct configurations file name ? ")
-        exit(1)
+        sys.exit(-1)
 
 with open(fileName,"r") as file:
     Configurations = yaml.load(file, Loader=yaml.FullLoader)

@@ -380,7 +380,7 @@ if __name__ == "__main__":
                 SampledCalibrationConfigurations = np.array(yaml.load(file, Loader=yaml.FullLoader)["sampledConfigurations"]).reshape((-1,JOINTS_NUMBER))
     except:
         print("No valid sampled configurations file ! Are you in a proper calibrated model folder ?")
-        exit(1)
+        sys.exit(-1)
     print("Done !")
 
     selectionMethod = "random"

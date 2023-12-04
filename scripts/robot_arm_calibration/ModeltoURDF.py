@@ -267,6 +267,6 @@ if __name__ == "__main__":
             flangeLinkName = ""
     except:
         print("Invalid model and URDF/XACRO file paths !")
-        sys.exit(1)
+        sys.exit(-1)
     
     ModeltoURDF(modelFilePath,inputURDFFilePath,flangeLinkName,"/tmp/output.urdf",True)
