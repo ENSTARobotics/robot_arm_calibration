@@ -29,7 +29,7 @@ itemsNames = EEPointsItemsNames + ["jointsPositions"]
 testingSamplingMethod = input("Testing configurations ? " + str([folder[:-1] for folder in glob.glob("*/")]))
 Items0 = calibrationCSVParsing(itemsNames,os.getcwd() + "/" + testingSamplingMethod + "/measurements/Calibration.csv")
 
-parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
+parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,piN)
 
 #Estimate the transformation between the sensor reference and the robot base
 defaultItems0 = copy.deepcopy(Items0)

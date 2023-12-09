@@ -16,7 +16,7 @@ importParameters()
 from robot_arm_calibration.NumericGeometricModel import T
 
 ### Retreive nominal parameters
-parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
+parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,piN)
 
 ### Loading calibration poses
 print("Loading configurations...")
@@ -65,7 +65,7 @@ if(plotMode == "axes"):
 
     Poses = np.empty((0,3))
     for q in Configurations:
-        transformationMatrix = T(q,pi0)
+        transformationMatrix = T(q,piN)
         Poses = np.vstack((Poses,transformationMatrix[:3,-1]))
         plotFrame(transformationMatrix,ax)
 
@@ -91,7 +91,7 @@ elif(plotMode == "mesh"):
     import rospkg
     rospack = rospkg.RosPack()
 
-    xacro = "echo $(xacro $(rospack find robot_arm_tools)/config/tools/" + markerName + "/" + robotName + "/" + robotName + "_" + markerName + ".urdf.xacro)"
+    xacro = "echo $(xacro $(rospack find robot_arm_tools)/config/tools/" + toolName + "/" + robotName + "/" + robotName + "_" + toolName + ".urdf.xacro)"
     xacroProcess = subprocess.run(xacro,shell=True,stdout=subprocess.PIPE)
     XACROOutput = str(xacroProcess.stdout)[2:-3]
 

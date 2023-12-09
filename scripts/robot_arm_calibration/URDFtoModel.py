@@ -114,7 +114,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
     LINKS_ROTATIONS = [item.tolist() for item in LINKS_ROTATIONS]
 
     ### Get robot nominal parameters
-    pi0 = []
+    piN = []
 
     #Trick to avoid left behind translations (c.f. following loop)
     needFill = []
@@ -130,7 +130,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
 
         #Joints rotation offsets
         if(JOINTS_OFFSET[i] != 0):
-            pi0.append(0)
+            piN.append(0)
 
         deltaP = np.dot(globalT,joint.origin)[:3,-1] - globalT[:3,-1]
         globalT = np.dot(globalT,joint.origin)
@@ -147,12 +147,15 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
             for j in needFill:
                 for n,k in enumerate(j[1]):
                     if(k not in LINKS_TRANSLATIONS[i] and np.abs(deltaP[k-1]) > 1e-5):
-                        pi0[sum(JOINTS_OFFSET[:j[0]+1]) + size(LINKS_TRANSLATIONS[:j[0]]) + size(LINKS_ROTATIONS[:j[0]]) + n] = np.round(deltaP[k-1],6)
+                        piN[sum(JOINTS_OFFSET[:j[0]+1]) + size(LINKS_TRANSLATIONS[:j[0]]) + size(LINKS_ROTATIONS[:j[0]]) + n] = np.round(deltaP[k-1],6)
                         needFill.remove(j)
 
         #Links translations and rotations
-        pi0.extend([np.round(deltaP[i-1],10) for i in LINKS_TRANSLATIONS[i]])
-        pi0.extend([0.0 for i in LINKS_ROTATIONS[i]])
+        piN.extend([np.round(deltaP[i-1],10) for i in LINKS_TRANSLATIONS[i]])
+        piN.extend([0.0 for i in LINKS_ROTATIONS[i]])
+
+    #For compatibility issues
+    piN = np.array(piN)
 
     #Set nominal robot flange transformation
     deltaP += np.dot(globalT,TFlangeInter)[:3,-1] - globalT[:3,-1] + deltaFlange
@@ -169,7 +172,7 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
     #    np.save(file,JOINTS_OFFSET)
     #    np.save(file,LINKS_TRANSLATIONS)
     #    np.save(file,LINKS_ROTATIONS)
-    #    np.save(file,pi0)
+    #    np.save(file,piN)
     #    np.save(file,TBaseN)
     #    np.save(file,TFlangeN)
     #print("Done !")
@@ -179,8 +182,8 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
     #DEBUG
     #print(LINKS_ROTATIONS)
     #print(LINKS_TRANSLATIONS)
-    #print(pi0)
+    #print(piN)
     #print(TBaseN)
     #print(TFlangeN)
 
-    return(JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN)
+    return(JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,piN,TBaseN,TFlangeN)

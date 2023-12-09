@@ -94,20 +94,23 @@ def DHtoModel(DHParameters):
     LINKS_ROTATIONS = [item.tolist() for item in LINKS_ROTATIONS]
 
     #Robot nominal parameters
-    pi0 = []
+    piN = []
 
     globalT = localT(*DHParameters[0])
 
     for j,parameters in enumerate(DHParameters[1:]):
 
         if(JOINTS_OFFSET[j] != 0):
-            pi0.append(0)
+            piN.append(0)
 
         deltaP = np.dot(globalT,localT(*parameters))[:3,-1] - globalT[:3,-1]
         globalT = np.dot(globalT,localT(*parameters))
 
-        pi0.extend([deltaP[i-1] for i in LINKS_TRANSLATIONS[j]])
-        pi0.extend([0.0 for i in LINKS_ROTATIONS[j]])
+        piN.extend([deltaP[i-1] for i in LINKS_TRANSLATIONS[j]])
+        piN.extend([0.0 for i in LINKS_ROTATIONS[j]])
+
+    #For compatibility issues
+    piN = np.array(piN)
 
     #DEPRECATED
     #print("Saving geometric model parameters...")
@@ -117,11 +120,11 @@ def DHtoModel(DHParameters):
     #    np.save(file,JOINTS_OFFSET)
     #    np.save(file,LINKS_TRANSLATIONS)
     #    np.save(file,LINKS_ROTATIONS)
-    #    np.save(file,pi0)
+    #    np.save(file,piN)
     #    np.save(file,TBaseN)
     #    np.save(file,TFlangeN)
     #print("Done !")
 
     #print("-- Model parameters computed in " + str(time.time() - t0) + " seconds --")
 
-    return(JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN)
+    return(JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,piN,TBaseN,TFlangeN)

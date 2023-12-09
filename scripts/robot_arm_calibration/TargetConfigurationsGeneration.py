@@ -33,7 +33,7 @@ def sortConfigurations(configurations):
     return(configurations[np.lexsort(configurations.T[::-1])])  
 
 ### Retreive nominal parameters
-parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
+parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,piN)
 
 ### Utility score functions
 
