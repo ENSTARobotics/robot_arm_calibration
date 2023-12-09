@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation as R
 from scipy.optimize import basinhopping
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import importParameters, getIdentificationParameters
+from robot_arm_calibration.ParametersTools import importParameters, getIdentificationParameters, saveParameters
 importParameters()
 
 #Custom packages (needing robot and marker parameters inclusions)
@@ -310,7 +310,7 @@ if __name__ == "__main__":
         print("Skipping robot base transform estimation...")
 
     ### Robot base, robot parameters and end effector points transformations estimations
-    parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,pi0)
+    parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,piN)
 
     #Estimate the transformation between the sensor reference and the robot base
     if(estimateTBaseN != 0):
@@ -448,77 +448,37 @@ if __name__ == "__main__":
 
     print("Saving robot calibrated model...")
 
-    calibratedModel = {}
-
-    #Joints axis
-    calibratedModel["jointsAxis"] = JOINTS_AXIS
-
     #Robot base
     PBase = np.array([parameters[:3]]).T
-    RBase = R.from_rotvec(parameters[3:6]).as_matrix() #TODO_URGENT : Switch to rotvec !
+    RBase = R.from_rotvec(parameters[3:6]).as_matrix()
     TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
 
-    calibratedModel["robotBase"] = TBase.flatten().tolist()
-
     #Robot geometric parameters
-    pi = parameters[6:6+len(pi0)]
+    pi = parameters[6:6+len(piN)]
 
-    piFull = np.zeros(JOINTS_NUMBER*7)
-
-    PARAMETERS_INDEX = np.array([sum(JOINTS_OFFSET[:i]) + size(LINKS_TRANSLATIONS[:i]) + size(LINKS_ROTATIONS[:i]) for i in range(JOINTS_NUMBER+1)])
-
-    for i,jointAxis in enumerate(JOINTS_AXIS):
-        localParameters = pi[PARAMETERS_INDEX[i]:PARAMETERS_INDEX[i+1]]
-        currentIndex = 0
-
-        #Joint offset
-        if(JOINTS_OFFSET[i] == 1):
-            piFull[i*7] = localParameters[0]
-            currentIndex += 1
-
-        #Link translations
-        for k,axis in enumerate(LINKS_TRANSLATIONS[i]):
-            piFull[i*7+1:i*7+4][np.abs(axis)-1] = localParameters[currentIndex]
-            currentIndex += 1
-
-        #Link rotations
-        for k,axis in enumerate(LINKS_ROTATIONS[i]):
-            piFull[i*7+4:i*7+7][np.abs(axis)-1] = localParameters[currentIndex]
-            currentIndex += 1
-
-    calibratedModel["robotParameters"] = piFull.tolist()
-
-    #Robot flange
-
+    #Robot flange and tool
+    TFlangeList = np.empty(np.shape(TToolN_marker))
     TTool = np.empty(np.shape(TToolN_marker))
-    for i,P in enumerate(np.reshape(parameters[6+len(pi0):],(-1,3))):
+    for i,P in enumerate(np.reshape(parameters[6+len(piN):],(-1,3))):
         TTool[i] = np.dot(TFlangeN,TToolN_marker[i])
         TTool[i][:3,-1] = P
-        TTool[i] = np.dot(TTool[i],np.linalg.inv(TToolN_marker[i]))
-    TTool = np.average(TTool,axis=0)
+        TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN_marker[i]))
+    TFlange = np.average(TFlangeList,axis=0)
 
-    calibratedModel["robotFlange"] = TTool.flatten().tolist()
+    saveParameters(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml",TBase,TFlange,pi,TToolN_marker)
 
-    ### FILL SETUP CONFIGURATION
-
-    #calibratedModel["baseReference"] = np.eye(4)
-
-    #calibratedModel["toolReferences"] = {}
-    #for i,tool in enumerate(TToolN_marker):
-    #    calibratedModel["toolReferences"][str(i+1)] = np.dot(np.linalg.inv(TToolN_body),tool).#flatten().tolist()
-
-    #calibratedModel["toolReferencesNumber"] = len(TToolN_marker)
-
+    #Additionnal parameters/information
+    calibratedModel = {}
+    calibratedModel["TLastLinkTools"] = TTool.flatten().tolist()
     if(estimateTBaseN != 0):
         calibratedModel["TBaseSensor"] = TBaseSensor.flatten().tolist()
 
     calibratedModel["initialError"] = float(initialError)
     calibratedModel["finalError"] = float(finalError)
 
-    if(not os.path.isdir(os.getcwd() + "/" + algorithmName + "/")):
-        os.makedirs(os.getcwd() + "/" + algorithmName + "/")
     with open(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml",'w+') as file:
         yaml.dump(calibratedModel, file)
+        
     print("Done !")
 
     #print("-- Parameters identified in " + str(time.time() - t0) + " seconds --")

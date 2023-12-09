@@ -51,31 +51,27 @@ def size(L):
     else:
         return(1) 
 
-from robot_arm_calibration.ParametersTools import importParameters, importParametersFromFile
+from robot_arm_calibration.ParametersTools import importParameters, importAllParametersFromFile
 
 ### Default => Get model from parameters file
 try:
-    importParametersFromFile(sys.argv[1])
-except:
+    importAllParametersFromFile(sys.argv[1])
 
+except:
     ###Get model from robot and tool name
     robotName = ""
-    markerName = ""
+    toolName = ""
 
     try:
         robotName = sys.argv[1]
     except:
         pass
     try:
-        markerName = sys.argv[2]
+        toolName = sys.argv[2]
     except:
         pass
 
-    ### Import robot and marker parameters
-    try:
-        importParameters(robotName,markerName)     
-    except:
-        importParameters()  
+    importParameters(robotName,toolName)
 
 ### Robot geometric model (revolute joints only)
 

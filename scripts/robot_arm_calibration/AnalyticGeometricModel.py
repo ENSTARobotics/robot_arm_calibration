@@ -48,37 +48,38 @@ def rot_axis(angle,axisIndex):
 #1) Non cartesian aligned axes (ie, not X(1),Y(2),Z(3) aligned)
 #2) Joints flexibilities
 
-from robot_arm_calibration.ParametersTools import importParameters, importParametersFromFile
+from robot_arm_calibration.ParametersTools import importParameters, importAllParametersFromFile
 
 ### Default => Get model from parameters file
 try:
-    importParametersFromFile(sys.argv[1])
-except:
+    importAllParametersFromFile(sys.argv[1])
 
+    ### Get robot config directory path
+    configPathRobot = os.path.dirname(sys.argv[1]) + "/"
+
+except:
     ###Get model from robot and tool name
     robotName = ""
-    markerName = ""
+    toolName = ""
 
     try:
         robotName = sys.argv[1]
     except:
         pass
     try:
-        markerName = sys.argv[2]
+        toolName = sys.argv[2]
     except:
         pass
 
-    ### Import robot and marker parameters
-    try:
-        importParameters(robotName,markerName)     
-    except:
-        importParameters()  
+    importParameters(robotName,toolName)
 
-### Get robot config directory path
-configPathRobot = rospack.get_path("robot_arm_calibration") + "/config/nominalModels/" + robotName + "/"
+    ### Get robot config directory path
+    configPathRobot = rospack.get_path("robot_arm_calibration") + "/config/nominalModels/robots/" + robotName + "/"
+
+fileID = str(robotName) + "_" + str(toolName) if (len(toolName) != 0) else str(robotName)
 
 #If the analytic model does not exist, it is generated
-if(not os.path.exists(configPathRobot + "Jacobian_" + robotName + "_" + markerName + ".pickle") or not os.path.exists(configPathRobot + "GeometricModel_" + robotName + "_" + markerName + ".pickle") or not os.path.exists(configPathRobot + "RawGeometricModel_" + robotName + ".pickle")):
+if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not os.path.exists(configPathRobot + "GeometricModel_" + fileID + ".pickle") or not os.path.exists(configPathRobot + "RawGeometricModel_" + robotName + ".pickle")):
 
     #import time
     #t0 = time.time()
@@ -175,10 +176,10 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + robotName + "_" + markerNa
     with open(configPathRobot + "RawGeometricModel_" + robotName + ".pickle", "wb+") as file:
         dill.dump(Tfunc, file)
     Pfunc = sp.lambdify((parameters,q),P,modules=["numpy","scipy"])
-    with open(configPathRobot + "GeometricModel_" + robotName + "_" + markerName + ".pickle", "wb+") as file:
+    with open(configPathRobot + "GeometricModel_" + fileID + ".pickle", "wb+") as file:
         dill.dump(Pfunc, file)
     Jfunc = sp.lambdify((parameters,q),J,modules=["numpy","scipy"])
-    with open(configPathRobot + "Jacobian_" + robotName + "_" + markerName + ".pickle", "wb+") as file:
+    with open(configPathRobot + "Jacobian_" + fileID + ".pickle", "wb+") as file:
         dill.dump(Jfunc, file)
 
     print("Done !")   
@@ -188,12 +189,12 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + robotName + "_" + markerNa
 #If the analytic model exists, it is loaded
 print("Loading geometric model and jacobian...")
 rawTfunc = dill.load(open(configPathRobot + "RawGeometricModel_" + robotName + ".pickle", "rb"))
-rawJfunc = dill.load(open(configPathRobot + "Jacobian_" + robotName + "_" + markerName + ".pickle", "rb"))
-rawPfunc = dill.load(open(configPathRobot + "GeometricModel_" + robotName + "_" + markerName + ".pickle", "rb"))
+rawJfunc = dill.load(open(configPathRobot + "Jacobian_" + fileID + ".pickle", "rb"))
+rawPfunc = dill.load(open(configPathRobot + "GeometricModel_" + fileID + ".pickle", "rb"))
 print("Done !")
 
 #Formatting analytic functions with proper output shapes
-PARAMETERS_NUMBER = 6 + 3*len(TToolN_marker) + len(pi0)
+PARAMETERS_NUMBER = 6 + 3*len(TToolN_marker) + len(piN)
 
 def Tfunc(parameters,q):
     T = rawTfunc(parameters,q)
