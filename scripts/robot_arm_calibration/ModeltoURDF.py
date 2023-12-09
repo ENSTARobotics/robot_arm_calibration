@@ -21,8 +21,9 @@ class Joint:
 
     def __init__(self,tranformationMatrix,axis,offset):
         """! The Joint class initializer.
-        @param transformationMatrix  The 4x4 homogeneous local transformation matrix associated to the joint.
-        @param axis The joint axis as a signed integer (1: X, 2: Y, 3: Z).
+        @param transformationMatrix The 4x4 homogeneous local transformation matrix associated to the joint.
+        @param axis                 The joint axis as a signed integer (1: X, 2: Y, 3: Z).
+        @param offset               The joint offset.
         """
 
         #Joint axis vector
@@ -56,17 +57,17 @@ def ModeltoURDF(modelFilePath, inputURDFFilePath, flangeLinkName = "", outputURD
 
     TBase = np.reshape(np.array(modelParameters["robotBase"]),(4,4))
     TFlange = np.reshape(np.array(modelParameters["robotFlange"]),(4,4))
-    piFull = modelParameters["robotParameters"]
+    pi = modelParameters["robotParameters"]
     jointsAxis = modelParameters["jointsAxis"]
 
-    return(ModeltoURDF_(TBase,TFlange,piFull,jointsAxis,inputURDFFilePath,flangeLinkName,outputURDFFilePath,show))
+    return(ModeltoURDF_(TBase,TFlange,pi,jointsAxis,inputURDFFilePath,flangeLinkName,outputURDFFilePath,show))
 
 def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, inputURDFFilePath, flangeLinkName = "", outputURDFFilePath = "", show = False):
     """! Modifies an URDF file according to a calibrated model file.
 
     @param TBase                The calibrated robot base transformation.
     @param TFlange              The calibrated robot flange transformation.
-    @param piFull               The full robot parameters vector.
+    @param robotParameters      The robot parameters vector.
     @param jointsAxis           The joints axis vector.
     @param inputURDFFilePath    The path to the robot URDF or XACRO description file.
     @param flangeLinkName       The name of the robot's flange link.
@@ -77,55 +78,50 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, inputURDFFilePath,
     """
 
     #Small change in names...
-    piFull = robotParameters
+    pi = robotParameters
 
     ### Reading nominal model parameters
-    JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,pi0,TBaseN,TFlangeN = URDFtoModel(inputURDFFilePath,flangeLinkName)
-
-    piFullN = np.zeros(JOINTS_NUMBER*7)
+    JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,piN,TBaseN,TFlangeN = URDFtoModel(inputURDFFilePath,flangeLinkName)
     PARAMETERS_INDEX = np.array([sum(JOINTS_OFFSET[:i]) + size(LINKS_TRANSLATIONS[:i]) + size(LINKS_ROTATIONS[:i]) for i in range(JOINTS_NUMBER+1)])
 
-    for i,jointAxis in enumerate(JOINTS_AXIS):
-        localParameters = pi0[PARAMETERS_INDEX[i]:PARAMETERS_INDEX[i+1]]
-        currentIndex = 0
-
-        #Joint offset
-        if(JOINTS_OFFSET[i] == 1):
-            piFullN[i*7] = localParameters[0]
-            currentIndex += 1
-
-        #Link translations
-        for k,axis in enumerate(LINKS_TRANSLATIONS[i]):
-            piFullN[i*7+1:i*7+4][np.abs(axis)-1] = localParameters[currentIndex]
-            currentIndex += 1
-
-        #Link rotations
-        for k,axis in enumerate(LINKS_ROTATIONS[i]):
-            piFullN[i*7+4:i*7+7][np.abs(axis)-1] = localParameters[currentIndex]
-            currentIndex += 1
-
     ### Getting Joints 
-    def localT(parameters):
+    def localT(parameters, translations, rotations):
         T = np.eye(4)
-        T[:3,-1] = parameters[1:4]
-        T[:3,:3] = R.from_euler("xyz",parameters[4:7]).as_matrix()
+        counter = 0
+
+        for translation in translations:
+            T[translation-1,-1] = parameters[counter]
+            counter += 1
+
+        angles = np.zeros(3)
+        for rotation in rotations:
+            angles[rotation-1] = parameters[counter]
+            counter += 1
+        T[:3,:3] = R.from_euler("xyz",angles).as_matrix()
+        
         return(T)
+    
     Joints = []
     JointsN = []
 
+    #Remark : JOINTS_OFFSET always has the same shape, and should maybe be removed ?
+
     #Step 1 : Robot base joint
-    Joints.append(Joint(TBase,jointsAxis[0],piFull[0]))
-    JointsN.append(Joint(TBaseN,JOINTS_AXIS[0],piFullN[0]))
+    Joints.append(Joint(TBase,jointsAxis[0],0))
+    JointsN.append(Joint(TBaseN,JOINTS_AXIS[0],0))
 
     #Step 2 : Robot actuated joints
-    piFull = np.array(piFull)
-    for i,parameters in enumerate(np.split(piFull,len(piFull)//7)[:-1]):
-        deltaT = localT(parameters)
-        Joints.append(Joint(deltaT,jointsAxis[i+1],piFull[(i+1)*7]))  
-    piFullN = np.array(piFullN)
-    for i,parameters in enumerate(np.split(piFullN,len(piFullN)//7)[:-1]):
-        deltaT = localT(parameters)
-        JointsN.append(Joint(deltaT,JOINTS_AXIS[i+1],piFullN[(i+1)*7]))       
+    for i in range(JOINTS_NUMBER - 1):
+        if(JOINTS_OFFSET[i] == 0):
+            deltaT = localT(pi[PARAMETERS_INDEX[i]:PARAMETERS_INDEX[i+1]],LINKS_TRANSLATIONS[i],LINKS_ROTATIONS[i])
+            Joints.append(Joint(deltaT,jointsAxis[i+1],0))
+            deltaTN = localT(piN[PARAMETERS_INDEX[i]:PARAMETERS_INDEX[i+1]],LINKS_TRANSLATIONS[i],LINKS_ROTATIONS[i])
+            JointsN.append(Joint(deltaTN,JOINTS_AXIS[i+1],0))
+        else:
+            deltaT = localT(pi[PARAMETERS_INDEX[i]+1:PARAMETERS_INDEX[i+1]],LINKS_TRANSLATIONS[i],LINKS_ROTATIONS[i])
+            Joints.append(Joint(deltaT,jointsAxis[i+1],pi[PARAMETERS_INDEX[i]]))
+            deltaTN = localT(piN[PARAMETERS_INDEX[i]+1:PARAMETERS_INDEX[i+1]],LINKS_TRANSLATIONS[i],LINKS_ROTATIONS[i])
+            JointsN.append(Joint(deltaTN,JOINTS_AXIS[i+1],piN[PARAMETERS_INDEX[i]]))
 
     #Step 3 : Robot flange joint
     Joints.append(Joint(TFlange,3,0))
