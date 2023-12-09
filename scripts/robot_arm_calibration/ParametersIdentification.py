@@ -188,7 +188,7 @@ def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,
             print("Intermediate test error :  " + str(errorTest))
 
         #Stopping criterion
-        print(1 - errorLear/errorLearPrev)
+        #print(1 - errorLear/errorLearPrev)
         if(errorLearPrev > 1e-10 and 1 - errorLear/errorLearPrev < stopDelta):
             break
 
@@ -465,7 +465,7 @@ if __name__ == "__main__":
         TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN_marker[i]))
     TFlange = np.average(TFlangeList,axis=0)
 
-    saveParameters(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml",TBase,TFlange,pi,TToolN_marker)
+    saveParameters(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml", TBase = TBase, TFlange = TFlange, pi = pi, TTool = TToolN_marker)
 
     #Additionnal parameters/information
     calibratedModel = {}
@@ -476,7 +476,7 @@ if __name__ == "__main__":
     calibratedModel["initialError"] = float(initialError)
     calibratedModel["finalError"] = float(finalError)
 
-    with open(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml",'w+') as file:
+    with open(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml",'a') as file:
         yaml.dump(calibratedModel, file)
         
     print("Done !")
