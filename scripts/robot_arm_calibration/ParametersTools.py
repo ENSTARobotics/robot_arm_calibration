@@ -143,7 +143,7 @@ def saveParameters(filePath, TBase = None, TFlange = None, pi = None, TTool = No
     with open(filePath,'w') as file:
         yaml.dump(outputParameters, file)
 
-def getIdentificationParameters(TBase,TFlange,TTool,pi):
+def getIdentifiableParameters(TBase,TFlange,TTool,pi):
     """! Converts readable parameters into an identifiable parameters vector.
 
     @param TBase            The robot base homogeneous transformation matrix (relative to the measuring device reference frame).

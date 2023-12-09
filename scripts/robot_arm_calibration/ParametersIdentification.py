@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation as R
 from scipy.optimize import basinhopping
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import getIdentificationParameters, saveParameters
+from robot_arm_calibration.ParametersTools import getIdentifiableParameters, saveParameters
 
 #Custom packages (needing robot and marker parameters inclusions)
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
@@ -309,7 +309,7 @@ if __name__ == "__main__":
         print("Skipping robot base transform estimation...")
 
     ### Robot base, robot parameters and end effector points transformations estimations
-    parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN,piN)
+    parameters0 = getIdentifiableParameters(TBaseN,TFlangeN,TToolN,piN)
 
     #Estimate the transformation between the sensor reference and the robot base
     if(estimateTBaseN != 0):
