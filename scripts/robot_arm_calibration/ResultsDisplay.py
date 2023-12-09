@@ -14,22 +14,21 @@ from functools import reduce
 import matplotlib.pyplot as plt
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import importParameters, getIdentificationParameters
-importParameters()
+from robot_arm_calibration.ParametersTools import getIdentificationParameters
 
 #Custom packages
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
-from robot_arm_calibration.AnalyticGeometricModel import Pfunc, Tfunc
+from robot_arm_calibration.AnalyticGeometricModel import Pfunc, Tfunc, N_EEPOINTS, TBaseN, TFlangeN, TToolN, piN, EEItemsNames
 
 ### Retrieve measurements data
 
-itemsNames = EEPointsItemsNames + ["jointsPositions"]
+itemsNames = EEItemsNames + ["jointsPositions"]
 
 ### Uncalibrated data
 testingSamplingMethod = input("Testing configurations ? " + str([folder[:-1] for folder in glob.glob("*/")]))
 Items0 = calibrationCSVParsing(itemsNames,os.getcwd() + "/" + testingSamplingMethod + "/measurements/Calibration.csv")
 
-parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,piN)
+parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN,piN)
 
 #Estimate the transformation between the sensor reference and the robot base
 defaultItems0 = copy.deepcopy(Items0)
@@ -46,15 +45,15 @@ if(estimateTBaseN != 0):
     EEPoints1 = []
     for i,configuration in enumerate(Items0["jointsPositions"]):
         TBaseFlange = np.dot(TBaseN,np.dot(Tfunc(parameters0,configuration),TFlangeN))
-        EEPoints0.extend(np.vstack([np.dot(np.dot(TBaseFlange,TTool),np.array([[0,0,0,1]]).T)[:-1].T for TTool in TToolN_marker]))
-        for j,item in enumerate(EEPointsItemsNames):
+        EEPoints0.extend(np.vstack([np.dot(np.dot(TBaseFlange,TTool),np.array([[0,0,0,1]]).T)[:-1].T for TTool in TToolN]))
+        for j,item in enumerate(EEItemsNames):
             EEPoints1.append(Items0[item][i])
 
     EEPoints0 = np.array(EEPoints0)
     EEPoints1 = np.array(EEPoints1)
 
     #Does not enforce rotation matrix constraints
-    #TSensorBase = np.dot(np.hstack([EEPoints1,np.ones((len(EEPoints1),1))]).T,np.linalg.pinv(np.hstack([np.dot(np.dot(TFlangeBase,TTool),np.array([[0,0,0,1]]).T) for TTool in TToolN_marker])))
+    #TSensorBase = np.dot(np.hstack([EEPoints1,np.ones((len(EEPoints1),1))]).T,np.linalg.pinv(np.hstack([np.dot(np.dot(TFlangeBase,TTool),np.array([[0,0,0,1]]).T) for TTool in TToolN])))
 
     #Enforces rotation matrix constraints !
     EEPoints1Centroid = np.mean(EEPoints1,axis=0)
@@ -72,12 +71,12 @@ if(estimateTBaseN != 0):
     #Transfering measurements in the estimated robot base frame !
     with open("CalibrationCorrected.csv",'wb+') as file:
         for i,jointsPosition in enumerate(Items0["jointsPositions"]):
-            for j,item in enumerate(EEPointsItemsNames):
+            for j,item in enumerate(EEItemsNames):
                 Items0[item][i] = np.dot(TBaseSensor,np.append(Items0[item][i],1).T)[:3]
 
 Jointi0 = Items0["jointsPositions"][:20]
 Pij0 = np.empty((len(Jointi0),N_EEPOINTS,3))
-for i,item in enumerate(EEPointsItemsNames):
+for i,item in enumerate(EEItemsNames):
     Pij0[:,i,:] = Items0[item][:20]
 
 ### Tool functions
@@ -207,7 +206,7 @@ fig,ax = plt.subplots()
 
 #Plot uncalibrated error
 localError = np.empty((len(Jointi0),N_EEPOINTS))
-for i,item in enumerate(EEPointsItemsNames):
+for i,item in enumerate(EEItemsNames):
     for j,joint in enumerate(Jointi0):
         localError[j,i] = computeLocalError(parameters0,i,j)
 
@@ -231,19 +230,19 @@ for folder in foldersNames:
     with open(folder + "/CalibratedModel.yaml",'r') as file:
         calibratedModel = yaml.load(file, Loader=yaml.FullLoader)
 
-    parameters = getIdentificationParameters(np.array(calibratedModel["robotBase"]).reshape((4,4)), np.array(calibratedModel["robotFlange"]).reshape((4,4)), TToolN_marker,np.array(calibratedModel["robotParameters"])[np.array(calibratedModel["robotParameters"]) != 0])
+    parameters = getIdentificationParameters(np.array(calibratedModel["robotBase"]).reshape((4,4)), np.array(calibratedModel["robotFlange"]).reshape((4,4)), TToolN,np.array(calibratedModel["robotParameters"])[np.array(calibratedModel["robotParameters"]) != 0])
 
     #Transfering measurements in the estimated robot base frame
     if("TBaseSensor" in calibratedModel):
         TBaseSensor = np.array(calibratedModel["TBaseSensor"]).reshape((4,4))
         print("Sensor to base transformation estimation : \n" + str(TBaseSensor))
         for i,jointsPosition in enumerate(Items0["jointsPositions"]):
-            for j,item in enumerate(EEPointsItemsNames):
+            for j,item in enumerate(EEItemsNames):
                 Items0[item][i] = np.dot(TBaseSensor,np.append(Items0[item][i],1).T)[:3]
-        for i,item in enumerate(EEPointsItemsNames):
+        for i,item in enumerate(EEItemsNames):
             Pij0[:,i,:] = Items0[item][:20]
 
-    for i,item in enumerate(EEPointsItemsNames):
+    for i,item in enumerate(EEItemsNames):
         for j,joint in enumerate(Jointi0):
             localError[j,i] = computeLocalError(parameters,i,j)
 
@@ -266,7 +265,7 @@ for folder in foldersNames:
 
             Jointi = Items["jointsPositions"]
             Pij = np.empty((len(Jointi),N_EEPOINTS,3))
-            for i,item in enumerate(EEPointsItemsNames):
+            for i,item in enumerate(EEItemsNames):
                 Pij[:,i,:] = Items[item]
 
             score = locals()[utilityScore](Jointi)

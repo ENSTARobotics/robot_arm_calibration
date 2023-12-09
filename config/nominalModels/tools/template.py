@@ -28,14 +28,14 @@ d = np.array([[0.0,0.0,0.0],#1
 #Homogeneous transformation matrix linking the robot flange to the holding tool reference frame
 TToolN_body = np.eye(4)
 
-TToolN_marker = np.array([np.dot(TToolN_body,np.array([[1,0,0,item[0]],
+TToolN = np.array([np.dot(TToolN_body,np.array([[1,0,0,item[0]],
                                     [0,1,0,item[1]],
                                     [0,0,1,item[2]],
                                     [0,0,0,1]])) for item in d])
 
 N_EEPOINTS = len(d)
-EEPointsItemsNames = ["EEPositions" + str(i) for i in range(N_EEPOINTS)]
+EEItemsNames = ["EEPositions" + str(i) for i in range(N_EEPOINTS)]
 
 from robot_arm_calibration.ParametersTools import saveParameters
 import os
-saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + "_parameters.yaml",TTool=TToolN_marker)
+saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + "_parameters.yaml",TTool=TToolN)

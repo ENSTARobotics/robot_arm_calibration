@@ -139,13 +139,13 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not
     TBase[:3,3] = PBase
 
     TTool = []
-    for i,_ in enumerate(TToolN_marker):
+    for i,_ in enumerate(TToolN):
         TTooli = sp.ones(4,1).as_mutable()
         TTooli[:3,0] = sp.MatrixSymbol("PTool"+str(i),3,1).as_mutable()
         TTool.append(TTooli)
 
     TTool = sp.Matrix.hstack(*TTool)
-    PTool = TTool[:3,:].T.reshape(3*len(TToolN_marker),1)
+    PTool = TTool[:3,:].T.reshape(3*len(TToolN),1)
 
     pi = []
 
@@ -158,11 +158,11 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not
         Traw = Traw*Tii
         pi.extend(pii)
     T = T*TTool
-    P = T[:3,:].T.reshape(3*len(TToolN_marker),1)
+    P = T[:3,:].T.reshape(3*len(TToolN),1)
     print("Computation done !")
 
     pi = sp.Matrix(pi)
-    parameters = sp.Matrix.vstack(PBase,PhiBase,pi,TTool[:3,:].T.reshape(3*len(TToolN_marker),1))
+    parameters = sp.Matrix.vstack(PBase,PhiBase,pi,TTool[:3,:].T.reshape(3*len(TToolN),1))
 
     print("Computing jacobian...")
     J = P.jacobian(parameters)
@@ -194,7 +194,7 @@ rawPfunc = dill.load(open(configPathRobot + "GeometricModel_" + fileID + ".pickl
 print("Done !")
 
 #Formatting analytic functions with proper output shapes
-PARAMETERS_NUMBER = 6 + 3*len(TToolN_marker) + len(piN)
+PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN)
 
 def Tfunc(parameters,q):
     T = rawTfunc(parameters,q)

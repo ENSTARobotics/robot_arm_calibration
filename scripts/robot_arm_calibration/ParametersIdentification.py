@@ -11,12 +11,11 @@ from scipy.spatial.transform import Rotation as R
 from scipy.optimize import basinhopping
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import importParameters, getIdentificationParameters, saveParameters
-importParameters()
+from robot_arm_calibration.ParametersTools import getIdentificationParameters, saveParameters
 
 #Custom packages (needing robot and marker parameters inclusions)
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
-from robot_arm_calibration.AnalyticGeometricModel import Tfunc,Pfunc,Jfunc,size
+from robot_arm_calibration.AnalyticGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
 
 def computeDelta(parameters, Pij, Jointi):
     """! Computes the deltas between the measured and modeled positions.
@@ -294,7 +293,7 @@ if __name__ == "__main__":
 
     ### Retrieve measurements data
     print("Retrieving calibration measurement data...")
-    itemsNames = EEPointsItemsNames + ["jointsPositions"]
+    itemsNames = EEItemsNames + ["jointsPositions"]
 
     try:
         Items = calibrationCSVParsing(itemsNames,"Calibration.csv")
@@ -310,7 +309,7 @@ if __name__ == "__main__":
         print("Skipping robot base transform estimation...")
 
     ### Robot base, robot parameters and end effector points transformations estimations
-    parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,piN)
+    parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN,piN)
 
     #Estimate the transformation between the sensor reference and the robot base
     if(estimateTBaseN != 0):
@@ -319,15 +318,15 @@ if __name__ == "__main__":
         EEPoints1 = []
         for i,configuration in enumerate(Items["jointsPositions"]):
             TBaseFlange = np.dot(TBaseN,np.dot(Tfunc(parameters0,configuration),TFlangeN))
-            EEPoints0.extend(np.vstack([np.dot(np.dot(TBaseFlange,TTool),np.array([[0,0,0,1]]).T)[:-1].T for TTool in TToolN_marker]))
-            for j,item in enumerate(EEPointsItemsNames):
+            EEPoints0.extend(np.vstack([np.dot(np.dot(TBaseFlange,TTool),np.array([[0,0,0,1]]).T)[:-1].T for TTool in TToolN]))
+            for j,item in enumerate(EEItemsNames):
                 EEPoints1.append(Items[item][i])
 
         EEPoints0 = np.array(EEPoints0)
         EEPoints1 = np.array(EEPoints1)
     
         #Does not enforce rotation matrix constraints
-        #TSensorBase = np.dot(np.hstack([EEPoints1,np.ones((len(EEPoints1),1))]).T,np.linalg.pinv(np.hstack([np.dot(np.dot(TFlangeBase,TTool),np.array([[0,0,0,1]]).T) for TTool in TToolN_marker])))
+        #TSensorBase = np.dot(np.hstack([EEPoints1,np.ones((len(EEPoints1),1))]).T,np.linalg.pinv(np.hstack([np.dot(np.dot(TFlangeBase,TTool),np.array([[0,0,0,1]]).T) for TTool in TToolN])))
 
         #Enforces rotation matrix constraints !
         EEPoints1Centroid = np.mean(EEPoints1,axis=0)
@@ -345,7 +344,7 @@ if __name__ == "__main__":
         #Transfering measurements in the estimated robot base frame !
         with open("CalibrationCorrected.csv",'wb+') as file:
             for i,jointsPosition in enumerate(Items["jointsPositions"]):
-                for j,item in enumerate(EEPointsItemsNames):
+                for j,item in enumerate(EEItemsNames):
                     Items[item][i] = np.dot(TBaseSensor,np.append(Items[item][i],1).T)[:3]
                     np.savetxt(file,np.round(Items[item][i].reshape(1,-1),6),delimiter=",",fmt='%1.6f')
                 np.savetxt(file,np.round(jointsPosition.reshape(1,-1),6),delimiter=",",fmt='%1.6f')
@@ -362,7 +361,7 @@ if __name__ == "__main__":
     print("Number of tests : " + str(N_TESTS))
 
     print("Test on first measurement :")
-    for i,item in enumerate(EEPointsItemsNames):
+    for i,item in enumerate(EEItemsNames):
         print("Delta end effector point " + item)
         print(Items[item][0] - Pfunc(parameters0,Items["jointsPositions"][0])[3*i:3*i+3].T[0])
 
@@ -371,7 +370,7 @@ if __name__ == "__main__":
     randomIndex = np.random.randint(0,N_MEASUREMENTS)
     print("Test on random measurement (" + str(randomIndex) + ") :")
     randomIndex = np.random.randint(0,N_MEASUREMENTS)
-    for i,item in enumerate(EEPointsItemsNames):
+    for i,item in enumerate(EEItemsNames):
         print("End effector point " + item)
         print(Items[item][randomIndex] - Pfunc(parameters0,Items["jointsPositions"][randomIndex])[3*i:3*i+3].T[0])
 
@@ -387,13 +386,13 @@ if __name__ == "__main__":
 
     #Randomly shuffle measurements between the learning and testing subsets
     indexLear = randomIndices[:N_LEARNING]
-    for i,item in enumerate(EEPointsItemsNames):
+    for i,item in enumerate(EEItemsNames):
         PijLear[:,i,:] = Items[item][indexLear]
     JointiLear = Items["jointsPositions"][indexLear]
 
     if(N_TESTS != 0):
         indexTest = randomIndices[-N_TESTS:]
-        for i,item in enumerate(EEPointsItemsNames):
+        for i,item in enumerate(EEItemsNames):
             PijTest[:,i,:] = Items[item][indexTest]
         JointiTest = Items["jointsPositions"][indexTest]
 
@@ -457,15 +456,15 @@ if __name__ == "__main__":
     pi = parameters[6:6+len(piN)]
 
     #Robot flange and tool
-    TFlangeList = np.empty(np.shape(TToolN_marker))
-    TTool = np.empty(np.shape(TToolN_marker))
+    TFlangeList = np.empty(np.shape(TToolN))
+    TTool = np.empty(np.shape(TToolN))
     for i,P in enumerate(np.reshape(parameters[6+len(piN):],(-1,3))):
-        TTool[i] = np.dot(TFlangeN,TToolN_marker[i])
+        TTool[i] = np.dot(TFlangeN,TToolN[i])
         TTool[i][:3,-1] = P
-        TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN_marker[i]))
+        TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN[i]))
     TFlange = np.average(TFlangeList,axis=0)
 
-    saveParameters(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml", TBase = TBase, TFlange = TFlange, pi = pi, TTool = TToolN_marker)
+    saveParameters(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml", TBase = TBase, TFlange = TFlange, pi = pi, TTool = TToolN)
 
     #Additionnal parameters/information
     calibratedModel = {}

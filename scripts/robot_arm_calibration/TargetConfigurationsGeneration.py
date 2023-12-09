@@ -13,11 +13,10 @@ from pygad import GA
 from simanneal import Annealer
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import importParameters, getIdentificationParameters
-importParameters()
+from robot_arm_calibration.ParametersTools import getIdentificationParameters
 
 #Custom packages
-from robot_arm_calibration.AnalyticGeometricModel import Jfunc
+from robot_arm_calibration.AnalyticGeometricModel import Jfunc, TBaseN, TFlangeN, TToolN, piN, JOINTS_NUMBER, N_EEPOINTS
 
 ### Sorting function
 
@@ -33,7 +32,7 @@ def sortConfigurations(configurations):
     return(configurations[np.lexsort(configurations.T[::-1])])  
 
 ### Retreive nominal parameters
-parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN_marker,piN)
+parameters0 = getIdentificationParameters(TBaseN,TFlangeN,TToolN,piN)
 
 ### Utility score functions
 
