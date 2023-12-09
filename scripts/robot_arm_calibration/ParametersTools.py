@@ -29,7 +29,7 @@ def importRobotParametersFromFile(filePath, caller = None):
 
     outputParameters = {}
 
-    outputParameters["JOINTS_AXIS"] = np.array(inputParameters["jointsAxis"])
+    outputParameters["JOINTS_AXIS"] = inputParameters["jointsAxis"]
     outputParameters["JOINTS_NUMBER"] = len(outputParameters["JOINTS_AXIS"])
     outputParameters["TBaseN"] = np.array(inputParameters["robotBase"]).reshape((4,4))
     outputParameters["TFlangeN"] = np.array(inputParameters["robotFlange"]).reshape((4,4))
@@ -92,7 +92,16 @@ def importAllParametersFromFile(filePath, caller = None):
 
 def importParameters(robotName = "", toolName = ""):
 
-    if(robotName == ""):
+    caller = sys._getframe(1)
+    import rospkg
+    rospack = rospkg.RosPack()
+    configFolderPath = rospack.get_path("robot_arm_calibration") + "/config/nominalModels/"
+
+    try:
+        importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
+        importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
+
+    except:
         import os
         currentParameters = np.array(os.getcwd().split("/"))
         currentParameters = currentParameters[np.where(currentParameters == "calibratedModels")[0][0] + 1:]
@@ -102,14 +111,8 @@ def importParameters(robotName = "", toolName = ""):
         robotName = currentParameters[0]
         toolName = "_".join(currentParameters[1:])  
 
-    caller = sys._getframe(1)
-
-    import rospkg
-    rospack = rospkg.RosPack()
-    configFolderPath = rospack.get_path("robot_arm_calibration") + "/config/nominalModels/"
-
-    importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
-    importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
+        importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
+        importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
 
     caller.f_globals.update({"robotName":robotName,"toolName":toolName}) 
 
@@ -117,6 +120,10 @@ def saveParameters(filePath, TBase = None, TFlange = None, pi = None, TTool = No
 
     #Robot model
     outputParameters = {}
+
+    #Robot tools
+    if(TTool is not None):
+        outputParameters["robotTools"] = TTool.flatten().tolist()
 
     #Robot parameters
     if(TBase is not None):
@@ -131,13 +138,9 @@ def saveParameters(filePath, TBase = None, TFlange = None, pi = None, TTool = No
         outputParameters["linksTranslations"] = caller.f_globals.get("LINKS_TRANSLATIONS")
         outputParameters["linksRotations"] = caller.f_globals.get("LINKS_ROTATIONS")
 
-    #Robot tools
-    if(TTool is not None):
-        outputParameters["robotTools"] = TTool.flatten().tolist()
-
     if(not os.path.isdir(os.path.dirname(filePath))):
         os.makedirs(os.path.dirname(filePath))
-    with open(filePath,'w+') as file:
+    with open(filePath,'w') as file:
         yaml.dump(outputParameters, file)
 
 def getIdentificationParameters(TBase,TFlange,TTool,pi):
