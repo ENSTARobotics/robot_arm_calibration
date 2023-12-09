@@ -23,3 +23,7 @@ TToolN_marker = np.array([np.dot(TToolN_body,np.array([[1,0,0,item[0]],
 
 N_EEPOINTS = len(d)
 EEPointsItemsNames = ["EEPositions" + str(i) for i in range(len(d))]
+
+from robot_arm_calibration.ParametersTools import saveParameters
+import os
+saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + "_parameters.yaml",TTool=TToolN_marker)

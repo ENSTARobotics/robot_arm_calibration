@@ -7,11 +7,11 @@ Help()
     echo "parameters :"
 
     echo "\$1 = Robot name"
-    echo "\$2 = Path to the robot URDF (.urdf) or DH parameters file (.py - see template in config/nominalModels/diverse/template.py)"
+    echo "\$2 = Path to the robot URDF (.urdf) or DH parameters file (.py - see template in config/nominalModels/robots/template.py)"
     echo "\$3 = Path to the robot base parameters file (.yaml) containing the robot base offset transformation regarding to the measuring device reference frame (no robot base measurements), or the measured robot base frame measurement"
 
     echo "\$4 = Marker name"
-    echo "\$5 = Path to the markers parameters file (.py - see template in config/nominalModels/marker/template.py)"
+    echo "\$5 = Path to the markers parameters file (.py - see template in config/nominalModels/tools/template.py)"
 
     echo "\$6 = Name of the measuring device as specified in the corresponding launch file"
 

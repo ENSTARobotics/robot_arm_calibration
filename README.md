@@ -111,9 +111,9 @@ Thanks to Adrien Poiré, it is possible to directly use _robot\_arm\_calibration
 ### Preliminary configurations
 
 :warning: Before use, a few hardware related configuration files are to be created : 
-   1. _(Only for DH parameters description)_ A Python file containing the modified Denavit Hartenberg parameters describing the robot. A template can be found at `/config/nominalModels/diverse/DH_template.py`;
+   1. _(Only for DH parameters description)_ A Python file containing the modified Denavit Hartenberg parameters describing the robot. A template can be found at `/config/nominalModels/robots/template.py`;
    2. A YAML file containing a parameter named `robotBaseOffset` set to the robot base offset transformation regarding to the measuring device reference frame (no robot base measurements), or the measured robot base frame measurement;
-   3. A Python file containing the geometric parameters of the tool used for position measurements. A template can be found at `config/nominalModels/marker/template.py`;
+   3. A Python file containing the geometric parameters of the tool used for position measurements. A template can be found at `config/nominalModels/tools/template.py`;
    4. A launch file for the used measuring device according to the template found at `launch/measuring_device_template.launch`;
 
 ### Complete procedure

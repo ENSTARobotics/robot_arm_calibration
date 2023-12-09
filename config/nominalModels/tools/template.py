@@ -2,7 +2,7 @@
 
 import numpy as np
 
-### RENAME FILE : markerName_parameters.py
+### RENAME FILE : toolName.py
 
 ### FILL PARAMETERS HERE !
 #Ordered relative positions of the end effector points according to the holding tool reference frame
@@ -35,3 +35,7 @@ TToolN_marker = np.array([np.dot(TToolN_body,np.array([[1,0,0,item[0]],
 
 N_EEPOINTS = len(d)
 EEPointsItemsNames = ["EEPositions" + str(i) for i in range(N_EEPOINTS)]
+
+from robot_arm_calibration.ParametersTools import saveParameters
+import os
+saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + "_parameters.yaml",TTool=TToolN_marker)

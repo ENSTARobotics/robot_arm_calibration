@@ -29,7 +29,7 @@ d3 = 0.2
 d4 = 0.1
 
 #deltaq,T,R
-pi0 = np.array([0,0,0,  #1
+piN = np.array([0,0,0,  #1
                 0,d3,0,0])  #2
 
 #Nominal robot base transformation
