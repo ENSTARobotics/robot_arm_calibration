@@ -43,6 +43,20 @@ def rot_axis(angle,axisIndex):
         return(sp.rot_axis3(angle).T)
     else:
         return(sp.Identity(3))
+    
+#Singularities are not handled in 0 and pi !!
+def matrix_to_rotvec(matrix):
+    """! Converts a rotation matrix into a scipy rotation vector representation of a rotation
+
+    @param matrix   The rotation matrix.
+    @return         The scipy rotation vector representation of the rotation.
+    """
+        
+    angle = sp.acos((matrix.trace() - 1)/2)
+    x = (matrix[2,1] - matrix[1,2])/sp.sqrt((matrix[2,1] - matrix[1,2])**2+(matrix[0,2] - matrix[2,0])**2+(matrix[1,0] - matrix[0,1])**2)
+    y = (matrix[0,2] - matrix[2,0])/sp.sqrt((matrix[2,1] - matrix[1,2])**2+(matrix[0,2] - matrix[2,0])**2+(matrix[1,0] - matrix[0,1])**2)
+    z = (matrix[1,0] - matrix[0,1])/sp.sqrt((matrix[2,1] - matrix[1,2])**2+(matrix[0,2] - matrix[2,0])**2+(matrix[1,0] - matrix[0,1])**2)
+    return(angle*sp.Matrix([x,y,z]))
 
 def rotvec_to_matrix(rotvec):
     """! Converts a scipy rotation vector representation of a rotation into a rotation matrix
@@ -154,16 +168,25 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not
 
     TBase = sp.Identity(4).as_mutable()
     TBase[:3,:3] = rotvec_to_matrix(PhiBase)
-    TBase[:3,-1] = PBase
+    TBase[:3,3] = PBase
 
-    TTool = []
-    for i,_ in enumerate(TToolN):
-        TTooli = sp.ones(4,1).as_mutable()
-        TTooli[:3,0] = sp.MatrixSymbol("PTool"+str(i),3,1).as_mutable()
-        TTool.append(TTooli)
+    #Multiple tool transformation matrices => Partial pose measurement
+    if(len(TToolN) > 1):
+        TTool = []
+        for i,_ in enumerate(TToolN):
+            TTooli = sp.ones(4,1).as_mutable()
+            TTooli[:3,0] = sp.MatrixSymbol("PTool"+str(i),3,1).as_mutable()
+            TTool.append(TTooli)
+        TTool = sp.Matrix.hstack(*TTool)
 
-    TTool = sp.Matrix.hstack(*TTool)
-    PTool = TTool[:3,:].T.reshape(3*len(TToolN),1)
+    #Single tool transformation matrix => Full pose measurement
+    else:
+        PTool = sp.MatrixSymbol("PTool",3,1).as_mutable()
+        PhiTool = sp.MatrixSymbol("PhiTool",3,1).as_mutable()
+
+        TTool = sp.Identity(4).as_mutable()
+        TTool[:3,:3] = rotvec_to_matrix(PhiTool)
+        TTool[:3,3] = PTool
 
     pi = []
 
@@ -176,13 +199,20 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not
         Traw = Traw*Tii
         pi.extend(pii)
     T = T*TTool
-    P = T[:3,:].T.reshape(3*len(TToolN),1)
     print("Computation done !")
 
     pi = sp.Matrix(pi)
-    parameters = sp.Matrix.vstack(PBase,PhiBase,pi,TTool[:3,:].T.reshape(3*len(TToolN),1))
+    if(len(TToolN) > 1):
+        parameters = sp.Matrix.vstack(PBase,PhiBase,pi,TTool[:3,:].T.reshape(3*len(TToolN),1))
+    else:
+        parameters = sp.Matrix.vstack(PBase,PhiBase,pi,PTool,PhiTool)
 
     print("Computing jacobian...")
+    if(len(TToolN) > 1):
+        P = T[:3,:].T.reshape(3*len(TToolN),1)
+    else:
+        #P = sp.Matrix.vstack(T[:3,3],T[:3,:3].reshape(9,1))
+        P = sp.Matrix.vstack(T[:3,3],sp.Quaternion.from_rotation_matrix(T[:3,:3]).to_Matrix())
     J = P.jacobian(parameters)
     print("Computation done !")
 
@@ -212,12 +242,12 @@ rawPfunc = dill.load(open(configPathRobot + "GeometricModel_" + fileID + ".pickl
 print("Done !")
 
 #Formatting analytic functions with proper output shapes
-PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN)
+PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 + len(piN)
 
 def Tfunc(parameters,q):
     T = rawTfunc(parameters,q)
     for i,row in enumerate(T):
-        for j,item in enumerate(row):
+        for j,_ in enumerate(row):
             try:
                 T[i,j] = T[i,j].item()
             except:
@@ -227,7 +257,7 @@ def Tfunc(parameters,q):
 def Jfunc(parameters,q):
     J = rawJfunc(parameters,q)
     for i,row in enumerate(J):
-        for j,item in enumerate(row):
+        for j,_ in enumerate(row):
             try:
                 J[i,j] = J[i,j].item()
             except:
@@ -236,7 +266,7 @@ def Jfunc(parameters,q):
 
 def Pfunc(parameters,q):
     P = rawPfunc(parameters,q)
-    for i,item in enumerate(P):
+    for i,_ in enumerate(P):
         try:
             P[i] = P[i].item()
         except:
