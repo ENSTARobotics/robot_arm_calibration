@@ -44,6 +44,24 @@ def rot_axis(angle,axisIndex):
     else:
         return(sp.Identity(3))
 
+def rotvec_to_matrix(rotvec):
+    """! Converts a scipy rotation vector representation of a rotation into a rotation matrix
+    
+    @param rotvec   The scipy rotation vector representation of a rotation.
+    @return         The sympy quaternion representation of the rotation.
+    """
+    
+    (x, y, z) = rotvec
+    angle = sp.sqrt(x**2 + y**2 + z**2)
+    (x, y, z) = (x / angle, y / angle, z / angle)
+    s = sp.sin(angle * sp.core.singleton.S.Half)
+    a = sp.cos(angle * sp.core.singleton.S.Half)
+    b = x * s
+    c = y * s
+    d = z * s
+
+    return(sp.Quaternion(a, b, c, d).to_rotation_matrix())
+
 #TODO 
 #1) Non cartesian aligned axes (ie, not X(1),Y(2),Z(3) aligned)
 #2) Joints flexibilities
@@ -135,7 +153,7 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not
     PhiBase = sp.MatrixSymbol("PhiBase",3,1).as_mutable()
 
     TBase = sp.Identity(4).as_mutable()
-    TBase[:3,:3] = rot_axis(PhiBase[2,0],3)*rot_axis(PhiBase[1,0],2)*rot_axis(PhiBase[0,0],1)
+    TBase[:3,:3] = rotvec_to_matrix(PhiBase)
     TBase[:3,-1] = PBase
 
     TTool = []
