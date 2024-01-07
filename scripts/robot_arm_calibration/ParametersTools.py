@@ -193,3 +193,25 @@ def getIdentifiableParametersFull(TBase,TFlange,TTool,pi):
     parameters = np.hstack((PBase,R.as_mrp(RBase),pi,PFlangeTool,R.as_mrp(RFlangeTool)))
 
     return(parameters)
+
+def getIdentifiableParametersPartial(TBase,TFlange,TTool,pi):
+    """! Converts readable parameters into an identifiable parameters vector for full pose approach.
+
+    @param TBase            The robot base homogeneous transformation matrix (relative to the measuring device reference frame).
+    @param TFLange          The robot flange homogeneous transformation matrix (relative to the last robot joint frame).
+    @param TTool            The list containing the end effector points homogeneous transformation matrix (relative to the robot flange).
+    @param pi               The robot kinematic parmeters vector.
+
+    @return     The identifiable parameters vector.
+    """
+
+    TFlangeTool = np.dot(TFlange,TTool)
+    PFlangeTool = TFlangeTool[:,:3,-1]
+    RFlangeTool = R.from_matrix(TFlangeTool[:3,:3])
+
+    PBase = TBase[:3,-1]
+    RBase = R.from_matrix(TBase[:3,:3])
+    
+    parameters = np.hstack((PBase,R.as_rotvec(RBase),pi,PFlangeTool,R.as_rotvec(RFlangeTool)))
+
+    return(parameters)
