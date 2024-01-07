@@ -136,7 +136,7 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not
 
     TBase = sp.Identity(4).as_mutable()
     TBase[:3,:3] = rot_axis(PhiBase[2,0],3)*rot_axis(PhiBase[1,0],2)*rot_axis(PhiBase[0,0],1)
-    TBase[:3,3] = PBase
+    TBase[:3,-1] = PBase
 
     TTool = []
     for i,_ in enumerate(TToolN):
