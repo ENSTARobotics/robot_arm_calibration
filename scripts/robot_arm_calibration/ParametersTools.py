@@ -166,7 +166,7 @@ def getIdentifiableParametersPartial(TBase,TFlange,TTool,pi):
 
     return(parameters)
 
-def getIdentifiableParametersPartial(TBase,TFlange,TTool,pi):
+def getIdentifiableParametersFull(TBase,TFlange,TTool,pi):
     """! Converts readable parameters into an identifiable parameters vector for full pose approach.
 
     @param TBase            The robot base homogeneous transformation matrix (relative to the measuring device reference frame).
@@ -178,7 +178,7 @@ def getIdentifiableParametersPartial(TBase,TFlange,TTool,pi):
     """
 
     TFlangeTool = np.dot(TFlange,TTool)
-    PFlangeTool = TFlangeTool[:,:3,-1]
+    PFlangeTool = TFlangeTool[:3,-1]
     RFlangeTool = R.from_matrix(TFlangeTool[:3,:3])
 
     PBase = TBase[:3,-1]

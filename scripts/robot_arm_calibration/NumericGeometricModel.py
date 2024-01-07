@@ -4,11 +4,13 @@
 import sys
 
 #Utility packages
-import numpy as np
-from scipy.spatial.transform import Rotation as R
+import jax.numpy as np
+from jax.scipy.spatial.transform import Rotation as R
 
 #Jacobian computation package
-from jax import grad
+from jax import jacfwd
+
+from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial, getIdentifiableParametersFull
 
 def size(L):
     """! Computes the size of a nested list as the sum of the sizes of all contained lists
@@ -68,8 +70,8 @@ def Ti(i,q,pi):
     Ti = np.eye(4)
     angles = np.zeros(3)
 
-    angles[np.abs(JOINTS_AXIS[i])-1] = np.sign(JOINTS_AXIS[i])*q[i]
-    Ti[:3,:3] = R.from_euler("xyz",angles).as_matrix()
+    angles.at[np.abs(JOINTS_AXIS[i])-1].set(np.sign(JOINTS_AXIS[i])*q[i])
+    Ti.at[:3,:3].set(R.from_euler("xyz",angles).as_matrix())
     splitT.append(Ti)
     T = np.dot(T,Ti)
 
@@ -77,15 +79,15 @@ def Ti(i,q,pi):
         Ti = np.eye(4)
         angles = np.zeros(3)
 
-        angles[np.abs(JOINTS_AXIS[i])-1] = parameters[0]
-        Ti[:3,:3] = R.from_euler("xyz",angles).as_matrix()
+        angles.at[np.abs(JOINTS_AXIS[i])-1].set(parameters[0])
+        Ti.at[:3,:3].set(R.from_euler("xyz",angles).as_matrix())
         splitT.append(Ti)
         T = np.dot(T,Ti)
 
     ###Link translation
     for n,axis in enumerate(LINKS_TRANSLATIONS[i]):
         Ti = np.eye(4)
-        Ti[np.abs(axis)-1,-1] = np.sign(axis)*parameters[JOINTS_OFFSET[i] + n]
+        Ti.at[np.abs(axis)-1,-1].set(np.sign(axis)*parameters[JOINTS_OFFSET[i] + n])
 
         splitT.append(Ti)
         T = np.dot(T,Ti)
@@ -95,13 +97,13 @@ def Ti(i,q,pi):
         Ti = np.eye(4)
         angles = np.zeros(3)
 
-        angles[np.abs(axis)-1] = np.sign(axis)*parameters[JOINTS_OFFSET[i] + len(LINKS_TRANSLATIONS[i]) + n]
-        Ti[:3,:3] = R.from_euler("xyz",angles).as_matrix()
+        angles.at[np.abs(axis)-1].set(np.sign(axis)*parameters[JOINTS_OFFSET[i] + len(LINKS_TRANSLATIONS[i]) + n])
+        Ti.at[:3,:3].set(R.from_euler("xyz",angles).as_matrix())
 
         splitT.append(Ti)
         T = np.dot(T,Ti)
 
-    return(T,splitT)
+    return(T)
 
 def T(q,pi,TBase=TBaseN,TTool=TFlangeN):
     """! Computes the global homogeneous transformation matrix between the world reference frame and the robot tool.
@@ -116,7 +118,7 @@ def T(q,pi,TBase=TBaseN,TTool=TFlangeN):
 
     T = TBase
     for i in range(JOINTS_NUMBER):
-        T = np.dot(T,Ti(i,q,pi)[0])
+        T = np.dot(T,Ti(i,q,pi))
     return(np.dot(T,TTool))
 
 def P(q,pi,TBase=TBaseN,TTool=TToolN):
@@ -132,8 +134,8 @@ def P(q,pi,TBase=TBaseN,TTool=TToolN):
 
     T = TBase
     for i in range(JOINTS_NUMBER):
-        T = np.dot(T,Ti(i,q,pi)[0])
-    P = np.vstack([np.dot(T,t)[:3,3] for t in TTool])
+        T = np.dot(T,Ti(i,q,pi))
+    P = np.vstack([np.dot(T,t)[:3,-1] for t in TTool])
     return(P.flatten())
 
 def Tfunc(parameters, q):
@@ -148,7 +150,7 @@ def Tfunc(parameters, q):
     pi = parameters[6:6+len(piN)]
     T = np.eye(4)
     for i in range(JOINTS_NUMBER):
-        T = np.dot(T,Ti(i,q,parameters)[0])
+        T = np.dot(T,Ti(i,q,pi))
     return(T)
 
 def PfuncPartial(parameters, q):
@@ -169,18 +171,16 @@ def PfuncPartial(parameters, q):
     pi = parameters[6:6+len(piN)]
 
     #Robot flange and tool
-    TFlangeList = np.empty(np.shape(TToolN))
     TTool = np.empty(np.shape(TToolN))
     for i,P in enumerate(np.reshape(parameters[6+len(piN):],(-1,3))):
-        TTool[i] = np.dot(TFlangeN,TToolN[i])
-        TTool[i][:3,-1] = P
-        TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN[i]))
-    TFlange = np.average(TFlangeList,axis=0)
+        tmp = np.dot(TFlangeN,TToolN[i])
+        tmp.at[:3,-1].set(P)
+        TTool.at[i].set(tmp)
 
     T = TBase
     for i in range(JOINTS_NUMBER):
-        T = np.dot(T,Ti(i,q,parameters)[0])
-    P = np.vstack([np.dot(T,t)[:3,3] for t in TTool])
+        T = np.dot(T,Ti(i,q,pi))
+    P = np.vstack([np.dot(T,t)[:3,-1] for t in TTool])
     return(P.flatten())
 
 def PfuncFull(parameters, q):
@@ -201,20 +201,16 @@ def PfuncFull(parameters, q):
     pi = parameters[6:6+len(piN)]
 
     #Robot flange and tool
-    TFlangeList = np.empty(np.shape(TToolN))
-    TTool = np.empty(np.shape(TToolN))
-    for i,P in enumerate(np.reshape(parameters[6+len(piN):],(-1,3))):
-        TTool[i] = np.dot(TFlangeN,TToolN[i])
-        TTool[i][:3,-1] = P
-        TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN[i]))
-    TFlange = np.average(TFlangeList,axis=0)
+    PTool = np.array([parameters[6+len(piN):9+len(piN)]]).T
+    RTool = R.from_rotvec(parameters[9+len(piN):]).as_matrix()
+    TTool = np.vstack((np.hstack((RTool,PTool)),np.array([[0,0,0,1]])))
 
     T = TBase
     for i in range(JOINTS_NUMBER):
-        T = np.dot(T,Ti(i,q,parameters)[0])
+        T = np.dot(T,Ti(i,q,pi))
     T = np.dot(T,TTool)
 
-    P = np.vstack((T[:3,3],R.from_matrix(T[:3,:3]).as_rotvec()))
+    P = np.vstack((T[:3,-1],R.from_matrix(T[:3,:3]).as_rotvec()))
     return(P.flatten())
 
 if(len(TToolN) > 1):
@@ -222,6 +218,14 @@ if(len(TToolN) > 1):
 else:
     Pfunc = PfuncFull
 
+def test(angles):
+    return(R.from_rotvec(angles).as_matrix().flatten())
+
+
 ### Robot identification jacobian matrix
     
-Jfunc = grad(Pfunc,argnums=0)
+Jfunc = jacfwd(Pfunc)
+
+q = np.zeros(JOINTS_NUMBER)
+print(Pfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,np.eye(4),piN),q))
+print(Jfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,np.eye(4),piN),q))
