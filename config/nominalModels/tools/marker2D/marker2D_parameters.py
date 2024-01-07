@@ -26,4 +26,4 @@ EEItemsNames = ["EEPositions" + str(i) for i in range(len(d))]
 
 from robot_arm_calibration.ParametersTools import saveParameters
 import os
-saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + "_parameters.yaml",TTool=TToolN)
+saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + ".yaml",TTool=TToolN)

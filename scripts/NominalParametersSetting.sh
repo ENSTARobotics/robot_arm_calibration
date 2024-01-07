@@ -37,7 +37,7 @@ if ! [ -d "$package_folder/config/nominalModels/robots/$1" ]; then
     mkdir -p "$package_folder/config/nominalModels/robots/$1"
 fi
 
-#Create robot nominal parameters importation python script (will be called via "import" later)
+#Create robot nominal parameters python script
 if ! [ -f "$package_folder/config/nominalModels/robots/$1/$1_parameters.py" ]; then
     touch "$package_folder/config/nominalModels/robots/$1/$1_parameters.py"
 else
@@ -64,7 +64,7 @@ if [ $skip_init = 0 ]; then
     if [ "$extension" = "py" ]; then
         cat $2 >> "$package_folder/config/nominalModels/robots/$1/$1_parameters.py"
         echo -e "\n" >> "$package_folder/config/nominalModels/robots/$1/$1_parameters.py"
-        import_routine="### Import routine\nfrom robot_arm_calibration.DHtoModel import DHtoModel\nJOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,piN,TBaseN,TFlangeN = DHtoModel(DHParameters)\n\nfrom robot_arm_calibration.ParametersTools import saveParameters\nimport os\nsaveParameters(os.path.splitext(os.path.abspath(__file__))[0] + "_parameters.yaml",TBase=TBaseN,TFlange=TFlangeN,pi=piN)\n"
+        import_routine="### Import routine\nfrom robot_arm_calibration.DHtoModel import DHtoModel\nJOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,piN,TBaseN,TFlangeN = DHtoModel(DHParameters)\n\nfrom robot_arm_calibration.ParametersTools import saveParameters\nimport os\nsaveParameters(os.path.splitext(os.path.abspath(__file__))[0] + ".yaml",TBase=TBaseN,TFlange=TFlangeN,pi=piN)\n"
         echo -e $import_routine >> "$package_folder/config/nominalModels/robots/$1/$1_parameters.py"
     #Case where URDF/XACRO file is used
     elif [ "$extension" = "xacro" ] || [ "$extension" = "urdf" ]; then
@@ -73,7 +73,7 @@ if [ $skip_init = 0 ]; then
             $6=""
         fi
         echo -e "flangeLinkName = '$6'\n" >> "$package_folder/config/nominalModels/robots/$1/$1_parameters.py"
-        import_routine="### Import routine\nfrom robot_arm_calibration.URDFtoModel import URDFtoModel\nJOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,piN,TBaseN,TFlangeN = URDFtoModel(urdfFilePath,flangeLinkName)\n\nfrom robot_arm_calibration.ParametersTools import saveParameters\nimport os\nsaveParameters(os.path.splitext(os.path.abspath(__file__))[0] + "_parameters.yaml",TBase=TBaseN,TFlange=TFlangeN,pi=piN)\n"
+        import_routine="### Import routine\nfrom robot_arm_calibration.URDFtoModel import URDFtoModel\nJOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,piN,TBaseN,TFlangeN = URDFtoModel(urdfFilePath,flangeLinkName)\n\nfrom robot_arm_calibration.ParametersTools import saveParameters\nimport os\nsaveParameters(os.path.splitext(os.path.abspath(__file__))[0] + ".yaml",TBase=TBaseN,TFlange=TFlangeN,pi=piN)\n"
         echo -e $import_routine >> "$package_folder/config/nominalModels/robots/$1/$1_parameters.py"
     else
         echo "Invalid input format ! "
@@ -85,7 +85,7 @@ fi
 
 ### MARKER NOMINAL PARAMETERS
 
-#Create marker nominal parameters importation python script (will be called via "import" later)
+#Create marker nominal parameters python script
 if ! [ -f "$package_folder/config/nominalModels/tools/$4/$4_parameters.py" ]; then
     cp $5 "$package_folder/config/nominalModels/tools/$4/$4_parameters.py"
 else

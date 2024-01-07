@@ -2,7 +2,7 @@
 
 import numpy as np
 
-### RENAME FILE : toolName.py
+### RENAME FILE : toolName_parameters.py
 
 ### FILL PARAMETERS HERE !
 #Ordered relative positions of the end effector points according to the holding tool reference frame
@@ -38,4 +38,4 @@ EEItemsNames = ["EEPositions" + str(i) for i in range(N_EEPOINTS)]
 
 from robot_arm_calibration.ParametersTools import saveParameters
 import os
-saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + "_parameters.yaml",TTool=TToolN)
+saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + ".yaml",TTool=TToolN)

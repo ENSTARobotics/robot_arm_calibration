@@ -2,6 +2,8 @@
 
 import numpy as np
 
+### RENAME FILE : robotName_parameters.py
+
 d1 = 0
 r2 = 0
 alpha3 = 0
@@ -20,4 +22,4 @@ JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,piN,T
 
 from robot_arm_calibration.ParametersTools import saveParameters
 import os
-saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + "_parameters.yaml",TBase=TBaseN,TFlange=TFlangeN,pi=piN)
+saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + ".yaml",TBase=TBaseN,TFlange=TFlangeN,pi=piN)
