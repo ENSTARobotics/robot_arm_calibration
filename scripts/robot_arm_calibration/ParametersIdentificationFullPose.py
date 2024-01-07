@@ -11,66 +11,56 @@ from scipy.spatial.transform import Rotation as R
 from scipy.optimize import basinhopping
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import getIdentifiableParameters, saveParameters
+from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial, saveParameters
 
 #Custom packages (needing robot and marker parameters inclusions)
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
-from robot_arm_calibration.NumericGeometricModel import T, J, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
+from robot_arm_calibration.NumericGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
 
-def Mfunc(parameters,q):
-    #Robot base
-    PBase = np.array([parameters[:3]]).T
-    RBase = R.from_rotvec(parameters[3:6]).as_matrix()
-    TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
+def simplePreconditionning(fullPose):
+    return(np.hstack([fullPose[:3],R.from_quat(fullPose[3:]).as_rotvec()]))
 
-    #Robot geometric parameters
-    pi = parameters[6:6+len(piN)]
-
-    #Robot tool
-    TTool = np.empty(np.shape(TToolN))
-    for i,P in enumerate(np.reshape(parameters[6+len(piN):],(-1,3))):
-        TTool[i] = np.dot(TFlangeN,TToolN[i])
-        TTool[i][:3,-1] = P
-
-    M = np.array([T(q,pi,TBase,T) for T in TTool])
-
-    return(np.hstack([np.hstack([m[:3,3],R.from_matrix(m[:3,:3]).as_rotvec()]) for m in M]))
-
-def computeDelta(parameters, Mij, Jointi, weighting = None):
+def computeDelta(parameters, Pij, Jointi, preconditioning = simplePreconditionning):
     """! Computes the deltas between the measured and modeled data.
 
-    @param parameters   The current robot parameters vector.
-    @param Mij          The measured data vector.
-    @param Jointi       The measured joints data vector.
+    @param parameters       The current robot parameters vector.
+    @param Pij              The measured data vector.
+    @param Jointi           The measured joints data vector.
+    @param preconditioning   The preconditioning function to be used (coordinates transformation and weighting) - default : simplePreconditionning.
 
     @return  The deltas vector.
     """
 
-    return(Mij.flatten() - np.hstack([Mfunc(parameters,q).flatten() for q in Jointi]))
+    computedData = np.vstack([Pfunc(parameters,q) for q in Jointi])
 
-def computeError(parameters, Mij, Jointi):
+    Pij = preconditioning(Pij)
+    computedData = preconditioning(computedData)
+
+    return(Pij.flatten() - computedData.flatten())
+
+def computeError(parameters, Pij, Jointi):
     """! Computes the error (i.e. euclidian distance) between the measured and modeled data.
 
     @param parameters   The current robot parameters vector.
-    @param Mij          The measured data vector.
+    @param Pij          The measured data vector.
     @param Jointi       The measured joints data vector.
 
     @return  The computed error.
     """
 
-    delta = computeDelta(parameters,Mij,Jointi)
+    delta = computeDelta(parameters,Pij,Jointi)
     return(np.dot(delta.T,delta))
 
 globalAlgorithms = {"BH":"BFGS based Basin-Hopping"}
 
-def globalIdentifyParameters(initialParameters,MijLear,JointiLear,maxIterations=10,algorithmName="BH",MijTest=None,JointiTest=None):
+def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations=10,algorithmName="BH",PijTest=None,JointiTest=None):
     """! Performs the robot model parameters identification using the specified global algorithm.
 
     @param initialParameters    The current robot parameters vector.
-    @param MijLear              The learning measured data vector.
+    @param PijLear              The learning measured data vector.
     @param JointiLear           The learning measured joints data vector.
     @param maxIterations        The maximum number of iterations- default = 10.
-    @param MijTest              The testing measured data vector.
+    @param PijTest              The testing measured data vector.
     @param JointiTest           The testing measured joints data vector.
 
     @return  The optimized parameters vector.
@@ -78,38 +68,38 @@ def globalIdentifyParameters(initialParameters,MijLear,JointiLear,maxIterations=
 
     print(globalAlgorithms[algorithmName] + " algorithm")
 
-    parameters = globals()[algorithmName](initialParameters,MijLear,JointiLear,maxIterations,MijTest,JointiTest)
+    parameters = globals()[algorithmName](initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest)
 
-    errorLear = computeError(parameters,MijLear,JointiLear)
+    errorLear = computeError(parameters,PijLear,JointiLear)
     errorTest = None
     if(len(JointiTest)!=0):
-        errorTest = computeError(parameters,MijTest,JointiLear)
+        errorTest = computeError(parameters,PijTest,JointiLear)
 
     return(parameters,errorLear,errorTest)
 
-def BH(initialParameters,MijLear,JointiLear,maxIterations,MijTest,JointiTest):
+def BH(initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest):
     """! Performs the robot model parameters identification using the BFGS based Basin-Hopping algorithm.
 
     @param initialParameters    The current robot parameters vector.
-    @param MijLear              The learning measured data vector.
+    @param PijLear              The learning measured data vector.
     @param JointiLear           The learning measured joints data vector.
     @param maxIterations        The maximum number of iterations.
     @param algorithm            The optimization algorithm to be used.
-    @param MijTest              The testing measured data vector.
+    @param PijTest              The testing measured data vector.
     @param JointiTest           The testing measured joints data vector.
 
     @return  The optimized parameters vector.
     """
 
     def function(parameters):
-        return(computeError(parameters,MijLear,JointiLear))
+        return(computeError(parameters,PijLear,JointiLear))
 
     def callback(x,f,accept):
         #Intermediate error
         print("Intermediate error : " + str(f))
 
         if(len(JointiTest)!=0):
-            print("Intermediate test error :  " + str(computeError(x,MijTest,JointiTest)))
+            print("Intermediate test error :  " + str(computeError(x,PijTest,JointiTest)))
 
         return(accept)
 
@@ -145,7 +135,7 @@ if __name__ == "__main__":
         print("Skipping robot base transform estimation...")
 
     ### Robot base, robot parameters and end effector points transformations estimations
-    parameters0 = getIdentifiableParameters(TBaseN,TFlangeN,TToolN,piN)
+    parameters0 = getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN)
 
     #Estimate the transformation between the sensor reference and the robot base
     if(estimateTBaseN != 0):
@@ -212,9 +202,9 @@ if __name__ == "__main__":
 
     tmp = input()
 
-    MijLear = np.empty((N_LEARNING,N_EEPOINTS,3))
+    PijLear = np.empty((N_LEARNING,N_EEPOINTS,3))
     JointiLear = np.empty((N_LEARNING,JOINTS_NUMBER))
-    MijTest = np.empty((N_TESTS,N_EEPOINTS,3))
+    PijTest = np.empty((N_TESTS,N_EEPOINTS,3))
     JointiTest = np.empty((N_TESTS,JOINTS_NUMBER))
 
     randomIndices = np.random.permutation(N_LEARNING+N_TESTS)
@@ -223,21 +213,21 @@ if __name__ == "__main__":
     #Randomly shuffle measurements between the learning and testing subsets
     indexLear = randomIndices[:N_LEARNING]
     for i,item in enumerate(EEItemsNames):
-        MijLear[:,i,:] = Items[item][indexLear]
+        PijLear[:,i,:] = Items[item][indexLear]
     JointiLear = Items["jointsdata"][indexLear]
 
     if(N_TESTS != 0):
         indexTest = randomIndices[-N_TESTS:]
         for i,item in enumerate(EEItemsNames):
-            MijTest[:,i,:] = Items[item][indexTest]
+            PijTest[:,i,:] = Items[item][indexTest]
         JointiTest = Items["jointsdata"][indexTest]
 
     #Initial error
-    initialError = computeError(parameters0,MijLear,JointiLear)
+    initialError = computeError(parameters0,PijLear,JointiLear)
     print("Initial error : " + str(initialError))
 
     if(len(JointiTest)!=0):
-        errorTest = computeError(parameters0,MijTest,JointiTest)
+        errorTest = computeError(parameters0,PijTest,JointiTest)
         print("Initial test error : " + str(errorTest))
 
     ### Retreive identification parameters
@@ -262,7 +252,7 @@ if __name__ == "__main__":
         except:
             print("No stop delta criterion given, defaulting to " + str(stopDelta))
 
-        parameters,finalError,finalTestError = localIdentifyParameters(parameters0,MijLear,JointiLear,stopDelta,algorithmName,MijTest,JointiTest)
+        parameters,finalError,finalTestError = localIdentifyParameters(parameters0,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
 
     elif(algorithmType == "global"):
         maxIterations = 10
@@ -271,7 +261,7 @@ if __name__ == "__main__":
         except:
             print("No maximum iterations number given, defaulting to " + str(maxIterations))
 
-        parameters,finalError,finalTestError = globalIdentifyParameters(parameters0,MijLear,JointiLear,maxIterations,algorithmName,MijTest,JointiTest)
+        parameters,finalError,finalTestError = globalIdentifyParameters(parameters0,PijLear,JointiLear,maxIterations,algorithmName,PijTest,JointiTest)
 
     #Final error
     print("Final error : " + str(finalError))
