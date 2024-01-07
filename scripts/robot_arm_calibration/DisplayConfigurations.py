@@ -9,13 +9,13 @@ import glob
 import numpy as np
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import getIdentifiableParameters
+from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial
 
 #Custom packages
 from robot_arm_calibration.NumericGeometricModel import T, TBaseN, TFlangeN, TToolN, piN, JOINTS_NUMBER, toolName, robotName
 
 ### Retreive nominal parameters
-parameters0 = getIdentifiableParameters(TBaseN,TFlangeN,TToolN,piN)
+parameters0 = getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN)
 
 ### Loading calibration poses
 print("Loading configurations...")

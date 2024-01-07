@@ -16,7 +16,7 @@ from pygad import GA
 from simanneal import Annealer
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import getIdentifiableParameters, saveParameters
+from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial, saveParameters
 
 #Custom packages (needing robot and marker parameters inclusions)
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
@@ -414,7 +414,7 @@ if __name__ == "__main__":
         print("Skipping robot base transform estimation...")
 
     ### Robot base, robot parameters and end effector points transformations estimations
-    parameters0 = getIdentifiableParameters(TBaseN,TFlangeN,TToolN,piN)
+    parameters0 = getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN)
 
     #Estimate the transformation between the sensor reference and the robot base
     if(estimateTBaseN != 0):
