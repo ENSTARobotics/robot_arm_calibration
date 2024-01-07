@@ -7,37 +7,8 @@ import sys
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-### Useful matrices and functions
-
-HR = np.array([[[0,0,0,0],
-                [0,0,-1,0],
-                [0,1,0,0],
-                [0,0,0,0]],
-                
-                [[0,0,1,0],
-                [0,0,0,0],
-                [-1,0,0,0],
-                [0,0,0,0]],
-                
-                [[0,-1,0,0],
-                [1,0,0,0],
-                [0,0,0,0],
-                [0,0,0,0]]])
-
-HT = np.array([[[0,0,0,1],
-                [0,0,0,0],
-                [0,0,0,0],
-                [0,0,0,0]],
-                
-                [[0,0,0,0],
-                [0,0,0,1],
-                [0,0,0,0],
-                [0,0,0,0]],
-                
-                [[0,0,0,0],
-                [0,0,0,0],
-                [0,0,0,1],
-                [0,0,0,0]]])
+#Jacobian computation package
+from jax import grad
 
 def size(L):
     """! Computes the size of a nested list as the sum of the sizes of all contained lists
@@ -132,101 +103,125 @@ def Ti(i,q,pi):
 
     return(T,splitT)
 
-def T(q,pi,TBase=TBaseN,TTool=np.dot(TFlangeN,TToolN_body)):
+def T(q,pi,TBase=TBaseN,TTool=TFlangeN):
     """! Computes the global homogeneous transformation matrix between the world reference frame and the robot tool.
 
     @param q        The robot angular configuration (i.e. actuators values).
     @param pi       The robot kinematic parameters vector.
     @param TBase    The homogeneous transformation matrix between the world reference frame and the robot base.
-    @param TTool  The homogeneous transformation matrix between the last robot joint and the robot tool.
+    @param TTool    The homogeneous transformation matrix between the last robot joint and the robot tool.
 
     @return  The global homogeneous transformation matrix.
     """
 
-    T = np.eye(4)
+    T = TBase
     for i in range(JOINTS_NUMBER):
         T = np.dot(T,Ti(i,q,pi)[0])
-    return(np.dot(np.dot(TBase,T),TTool))
+    return(np.dot(T,TTool))
+
+def P(q,pi,TBase=TBaseN,TTool=TToolN):
+    """! Computes the position of end effector points in the world reference frame.
+
+    @param q        The robot angular configuration (i.e. actuators values).
+    @param pi       The robot kinematic parameters vector.
+    @param TBase    The homogeneous transformation matrix between the world reference frame and the robot base frame.
+    @param TTool    The homogeneous transformation matrix between the last robot joint and the robot tool.
+
+    @return  The positions of end effector points
+    """
+
+    T = TBase
+    for i in range(JOINTS_NUMBER):
+        T = np.dot(T,Ti(i,q,pi)[0])
+    P = np.vstack([np.dot(T,t)[:3,3] for t in TTool])
+    return(P.flatten())
+
+def Tfunc(parameters, q):
+    """! Computes the global homogeneous transformation matrix between the robot base frame and the robot flange frame.
+
+    @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
+    @param q            The robot angular configuration (i.e. actuators values).
+
+    @return  The global homogeneous transformation matrix between the robot base frame and the robot flange frame.
+    """
+    
+    pi = parameters[6:6+len(piN)]
+    T = np.eye(4)
+    for i in range(JOINTS_NUMBER):
+        T = np.dot(T,Ti(i,q,parameters)[0])
+    return(T)
+
+def PfuncPartial(parameters, q):
+    """! Computes the position of end effector points in the robot base frame.
+
+    @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
+    @param q            The robot angular configuration (i.e. actuators values).
+
+    @return  The positions of end effector points in the robot base frame.
+    """
+
+    #Robot base
+    PBase = np.array([parameters[:3]]).T
+    RBase = R.from_rotvec(parameters[3:6]).as_matrix()
+    TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
+
+    #Robot geometric parameters
+    pi = parameters[6:6+len(piN)]
+
+    #Robot flange and tool
+    TFlangeList = np.empty(np.shape(TToolN))
+    TTool = np.empty(np.shape(TToolN))
+    for i,P in enumerate(np.reshape(parameters[6+len(piN):],(-1,3))):
+        TTool[i] = np.dot(TFlangeN,TToolN[i])
+        TTool[i][:3,-1] = P
+        TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN[i]))
+    TFlange = np.average(TFlangeList,axis=0)
+
+    T = TBase
+    for i in range(JOINTS_NUMBER):
+        T = np.dot(T,Ti(i,q,parameters)[0])
+    P = np.vstack([np.dot(T,t)[:3,3] for t in TTool])
+    return(P.flatten())
+
+def PfuncFull(parameters, q):
+    """! Computes the global homogeneous transformation matrix between the robot base frame and the robot flange frame.
+
+    @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
+    @param q            The robot angular configuration (i.e. actuators values).
+
+    @return  The global homogeneous transformation matrix between the robot base frame and the robot flange frame.
+    """
+    
+    #Robot base
+    PBase = np.array([parameters[:3]]).T
+    RBase = R.from_rotvec(parameters[3:6]).as_matrix()
+    TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
+
+    #Robot geometric parameters
+    pi = parameters[6:6+len(piN)]
+
+    #Robot flange and tool
+    TFlangeList = np.empty(np.shape(TToolN))
+    TTool = np.empty(np.shape(TToolN))
+    for i,P in enumerate(np.reshape(parameters[6+len(piN):],(-1,3))):
+        TTool[i] = np.dot(TFlangeN,TToolN[i])
+        TTool[i][:3,-1] = P
+        TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN[i]))
+    TFlange = np.average(TFlangeList,axis=0)
+
+    T = TBase
+    for i in range(JOINTS_NUMBER):
+        T = np.dot(T,Ti(i,q,parameters)[0])
+    T = np.dot(T,TTool)
+
+    P = np.vstack((T[:3,3],R.from_matrix(T[:3,:3]).as_rotvec()))
+    return(P.flatten())
+
+if(len(TToolN) > 1):
+    Pfunc = PfuncPartial
+else:
+    Pfunc = PfuncFull
 
 ### Robot identification jacobian matrix
-
-def dTk(k,q,pi,TBase=TBaseN,TTool=TFlangeN):
-
-    #print("Parameter index = " + str(k))
-
-    dTk = np.eye(4)
-    i = np.argwhere(PARAMETERS_INDEX<=k)[-1][0] 
-    #print("Concerned joint = " + str(i+1))
-
-    for j in range(i):
-        #print("Previous joint :" + str(j+1))
-        dTk = np.dot(dTk,Ti(j,q,pi)[0])
-
-    sTi = Ti(i,q,pi)[1]
     
-    for m in sTi[:k-PARAMETERS_INDEX[i]+1]:
-        #print("Previous transformation matrix :\n" + str(m))
-        dTk = np.dot(dTk,m)
-
-    if(k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i] < 0):
-        #print("Joint offset :\n" + str(HR[np.abs(JOINTS_AXIS[i])-1]))
-        #print("axis : "+str(np.abs(JOINTS_AXIS[i])))
-        dTk = np.dot(dTk,HR[np.abs(JOINTS_AXIS[i])-1])
-
-    elif(k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i] - size(LINKS_TRANSLATIONS[i]) < 0):
-        translationIndex = LINKS_TRANSLATIONS[i][k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i]]
-        #print("Link translation :\n" + str(HT[translationIndex - 1]))
-        #print("axis : " + str(translationIndex))
-        dTk = np.dot(dTk,HT[translationIndex - 1])
-    
-    else:
-        rotationIndex = LINKS_ROTATIONS[i][k - PARAMETERS_INDEX[i] - JOINTS_OFFSET[i] - size(LINKS_TRANSLATIONS[i])]
-        #print("Link rotation :\n" + str(HR[rotationIndex - 1]))
-        #print("axis : "+str(rotationIndex))
-        dTk = np.dot(dTk,HR[rotationIndex - 1])
-
-    for m in sTi[k-PARAMETERS_INDEX[i]+2:]:
-        #print("Following transformation matrix :\n" + str(m))
-        dTk = np.dot(dTk,m)
-
-    for j in range(i+1,JOINTS_NUMBER):
-        #print("Following joint : " + str(j+1))
-        dTk = np.dot(dTk,Ti(j,q,pi)[0])
-
-    return(np.dot(np.dot(TBase,dTk),TTool))
-
-def Jpi(q,pi,TBase=TBaseN,TTool=TFlangeN):
-    Jpi = np.empty((6,len(pi)))
-    Tinverse = np.linalg.inv(T(q,pi,TBase,TTool))
-
-    for k,_ in enumerate(pi):
-        Tk = dTk(k,q,pi,TBase,TTool)
-        TkT = np.dot(Tk,Tinverse)
-
-        Jpi[0,k] = Tk[0,3]
-        Jpi[1,k] = Tk[1,3]
-        Jpi[2,k] = Tk[2,3]
-
-        Jpi[3,k] = TkT[2,1]
-        Jpi[4,k] = TkT[0,2]
-        Jpi[5,k] = TkT[1,0]
-
-    return(Jpi)
-
-def JpiT(q,pi,TBase=TBaseN,TTool=TFlangeN):
-    JpiT = np.empty((len(pi),6))
-    Tinverse = np.linalg.inv(T(q,pi,TBase,TTool))
-
-    for k,_ in enumerate(pi):
-        Tk = dTk(k,q,pi,TBase,TTool)
-        TkT = np.dot(Tk,Tinverse)
-
-        JpiT[k,0] = Tk[0,3]
-        JpiT[k,1] = Tk[1,3]
-        JpiT[k,2] = Tk[2,3]
-
-        JpiT[k,3] = TkT[2,1]
-        JpiT[k,4] = TkT[0,2]
-        JpiT[k,5] = TkT[1,0]
-
-    return(JpiT)
+Jfunc = grad(Pfunc,argnums=0)

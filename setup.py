@@ -22,6 +22,9 @@ setup_args = generate_distutils_setup(
         #Combinatorial optimization
         "pygad",
         "simanneal",
+        #Jacobian computation
+        "jaxlib",
+        "jax",
     ]
 )
 setup(**setup_args)

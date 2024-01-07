@@ -242,7 +242,7 @@ rawPfunc = dill.load(open(configPathRobot + "GeometricModel_" + fileID + ".pickl
 print("Done !")
 
 #Formatting analytic functions with proper output shapes
-PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 + len(piN)
+#PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 + len(piN)
 
 def Tfunc(parameters,q):
     T = rawTfunc(parameters,q)
