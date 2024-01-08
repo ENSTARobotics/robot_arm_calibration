@@ -85,7 +85,7 @@ def Ti(i,q,pi):
     @param q   The robot angular configuration (i.e. actuators values).
     @param pi  The robot kinematic parameters vector.
 
-    @return  The local homogeneous transformation matrix.
+    @return  The local homogeneous transformation matrix, the list of the involved successive primitive transformations (single axis translation/rotation) matrices.
     """
 
     splitT = []
@@ -132,13 +132,13 @@ def Ti(i,q,pi):
 
     return(T,splitT)
 
-def T(q,pi,TBase=TBaseN,TTool=TFlangeN):
-    """! Computes the global homogeneous transformation matrix between the world reference frame and the robot flange.
+def T(q,pi,TBase=TBaseN,TTool=np.dot(TFlangeN,TToolN_body)):
+    """! Computes the global homogeneous transformation matrix between the world reference frame and the robot tool.
 
     @param q        The robot angular configuration (i.e. actuators values).
     @param pi       The robot kinematic parameters vector.
     @param TBase    The homogeneous transformation matrix between the world reference frame and the robot base.
-    @param TFalnge  The homogeneous transformation matrix between the last robot joint and the robot flange.
+    @param TTool  The homogeneous transformation matrix between the last robot joint and the robot tool.
 
     @return  The global homogeneous transformation matrix.
     """
@@ -162,7 +162,7 @@ def dTk(k,q,pi,TBase=TBaseN,TTool=TFlangeN):
         #print("Previous joint :" + str(j+1))
         dTk = np.dot(dTk,Ti(j,q,pi)[0])
 
-    _,sTi = Ti(i,q,pi)
+    sTi = Ti(i,q,pi)[1]
     
     for m in sTi[:k-PARAMETERS_INDEX[i]+1]:
         #print("Previous transformation matrix :\n" + str(m))
