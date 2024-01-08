@@ -162,7 +162,7 @@ def getIdentifiableParametersPartial(TBase,TFlange,TTool,pi):
     RBase = R.from_matrix(TBase[:3,:3])
     PFlangeTool = TFlangeTool[:,:3,-1]
 
-    parameters = np.hstack((PBase,R.as_rotvec(RBase),pi,PFlangeTool.flatten()))
+    parameters = np.hstack((PBase,R.as_rotvec(RBase),pi,PFlangeTool.flatten())) #TODO Adapt to MRP !
 
     return(parameters)
 
@@ -184,6 +184,6 @@ def getIdentifiableParametersFull(TBase,TFlange,TTool,pi):
     PBase = TBase[:3,-1]
     RBase = R.from_matrix(TBase[:3,:3])
     
-    parameters = np.hstack((PBase,R.as_rotvec(RBase),pi,PFlangeTool,R.as_rotvec(RFlangeTool)))
+    parameters = np.hstack((PBase,R.as_mrp(RBase),pi,PFlangeTool,R.as_mrp(RFlangeTool)))
 
     return(parameters)

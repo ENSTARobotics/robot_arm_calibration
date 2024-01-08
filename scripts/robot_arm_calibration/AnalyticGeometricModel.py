@@ -58,6 +58,7 @@ def matrix_to_rotvec(matrix):
     z = (matrix[1,0] - matrix[0,1])/sp.sqrt((matrix[2,1] - matrix[1,2])**2+(matrix[0,2] - matrix[2,0])**2+(matrix[1,0] - matrix[0,1])**2)
     return(angle*sp.Matrix([x,y,z]))
 
+#TODO Adapt to MRP !
 def rotvec_to_matrix(rotvec):
     """! Converts a scipy rotation vector representation of a rotation into a rotation matrix
     

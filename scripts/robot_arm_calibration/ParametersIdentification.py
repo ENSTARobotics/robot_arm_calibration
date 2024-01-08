@@ -601,7 +601,7 @@ if __name__ == "__main__":
 
     #Robot base
     PBase = np.array([parameters[:3]]).T
-    RBase = R.from_rotvec(parameters[3:6]).as_matrix()
+    RBase = R.from_rotvec(parameters[3:6]).as_matrix()  #TODO Adapt to MRP !
     TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
 
     #Robot geometric parameters
