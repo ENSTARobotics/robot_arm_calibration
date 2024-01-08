@@ -174,6 +174,7 @@ The calibration procedure can also be splitted into separated steps as follows :
 *   [ ] Handling **unconventional geometries** : prismatic joints, unaligned joints (i.e. not with a $\frac{\pi}{2}$ offset), parallel mechanisms, ...
 *   [ ] Introduction of **more complex models**, including joints flexibilities
 *   [ ] Integration of **full pose models** (_i.e._ all 6 degrees of freedom), and **lower degree partial pose models** (_e.g._ single distance measurements)
+*   [ ] Migrate from a fully **analytical** model handling to a **numerical** one for more flexibility (_e.g._ iterative formulation, etc.)
 
 #### Step 2: observations/measurements (`src/robot_arm_calibration/robot_arm_calibration_sampling_node.cpp` `src/robot_arm_calibration/robot_arm_calibration_measurement_node.cpp` & `scripts/robot_arm_calibration/TargetConfigurationsGeneration.py`)
 *   [x] Collision aware and spacially configurable **sampling of reachable robot configurations** using [MoveIt](https://github.com/ros-planning/moveit) simulation tool
