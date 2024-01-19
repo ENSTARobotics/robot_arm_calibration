@@ -331,11 +331,10 @@ def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e
     @return  The identified parameters vector, final learning error and final testing error.
     """
 
-    print(localAlgorithmsScipy[algorithmName] + " algorithm")
+    print(localAlgorithmsLib[algorithmName] + " algorithm")
 
     #Errors initialisation
     errorLear = 0
-    errorLearPrev = 0
     errorTest = None
 
     #Parameters initialisation
@@ -365,7 +364,7 @@ def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e
         optimizedParameters = result.x
         errorLear = result.fun
         if(len(JointiTest)!=0):
-            errorTest = computeError(IntermediateResult.x,PijTest,JointiTest)
+            errorTest = computeError(optimizedParameters,PijTest,JointiTest)
 
         return(parameters,errorLear,errorTest)
 
@@ -375,7 +374,7 @@ def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e
         optimizedParameters = result.x
         errorLear = result.fun
         if(len(JointiTest)!=0):
-            errorTest = computeError(IntermediateResult.x,PijTest,JointiTest)
+            errorTest = computeError(optimizedParameters,PijTest,JointiTest)
 
         return(parameters,errorLear,errorTest)
 
@@ -402,7 +401,7 @@ if __name__ == "__main__":
 
     estimateTBaseN = 0
     try:
-        estimateTBaseN = int(sys.argv[3])
+        estimateTBaseN = int(sys.argv[1])
     except:
         print("Skipping robot base transform estimation...")
 
@@ -506,7 +505,7 @@ if __name__ == "__main__":
     algorithmName = "GN"
     algorithmType = "local"
     try : 
-        tmpAlgorithmName = sys.argv[1].upper()
+        tmpAlgorithmName = sys.argv[2]
         if(tmpAlgorithmName in localAlgorithms.keys() or tmpAlgorithmName in localAlgorithmsLib.keys()):
             algorithmType = "local"
         elif(tmpAlgorithmName in globalAlgorithms.keys()):
@@ -520,13 +519,13 @@ if __name__ == "__main__":
     if(algorithmType == "local"):
         stopDelta = 1e-8
         try : 
-            stopDelta = float(sys.argv[2])
+            stopDelta = float(sys.argv[3])
         except:
             print("No stop delta criterion given, defaulting to " + str(stopDelta))
 
         initialisations = 5
         try : 
-            initialisations = float(sys.argv[2])
+            initialisations = float(sys.argv[4])
         except:
             print("No initialisations number given, defaulting to " + str(initialisations))
 
@@ -564,7 +563,7 @@ if __name__ == "__main__":
     elif(algorithmType == "global"):
         maxIterations = 10
         try : 
-            maxIterations = float(sys.argv[2])
+            maxIterations = float(sys.argv[3])
         except:
             print("No maximum iterations number given, defaulting to " + str(maxIterations))
 
