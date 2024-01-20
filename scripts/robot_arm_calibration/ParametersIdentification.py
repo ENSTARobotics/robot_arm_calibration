@@ -10,7 +10,7 @@ from multiprocessing import Pool
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from scipy.optimize import basinhopping, minimize, least_squares
-from cyipopt import minimize_ipopt
+#from cyipopt import minimize_ipopt
 
 from pygad import GA
 from simanneal import Annealer
@@ -153,7 +153,7 @@ localAlgorithms = {"GN":"Gauss-Newton",
                    "BFGS":"Broyden-Fletcher-Goldfarb-Shanno"}
 #TODO Add stochastic gradient descent ? Not relevant here...
 
-def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=10):
+def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=100):
     """! Performs the robot model parameters identification using the specified locally iterative algorithm.
 
     @param initialParameters   The current robot parameters vector.
@@ -209,12 +209,12 @@ def GN(parameters,Pij,Jointi):
 
     @return  The optimized parameters vector.
     """
-
+    
     optimizedParameters = parameters + np.dot(np.linalg.pinv(computeIdentificationJacobian(parameters,Jointi)),computeDelta(parameters,Pij,Jointi))
 
     return(optimizedParameters)
 
-def TLS(parameters,Pij,Jointi,covarianceMatrix = np.eye(JOINTS_NUMBER)):
+def TLS(parameters,Pij,Jointi,covarianceMatrix = np.eye(3*len(TToolN))):
     """! Performs the robot model parameters identification using the Total Least-Squares algorithm.
 
     @param parameters       The current robot parameters vector.
@@ -225,6 +225,7 @@ def TLS(parameters,Pij,Jointi,covarianceMatrix = np.eye(JOINTS_NUMBER)):
     @return  The optimized parameters vector.
     """
 
+    covarianceMatrix = np.kron(np.eye(N_LEARNING,dtype=int),covarianceMatrix)
     J = computeIdentificationJacobian(parameters,Jointi)
     tJW = np.dot(J.T,np.linalg.inv(covarianceMatrix))
     tJWJ = np.dot(tJW,J)
@@ -316,7 +317,7 @@ localAlgorithmsLib = {"CG_scipy":"Conjugate gradient",
                       "BFGS_scipy":"Broyden-Fletcher-Goldfarb-Shanno",
                       "IP_ipopt":"Interior point"}
 
-def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=10):
+def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=100):
     """! Performs the robot model parameters identification using the specified locally iterative algorithm.
 
     @param initialParameters   The current robot parameters vector.
@@ -341,40 +342,47 @@ def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e
     parameters = initialParameters
     result = None
 
-    def function(parameters):
+    def function_min(parameters):
         return(computeError(parameters,PijLear,JointiLear))
+    
+    def jacobian_min(parameters):
+        return(computeIdentificationGradient(parameters,PijLear,JointiLear))
+    
+    def function_res(parameters):
+        return(computeDelta(parameters,PijLear,JointiLear))
 
-    def jacobian(parameters):
-        return(computeIdentificationJacobian(parameters,PijLear,JointiLear))
-
+    def jacobian_res(parameters):
+        return(computeIdentificationJacobian(parameters,JointiLear))
+    
     def callback(IntermediateResult):
-        print("Intermediate error : " + str(IntermediateResult.fun))
+        print("Intermediate error : " + str(computeError(IntermediateResult,PijLear,JointiLear)))
 
         if(len(JointiTest)!=0):
-            print("Intermediate test error :  " + str(computeError(IntermediateResult.x,PijTest,JointiTest)))
+            print("Intermediate test error :  " + str(computeError(IntermediateResult,PijTest,JointiTest)))
 
     if(algorithmName.split("_")[1] == "scipy"):
         method = algorithmName.split("_")[0]
 
         if(method.upper() == "LM"):
-            result = least_squares(function, x0=initialParameters, jac=jacobian, method=method.lower(), ftol=stopDelta, verbose=1)
+            result = least_squares(function_res, x0=initialParameters, jac=jacobian_res, method=method.lower(), ftol=stopDelta, verbose=2)
+
         else:
-            result = minimize(function, x0=initialParameters, method=method.lower(), jac=jacobian, tol=stopDelta, callback=callback)
+            result = minimize(function_min, x0=initialParameters, method=method.lower(), jac=jacobian_min, tol=stopDelta, callback=callback)
 
         optimizedParameters = result.x
-        errorLear = result.fun
+        errorLear = computeError(optimizedParameters,PijLear,JointiLear)
         if(len(JointiTest)!=0):
             errorTest = computeError(optimizedParameters,PijTest,JointiTest)
 
         return(parameters,errorLear,errorTest)
 
     elif(algorithmName.split("_")[1] == "ipopt"):
-        result = minimize_ipopt(function, x0=initialParameters, jac=jacobian, tol=stopDelta)
+        # result = minimize_ipopt(function, x0=initialParameters, jac=jacobian, tol=stopDelta)
 
-        optimizedParameters = result.x
-        errorLear = result.fun
-        if(len(JointiTest)!=0):
-            errorTest = computeError(optimizedParameters,PijTest,JointiTest)
+        # optimizedParameters = result.x
+        # errorLear = result.fun
+        # if(len(JointiTest)!=0):
+        #     errorTest = computeError(optimizedParameters,PijTest,JointiTest)
 
         return(parameters,errorLear,errorTest)
 
@@ -506,8 +514,10 @@ if __name__ == "__main__":
     algorithmType = "local"
     try : 
         tmpAlgorithmName = sys.argv[2]
-        if(tmpAlgorithmName in localAlgorithms.keys() or tmpAlgorithmName in localAlgorithmsLib.keys()):
+        if(tmpAlgorithmName in localAlgorithms.keys()):
             algorithmType = "local"
+        elif(tmpAlgorithmName in localAlgorithmsLib.keys()):
+            algorithmType = "localLib"
         elif(tmpAlgorithmName in globalAlgorithms.keys()):
             algorithmType = "global"
         else:
@@ -516,7 +526,7 @@ if __name__ == "__main__":
     except:
         print("No or invalid identification method given, defaulting to " + algorithmType + " " + algorithmName)
 
-    if(algorithmType == "local"):
+    if(algorithmType == "local" or algorithmType == "localLib"):
         stopDelta = 1e-8
         try : 
             stopDelta = float(sys.argv[3])
@@ -525,40 +535,50 @@ if __name__ == "__main__":
 
         initialisations = 5
         try : 
-            initialisations = float(sys.argv[4])
+            initialisations = int(sys.argv[4])
         except:
             print("No initialisations number given, defaulting to " + str(initialisations))
 
+        initialParamters = parameters0
+
         #Create small initial disturbances...
-        initialisationDeltas = np.zeros((np.max(10,2*initialisations),len(parameters0)))
-        initialisationDeltas[1:] = np.random.uniform(-1.0, 1.0, (np.max(10,2*initialisations)-1,len(parameters0)))
+        if(initialisations != 0):
+            initialisationDeltas = np.zeros((max(10,2*initialisations),len(parameters0)))
+            initialisationDeltas[1:] = np.random.uniform(-1.0, 1.0, (max(10,2*initialisations)-1,len(parameters0)))
 
-        #...But optimized !
-        geneticAlgorithm = GA(num_generations=20,
-                              num_parents_mating=np.max(10,2*initialisations)/2,
-                              fitness_func=lambda instance, solution, solution_idx : (-1)*computeError(parameters0 + solution,PijLear,JointiLear),
-                              initial_population=initialisationDeltas,
-                              init_range_low=-1,
-                              init_range_high=1,
-                              keep_elitism=initialisations)
-        geneticAlgorithm.run()
-        bestInitialisationDeltas = geneticAlgorithm.last_generation_elitism
+            #...But optimized !
+            geneticAlgorithm = GA(num_generations=20,
+                                num_parents_mating=int(max(10,2*initialisations)/2),
+                                fitness_func=lambda instance, solution, solution_idx : (-1)*computeError(parameters0 + solution,PijLear,JointiLear),
+                                initial_population=initialisationDeltas,
+                                init_range_low=-1,
+                                init_range_high=1,
+                                keep_elitism=initialisations)
+            geneticAlgorithm.run()
+            bestInitialisationDeltas = geneticAlgorithm.last_generation_elitism
 
-        #Run parameters identification (in parallel)
-        pool = Pool(processes=os.cpu_count()-1) #Just in case
+            #Run parameters identification (in parallel)
+            def tmp(x):
+                if(algorithmType == "local"):
+                    return localIdentifyParameters(parameters0 + x,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+                else:
+                    return localLibIdentifyParameters(parameters0 + x,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+                
+            with Pool(processes=os.cpu_count()-1) as pool:
+                identificationOutputs = pool.map(tmp,bestInitialisationDeltas)
+                
+            finalError = 10**10
 
-        def tmp(x):
-            return localIdentifyParameters(parameters0 + x,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+            #Get best parameters with lowest identification error
+            for output in identificationOutputs:
+                if(output[1] < finalError):
+                    initialParamters = output[0]
+                    finalError = output[1]
         
-        identificationOutputs = pool.map(tmp,bestInitialisationDeltas)
-        finalError = 10**10
-
-        #Get best parameters with lowest identification error
-        for output in identificationOutputs:
-            if(output[1] < finalError):
-                parameters = output[0]
-                finalError = output[1]
-                finalTestingError = output[2]
+        if(algorithmType == "local"):
+            parameters,finalError,finalTestError = localIdentifyParameters(initialParamters,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+        else:
+            parameters,finalError,finalTestError = localLibIdentifyParameters(initialParamters,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
 
     elif(algorithmType == "global"):
         maxIterations = 10
