@@ -58,7 +58,6 @@ def matrix_to_rotvec(matrix):
     z = (matrix[1,0] - matrix[0,1])/sp.sqrt((matrix[2,1] - matrix[1,2])**2+(matrix[0,2] - matrix[2,0])**2+(matrix[1,0] - matrix[0,1])**2)
     return(angle*sp.Matrix([x,y,z]))
 
-#TODO Adapt to MRP !
 def rotvec_to_matrix(rotvec):
     """! Converts a scipy rotation vector representation of a rotation into a rotation matrix
     
@@ -75,6 +74,20 @@ def rotvec_to_matrix(rotvec):
     c = y * s
     d = z * s
 
+    return(sp.Quaternion(a, b, c, d).to_rotation_matrix())
+
+def quat_to_mrp(quat):
+    quat_matrix = quat.to_Matrix()
+    sign = -1 if quat_matrix[3] < 0 else 1
+    denominator = 1 + sign * quat_matrix[3]
+    return((sign/denominator) * sp.Matrix([quat_matrix[0],quat_matrix[1],quat_matrix[2]]))
+
+def mrp_to_matrix(mrp):
+    mrp_squared_plus_1 = mrp.dot(mrp) + 1
+    a = 2*mrp[0]/mrp_squared_plus_1
+    b = 2*mrp[1]/mrp_squared_plus_1
+    c = 2*mrp[2]/mrp_squared_plus_1
+    d = (2 - mrp_squared_plus_1)/mrp_squared_plus_1
     return(sp.Quaternion(a, b, c, d).to_rotation_matrix())
 
 #TODO 
@@ -168,7 +181,7 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not
     PhiBase = sp.MatrixSymbol("PhiBase",3,1).as_mutable()
 
     TBase = sp.Identity(4).as_mutable()
-    TBase[:3,:3] = rotvec_to_matrix(PhiBase)
+    TBase[:3,:3] = mrp_to_matrix(PhiBase)
     TBase[:3,3] = PBase
 
     #Multiple tool transformation matrices => Partial pose measurement
@@ -186,7 +199,7 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not
         PhiTool = sp.MatrixSymbol("PhiTool",3,1).as_mutable()
 
         TTool = sp.Identity(4).as_mutable()
-        TTool[:3,:3] = rotvec_to_matrix(PhiTool)
+        TTool[:3,:3] = mrp_to_matrix(PhiTool)
         TTool[:3,3] = PTool
 
     pi = []
@@ -213,7 +226,7 @@ if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not
         P = T[:3,:].T.reshape(3*len(TToolN),1)
     else:
         #P = sp.Matrix.vstack(T[:3,3],T[:3,:3].reshape(9,1))
-        P = sp.Matrix.vstack(T[:3,3],sp.Quaternion.from_rotation_matrix(T[:3,:3]).to_Matrix())
+        P = sp.Matrix.vstack(T[:3,3],quat_to_mrp(sp.Quaternion.from_rotation_matrix(T[:3,:3])))
     J = P.jacobian(parameters)
     print("Computation done !")
 

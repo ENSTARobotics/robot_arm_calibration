@@ -18,7 +18,9 @@ from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
 from robot_arm_calibration.NumericGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
 
 def simplePreconditionning(fullPose):
-    return(np.hstack([fullPose[:3],R.from_quat(fullPose[3:]).as_mrp()]))
+    #return(np.hstack([fullPose[:3],R.from_quat(fullPose[3:]).as_mrp()]))
+    L = 1
+    return(np.hstack([fullPose[:3],L*fullPose[3:]]))
 
 def computeDelta(parameters, Pij, Jointi, preconditioning = simplePreconditionning):
     """! Computes the deltas between the measured and modeled data.
