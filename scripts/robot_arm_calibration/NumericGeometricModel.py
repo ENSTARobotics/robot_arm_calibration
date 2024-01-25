@@ -8,7 +8,7 @@ import jax.numpy as np
 from jax.scipy.spatial.transform import Rotation as R
 
 #Jacobian computation package
-from jax import jacfwd
+from jax import jacfwd, jacrev
 
 from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial, getIdentifiableParametersFull
 
@@ -213,11 +213,11 @@ if(len(TToolN) > 1):
 else:
     Pfunc = PfuncFull
 
-### Robot identification jacobian matrix
-Jfunc = jacfwd(Pfunc)
+### Robot identification jacobian matrix (jacrev is better for wide jacobians, i.e. highest number of columns than rows)
+Jfunc = jacrev(Pfunc)
 
-q = np.zeros(JOINTS_NUMBER)
-np.set_printoptions(edgeitems=30, linewidth=100000, 
-    formatter=dict(float=lambda x: "%.3g" % x))
-print(Pfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,np.eye(4),piN),q))
-print(Jfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,np.eye(4),piN),q))
+#q = np.zeros(JOINTS_NUMBER)
+#np.set_printoptions(edgeitems=30, linewidth=100000, 
+#    formatter=dict(float=lambda x: "%.3g" % x))
+#print(Pfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,np.eye(4),piN),q))
+#print(Jfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,np.eye(4),piN),q))
