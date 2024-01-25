@@ -22,7 +22,18 @@ from robot_arm_calibration.ParametersTools import getIdentifiableParametersParti
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
 from robot_arm_calibration.AnalyticGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
 
-def computeDelta(parameters, Pij, Jointi):
+def simplePreconditionning(pose):
+    L = 1
+    return(np.hstack([pose[:3],L*pose[3:]]))
+
+#Remark : for more complex preconditionning, we need to use the chain rule :
+#P_preconditionned(pi,q) = foP(pi,q)
+#JP_preconditionned(pi,q) = J(foP(pi,q)) = JfoP(pi,q)*JP(pi,q) = Jf(P(pi,q))*JP(pi,q)
+def simpleJacobianPreconditionning(jacobian):
+    L = 1
+    return(np.vstack([jacobian[:3],L*jacobian[3:]]))
+
+def computeDelta(parameters, Pij, Jointi, preconditionning = None):
     """! Computes the deltas between the measured and modeled positions.
 
     @param parameters   The current robot parameters vector.
@@ -32,9 +43,15 @@ def computeDelta(parameters, Pij, Jointi):
     @return  The deltas vector.
     """
 
-    return(Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
+    computedData = np.vstack([Pfunc(parameters,q) for q in Jointi])
 
-def computeError(parameters, Pij, Jointi):
+    if(not preconditionning is None):
+        Pij = preconditionning(Pij)
+        computedData =  preconditionning(computedData)
+
+    return(Pij.flatten() - computedData.flatten())
+
+def computeError(parameters, Pij, Jointi, preconditionning = None):
     """! Computes the error (i.e. euclidian distance) between the measured and modeled positions.
 
     @param parameters   The current robot parameters vector.
@@ -44,10 +61,10 @@ def computeError(parameters, Pij, Jointi):
     @return  The computed error.
     """
 
-    delta = computeDelta(parameters,Pij,Jointi)
+    delta = computeDelta(parameters,Pij,Jointi,preconditionning)
     return(np.dot(delta.T,delta))
 
-def computeIdentificationJacobian(parameters,Jointi):
+def computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning = None):
     """! Computes the identifiaction jacobian matrix.
 
     @param parameters   The current robot parameters vector.
@@ -56,9 +73,12 @@ def computeIdentificationJacobian(parameters,Jointi):
     @return  The identification jacbobian matrix.
     """
 
-    return(np.vstack([Jfunc(parameters,q) for q in Jointi]))
+    if(jacobianPreconditionning is None):
+        return(np.vstack([Jfunc(parameters,q) for q in Jointi]))
+    else:
+        return(np.vstack([jacobianPreconditionning(Jfunc(parameters,q)) for q in Jointi]))
 
-def computeIdentificationGradient(parameters,Pij,Jointi):
+def computeIdentificationGradient(parameters, Pij, Jointi, preconditionning = None, jacobianPreconditionning = None):
     """! Computes the identifiaction gradient vector.
 
     @param parameters   The current robot parameters vector.
@@ -68,12 +88,12 @@ def computeIdentificationGradient(parameters,Pij,Jointi):
     @return  The identification jacbobian matrix.
     """
 
-    delta = computeDelta(parameters,Pij,Jointi)
-    gradient = -2*np.dot(computeIdentificationJacobian(parameters,Jointi).T,delta)
+    delta = computeDelta(parameters,Pij,Jointi, preconditionning)
+    gradient = -2*np.dot(computeIdentificationJacobian(parameters,Jointi).T,delta,jacobianPreconditionning)
     #gradient /= np.linalg.norm(gradient)
     return(gradient)
 
-def computeLearningRate(parameters,Pij,Jointi):
+def computeLearningRate(parameters, Pij, Jointi, preconditionning = None, jacobianPreconditionning = None):
     """! Computes the optimal learning rate for the gradient descend according to Wolfe conditions.
 
     @param parameters   The current robot parameters vector.
@@ -83,8 +103,8 @@ def computeLearningRate(parameters,Pij,Jointi):
     @return  The optimal learning rate.
     """
 
-    delta = computeDelta(parameters,Pij,Jointi)
-    J = computeIdentificationJacobian(parameters,Jointi)
+    delta = computeDelta(parameters,Pij,Jointi,preconditionning)
+    J = computeIdentificationJacobian(parameters,Jointi,jacobianPreconditionning)
     JtJ = np.dot(J,J.T)
     alpha = np.dot(np.dot(delta.T,JtJ),delta)/(2*np.dot(np.dot(delta.T,np.dot(JtJ,JtJ)),delta))
     return(alpha)
