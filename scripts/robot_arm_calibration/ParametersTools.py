@@ -63,12 +63,18 @@ def importToolParametersFromFile(filePath, caller = None):
     if("robotTools" in inputParameters.keys()):
         outputParameters["TToolN"] = np.array(inputParameters["robotTools"]).reshape((-1,4,4))
         outputParameters["N_EEPOINTS"] = len(outputParameters["TToolN"])
-        outputParameters["EEItemsNames"] = ["EEPosition" + str(i+1) for i in range(outputParameters["N_EEPOINTS"])]
+        if(outputParameters["N_EEPOINTS"] > 1):
+            outputParameters["EEItemsNames"] = ["EEPosition" + str(i+1) for i in range(outputParameters["N_EEPOINTS"])]
+        else:
+            outputParameters["EEItemsNames"] = ["EEPose"]
     else:
         print("Invalid file path for tools parameters importation, defaulting to no tool.")
         outputParameters["TToolN"] = np.array([np.eye(4)])
         outputParameters["N_EEPOINTS"] = len(outputParameters["TToolN"])
-        outputParameters["EEItemsNames"] = ["EEPosition" + str(i+1) for i in range(outputParameters["N_EEPOINTS"])]
+        if(outputParameters["N_EEPOINTS"] > 1):
+            outputParameters["EEItemsNames"] = ["EEPosition" + str(i+1) for i in range(outputParameters["N_EEPOINTS"])]
+        else:
+            outputParameters["EEItemsNames"] = ["EEPose"]
 
     if(caller is None):
         caller = sys._getframe(1)
