@@ -16,15 +16,16 @@ from pygad import GA
 from simanneal import Annealer
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial, saveParameters
+from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial, getIdentifiableParametersFull, saveParameters
 
 #Custom packages (needing robot and marker parameters inclusions)
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
-from robot_arm_calibration.AnalyticGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
+#from robot_arm_calibration.AnalyticGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
+from robot_arm_calibration.NumericGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
 
 def simplePreconditionning(pose):
     L = 1
-    return(np.hstack([pose[:3],L*pose[3:]]))
+    return(np.hstack([pose[:,:3],L*pose[:,3:]]))
 
 #Remark : for more complex preconditionning, we need to use the chain rule :
 #P_preconditionned(pi,q) = foP(pi,q)
@@ -88,7 +89,7 @@ def computeIdentificationGradient(parameters, Pij, Jointi, preconditionning = No
     @return  The identification jacbobian matrix.
     """
 
-    delta = computeDelta(parameters,Pij,Jointi, preconditionning)
+    delta = computeDelta(parameters,Pij,Jointi,preconditionning)
     gradient = -2*np.dot(computeIdentificationJacobian(parameters,Jointi).T,delta,jacobianPreconditionning)
     #gradient /= np.linalg.norm(gradient)
     return(gradient)
@@ -111,7 +112,7 @@ def computeLearningRate(parameters, Pij, Jointi, preconditionning = None, jacobi
 
 globalAlgorithms = {"BH":"BFGS based Basin-Hopping"}
 
-def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations=10,algorithmName="BH",PijTest=None,JointiTest=None):
+def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations=10,algorithmName="BH",PijTest=None,JointiTest=None,preconditionning=None,jacobianPreconditionning=None):
     """! Performs the robot model parameters identification using the specified global algorithm.
 
     @param initialParameters    The current robot parameters vector.
@@ -126,16 +127,16 @@ def globalIdentifyParameters(initialParameters,PijLear,JointiLear,maxIterations=
 
     print(globalAlgorithms[algorithmName] + " algorithm")
 
-    parameters = globals()[algorithmName](initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest)
+    parameters = globals()[algorithmName](initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest,preconditionning=preconditionning,jacobianPreconditionning=jacobianPreconditionning)
 
-    errorLear = computeError(parameters,PijLear,JointiLear)
+    errorLear = computeError(parameters,PijLear,JointiLear,preconditionning)
     errorTest = None
     if(len(JointiTest)!=0):
-        errorTest = computeError(parameters,PijTest,JointiTest)
+        errorTest = computeError(parameters,PijTest,JointiTest,preconditionning)
 
     return(parameters,errorLear,errorTest)
 
-def BH(initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest):
+def BH(initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest,preconditionning=None,jacobianPreconditionning=None):
     """! Performs the robot model parameters identification using the BFGS based Basin-Hopping algorithm.
 
     @param initialParameters    The current robot parameters vector.
@@ -150,14 +151,14 @@ def BH(initialParameters,PijLear,JointiLear,maxIterations,PijTest,JointiTest):
     """
 
     def function(parameters):
-        return(computeError(parameters,PijLear,JointiLear),computeIdentificationGradient(parameters,PijLear,JointiLear))
+        return(computeError(parameters,PijLear,JointiLear,preconditionning),computeIdentificationGradient(parameters,PijLear,JointiLear,preconditionning,jacobianPreconditionning))
 
     def callback(x,f,accept):
         #Intermediate error
         print("Intermediate error : " + str(f))
 
         if(len(JointiTest)!=0):
-            print("Intermediate test error :  " + str(computeError(x,PijTest,JointiTest)))
+            print("Intermediate test error :  " + str(computeError(x,PijTest,JointiTest,preconditionning)))
 
         return(accept)
 
@@ -173,7 +174,7 @@ localAlgorithms = {"GN":"Gauss-Newton",
                    "BFGS":"Broyden-Fletcher-Goldfarb-Shanno"}
 #TODO Add stochastic gradient descent ? Not relevant here...
 
-def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=100):
+def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=100,preconditionning=None,jacobianPreconditionning=None):
     """! Performs the robot model parameters identification using the specified locally iterative algorithm.
 
     @param initialParameters   The current robot parameters vector.
@@ -202,15 +203,15 @@ def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,
 
         print("Iteration " + str(i+1))
 
-        parameters = globals()[algorithmName](parameters,PijLear,JointiLear)
+        parameters = globals()[algorithmName](parameters,PijLear,JointiLear,preconditionning=preconditionning,jacobianPreconditionning=jacobianPreconditionning)
 
         #Intermediate error
         errorLearPrev = errorLear
-        errorLear = computeError(parameters,PijLear,JointiLear)
+        errorLear = computeError(parameters,PijLear,JointiLear,preconditionning)
         print("Intermediate error :  " + str(errorLear))
 
         if(len(JointiTest)!=0):
-            errorTest = computeError(parameters,PijTest,JointiTest)
+            errorTest = computeError(parameters,PijTest,JointiTest,preconditionning)
             print("Intermediate test error :  " + str(errorTest))
 
         #Stopping criterion
@@ -220,7 +221,7 @@ def localIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,
 
     return(parameters,errorLear,errorTest)
 
-def GN(parameters,Pij,Jointi):
+def GN(parameters,Pij,Jointi,preconditionning=None,jacobianPreconditionning=None):
     """! Performs the robot model parameters identification using the Gauss-Newton algorithm.
 
     @param parameters   The current robot parameters vector.
@@ -230,11 +231,11 @@ def GN(parameters,Pij,Jointi):
     @return  The optimized parameters vector.
     """
     
-    optimizedParameters = parameters + np.dot(np.linalg.pinv(computeIdentificationJacobian(parameters,Jointi)),computeDelta(parameters,Pij,Jointi))
+    optimizedParameters = parameters + np.dot(np.linalg.pinv(computeIdentificationJacobian(parameters,Jointi,jacobianPreconditionning)),computeDelta(parameters,Pij,Jointi,preconditionning))
 
     return(optimizedParameters)
 
-def TLS(parameters,Pij,Jointi,covarianceMatrix = np.eye(3*len(TToolN))):
+def TLS(parameters,Pij,Jointi,covarianceMatrix = np.eye(3*len(TToolN)),preconditionning=None,jacobianPreconditionning=None):
     """! Performs the robot model parameters identification using the Total Least-Squares algorithm.
 
     @param parameters       The current robot parameters vector.
@@ -246,15 +247,15 @@ def TLS(parameters,Pij,Jointi,covarianceMatrix = np.eye(3*len(TToolN))):
     """
 
     covarianceMatrix = np.kron(np.eye(N_LEARNING,dtype=int),covarianceMatrix)
-    J = computeIdentificationJacobian(parameters,Jointi)
+    J = computeIdentificationJacobian(parameters,Jointi,jacobianPreconditionning)
     tJW = np.dot(J.T,np.linalg.inv(covarianceMatrix))
     tJWJ = np.dot(tJW,J)
 
-    optimizedParameters = parameters + np.dot(np.dot(np.linalg.inv(tJWJ),tJW),computeDelta(parameters,Pij,Jointi))
+    optimizedParameters = parameters + np.dot(np.dot(np.linalg.inv(tJWJ),tJW),computeDelta(parameters,Pij,Jointi,preconditionning))
 
     return(optimizedParameters)
 
-def GD(parameters,Pij,Jointi):
+def GD(parameters,Pij,Jointi,preconditionning=None,jacobianPreconditionning=None):
     """! Performs the robot model parameters identification using the gradient descent algorithm.
 
     @param parameters   The current robot parameters vector.
@@ -264,12 +265,12 @@ def GD(parameters,Pij,Jointi):
     @return  The optimized parameters vector.
     """
 
-    alpha = computeLearningRate(parameters,Pij,Jointi)
-    optimizedParameters = parameters - alpha*computeIdentificationGradient(parameters,Pij,Jointi)
+    alpha = computeLearningRate(parameters,Pij,Jointi,preconditionning,jacobianPreconditionning)
+    optimizedParameters = parameters - alpha*computeIdentificationGradient(parameters,Pij,Jointi,preconditionning,jacobianPreconditionning)
 
     return(optimizedParameters)
 
-def LM(parameters,Pij,Jointi):
+def LM(parameters,Pij,Jointi,preconditionning=None,jacobianPreconditionning=None):
     """! Performs the robot model parameters identification using the Levendberg-Marquardt algorithm.
 
     @param parameters   The current robot parameters vector.
@@ -279,8 +280,8 @@ def LM(parameters,Pij,Jointi):
     @return  The optimized parameters vector.
     """
 
-    delta = computeDelta(parameters,Pij,Jointi)
-    J = computeIdentificationJacobian(parameters,Jointi)
+    delta = computeDelta(parameters,Pij,Jointi,preconditionning)
+    J = computeIdentificationJacobian(parameters,Jointi,jacobianPreconditionning)
     JtJ = np.dot(J,J.T)
     alpha = np.dot(np.dot(delta.T,JtJ),delta)/(2*np.dot(np.dot(delta.T,np.dot(JtJ,JtJ)),delta))
 
@@ -289,7 +290,7 @@ def LM(parameters,Pij,Jointi):
 
     return(optimizedParameters)
 
-def BFGS(parameters,Pij,Jointi):
+def BFGS(parameters,Pij,Jointi,preconditionning=None,jacobianPreconditionning=None):
     """! Performs the robot model parameters identification using the Broyden-Fletcher-Goldfarb-Shanno algorithm.
 
     @param parameters   The current robot parameters vector.
@@ -299,8 +300,8 @@ def BFGS(parameters,Pij,Jointi):
     @return  The optimized parameters vector.
     """
 
-    delta = computeDelta(parameters,Pij,Jointi)
-    J = computeIdentificationJacobian(parameters,Jointi)
+    delta = computeDelta(parameters,Pij,Jointi,preconditionning)
+    J = computeIdentificationJacobian(parameters,Jointi,jacobianPreconditionning)
     gradient = -2*np.dot(J.T,delta)
 
     try:
@@ -322,8 +323,8 @@ def BFGS(parameters,Pij,Jointi):
     optimizedParameters = parameters + alpha*d
 
     #Update B matrix
-    delta = computeDelta(optimizedParameters,Pij,Jointi)
-    J = computeIdentificationJacobian(optimizedParameters,Jointi)
+    delta = computeDelta(optimizedParameters,Pij,Jointi,preconditionning)
+    J = computeIdentificationJacobian(optimizedParameters,Jointi,jacobianPreconditionning)
     newGradient = -2*np.dot(J.T,delta)
 
     deltaGradient = np.array([newGradient - gradient]).T
@@ -337,7 +338,7 @@ localAlgorithmsLib = {"CG_scipy":"Conjugate gradient",
                       "BFGS_scipy":"Broyden-Fletcher-Goldfarb-Shanno",
                       "IP_ipopt":"Interior point"}
 
-def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=100):
+def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e-8,algorithmName="GN",PijTest=None,JointiTest=None,maxIterations=100,preconditionning=None,jacobianPreconditionning=None):
     """! Performs the robot model parameters identification using the specified locally iterative algorithm.
 
     @param initialParameters   The current robot parameters vector.
@@ -363,22 +364,22 @@ def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e
     result = None
 
     def function_min(parameters):
-        return(computeError(parameters,PijLear,JointiLear))
+        return(computeError(parameters,PijLear,JointiLear,preconditionning))
     
     def jacobian_min(parameters):
-        return(computeIdentificationGradient(parameters,PijLear,JointiLear))
+        return(computeIdentificationGradient(parameters,PijLear,JointiLear,preconditionning,jacobianPreconditionning))
     
     def function_res(parameters):
-        return(computeDelta(parameters,PijLear,JointiLear))
+        return(computeDelta(parameters,PijLear,JointiLear,preconditionning))
 
     def jacobian_res(parameters):
-        return(computeIdentificationJacobian(parameters,JointiLear))
+        return(computeIdentificationJacobian(parameters,JointiLear,jacobianPreconditionning))
     
     def callback(IntermediateResult):
-        print("Intermediate error : " + str(computeError(IntermediateResult,PijLear,JointiLear)))
+        print("Intermediate error : " + str(computeError(IntermediateResult,PijLear,JointiLear,preconditionning)))
 
         if(len(JointiTest)!=0):
-            print("Intermediate test error :  " + str(computeError(IntermediateResult,PijTest,JointiTest)))
+            print("Intermediate test error :  " + str(computeError(IntermediateResult,PijTest,JointiTest,preconditionning)))
 
     if(algorithmName.split("_")[1] == "scipy"):
         method = algorithmName.split("_")[0]
@@ -390,9 +391,9 @@ def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e
             result = minimize(function_min, x0=initialParameters, method=method.lower(), jac=jacobian_min, tol=stopDelta, callback=callback)
 
         optimizedParameters = result.x
-        errorLear = computeError(optimizedParameters,PijLear,JointiLear)
+        errorLear = computeError(optimizedParameters,PijLear,JointiLear,preconditionning)
         if(len(JointiTest)!=0):
-            errorTest = computeError(optimizedParameters,PijTest,JointiTest)
+            errorTest = computeError(optimizedParameters,PijTest,JointiTest,preconditionning)
 
         return(parameters,errorLear,errorTest)
 
@@ -402,7 +403,7 @@ def localLibIdentifyParameters(initialParameters,PijLear,JointiLear,stopDelta=1e
         # optimizedParameters = result.x
         # errorLear = result.fun
         # if(len(JointiTest)!=0):
-        #     errorTest = computeError(optimizedParameters,PijTest,JointiTest)
+        #     errorTest = computeError(optimizedParameters,PijTest,JointiTest,preconditionning)
 
         return(parameters,errorLear,errorTest)
 
@@ -427,6 +428,14 @@ if __name__ == "__main__":
         sys.exit(-1)
     print("Done !")
 
+    ### Set preconditionning
+    if(len(TToolN) > 1):
+        preconditionning = None
+        jacobianPreconditionning = None
+    else:
+        preconditionning = simplePreconditionning
+        jacobianPreconditionning = simpleJacobianPreconditionning
+
     estimateTBaseN = 0
     try:
         estimateTBaseN = int(sys.argv[1])
@@ -434,9 +443,13 @@ if __name__ == "__main__":
         print("Skipping robot base transform estimation...")
 
     ### Robot base, robot parameters and end effector points transformations estimations
-    parameters0 = getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN)
+    if(len(TToolN) > 1):
+        parameters0 = getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN)
+    else:
+        parameters0 = getIdentifiableParametersFull(TBaseN,TFlangeN,TToolN,piN)
 
     #Estimate the transformation between the sensor reference and the robot base
+    #TODO Fill pose measurement version
     if(estimateTBaseN != 0):
 
         EEPoints0 = []
@@ -488,7 +501,10 @@ if __name__ == "__main__":
     print("Test on first measurement :")
     for i,item in enumerate(EEItemsNames):
         print("Delta end effector point " + item)
-        print(Items[item][0] - Pfunc(parameters0,Items["jointsPositions"][0])[3*i:3*i+3].T[0])
+        if(len(TToolN) > 1):
+            print(Items[item][0] - Pfunc(parameters0,Items["jointsPositions"][0])[3*i:3*i+3].T[0])
+        else:
+            print(Items[item][0] - Pfunc(parameters0,Items["jointsPositions"][0]))
 
     print("---")
 
@@ -497,13 +513,21 @@ if __name__ == "__main__":
     randomIndex = np.random.randint(0,N_MEASUREMENTS)
     for i,item in enumerate(EEItemsNames):
         print("End effector point " + item)
-        print(Items[item][randomIndex] - Pfunc(parameters0,Items["jointsPositions"][randomIndex])[3*i:3*i+3].T[0])
+        if(len(TToolN) > 1):
+            print(Items[item][randomIndex] - Pfunc(parameters0,Items["jointsPositions"][randomIndex])[3*i:3*i+3].T[0])
+        else:
+            print(Items[item][randomIndex] - Pfunc(parameters0,Items["jointsPositions"][randomIndex]))
 
     tmp = input()
 
-    PijLear = np.empty((N_LEARNING,N_EEPOINTS,3))
+    if(len(TToolN) > 1):
+        PijLear = np.empty((N_LEARNING,N_EEPOINTS,3))
+        PijTest = np.empty((N_TESTS,N_EEPOINTS,3))
+    else:
+        PijLear = np.empty((N_LEARNING,N_EEPOINTS,6))
+        PijTest = np.empty((N_TESTS,N_EEPOINTS,6))
+    
     JointiLear = np.empty((N_LEARNING,JOINTS_NUMBER))
-    PijTest = np.empty((N_TESTS,N_EEPOINTS,3))
     JointiTest = np.empty((N_TESTS,JOINTS_NUMBER))
 
     randomIndices = np.random.permutation(N_LEARNING+N_TESTS)
@@ -522,11 +546,11 @@ if __name__ == "__main__":
         JointiTest = Items["jointsPositions"][indexTest]
 
     #Initial error
-    initialError = computeError(parameters0,PijLear,JointiLear)
+    initialError = computeError(parameters0,PijLear,JointiLear,preconditionning)
     print("Initial error : " + str(initialError))
 
     if(len(JointiTest)!=0):
-        errorTest = computeError(parameters0,PijTest,JointiTest)
+        errorTest = computeError(parameters0,PijTest,JointiTest,preconditionning)
         print("Initial test error : " + str(errorTest))
 
     ### Retreive identification parameters
@@ -569,7 +593,7 @@ if __name__ == "__main__":
             #...But optimized !
             geneticAlgorithm = GA(num_generations=20,
                                 num_parents_mating=int(max(10,2*initialisations)/2),
-                                fitness_func=lambda instance, solution, solution_idx : (-1)*computeError(parameters0 + solution,PijLear,JointiLear),
+                                fitness_func=lambda instance, solution, solution_idx : (-1)*computeError(parameters0 + solution,PijLear,JointiLear,preconditionning),
                                 initial_population=initialisationDeltas,
                                 init_range_low=-1,
                                 init_range_high=1,
@@ -580,9 +604,9 @@ if __name__ == "__main__":
             #Run parameters identification (in parallel)
             def tmp(x):
                 if(algorithmType == "local"):
-                    return localIdentifyParameters(parameters0 + x,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+                    return localIdentifyParameters(parameters0 + x,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest,preconditionning=preconditionning,jacobianPreconditionning=jacobianPreconditionning)
                 else:
-                    return localLibIdentifyParameters(parameters0 + x,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+                    return localLibIdentifyParameters(parameters0 + x,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest,preconditionning=preconditionning,jacobianPreconditionning=jacobianPreconditionning)
                 
             with Pool(processes=os.cpu_count()-1) as pool:
                 identificationOutputs = pool.map(tmp,bestInitialisationDeltas)
@@ -596,9 +620,9 @@ if __name__ == "__main__":
                     finalError = output[1]
         
         if(algorithmType == "local"):
-            parameters,finalError,finalTestError = localIdentifyParameters(initialParamters,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+            parameters,finalError,finalTestError = localIdentifyParameters(initialParamters,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest,preconditionning=preconditionning,jacobianPreconditionning=jacobianPreconditionning)
         else:
-            parameters,finalError,finalTestError = localLibIdentifyParameters(initialParamters,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest)
+            parameters,finalError,finalTestError = localLibIdentifyParameters(initialParamters,PijLear,JointiLear,stopDelta,algorithmName,PijTest,JointiTest,preconditionning=preconditionning,jacobianPreconditionning=jacobianPreconditionning)
 
     elif(algorithmType == "global"):
         maxIterations = 10
@@ -607,7 +631,7 @@ if __name__ == "__main__":
         except:
             print("No maximum iterations number given, defaulting to " + str(maxIterations))
 
-        parameters,finalError,finalTestError = globalIdentifyParameters(parameters0,PijLear,JointiLear,maxIterations,algorithmName,PijTest,JointiTest)
+        parameters,finalError,finalTestError = globalIdentifyParameters(parameters0,PijLear,JointiLear,maxIterations,algorithmName,PijTest,JointiTest,preconditionning=preconditionning,jacobianPreconditionning=jacobianPreconditionning)
 
     #Final error
     print("Final error : " + str(finalError))
@@ -621,26 +645,34 @@ if __name__ == "__main__":
 
     #Robot base
     PBase = np.array([parameters[:3]]).T
-    RBase = R.from_rotvec(parameters[3:6]).as_matrix()  #TODO Adapt to MRP !
+    RBase = R.from_mrp(parameters[3:6]).as_matrix() 
     TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
 
     #Robot geometric parameters
     pi = parameters[6:6+len(piN)]
 
     #Robot flange and tool
-    TFlangeList = np.empty(np.shape(TToolN))
-    TTool = np.empty(np.shape(TToolN))
-    for i,P in enumerate(np.reshape(parameters[6+len(piN):],(-1,3))):
-        TTool[i] = np.dot(TFlangeN,TToolN[i])
-        TTool[i][:3,-1] = P
-        TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN[i]))
-    TFlange = np.average(TFlangeList,axis=0)
+    if(len(TToolN) > 1):
+        TFlangeList = np.empty(np.shape(TToolN))
+        TTool = np.empty(np.shape(TToolN))
+        for i,P in enumerate(np.reshape(parameters[6+len(piN):],(-1,3))):
+            TTool[i] = np.dot(TFlangeN,TToolN[i])
+            TTool[i][:3,-1] = P
+            TFlangeList[i] = np.dot(TTool[i],np.linalg.inv(TToolN[i]))
+        TFlange = np.average(TFlangeList,axis=0)
 
-    saveParameters(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml", TBase = TBase, TFlange = TFlange, pi = pi, TTool = TToolN)
+        saveParameters(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml", TBase = TBase, TFlange = TFlange, pi = pi, TTool = TTool)
+    else:
+        PFlangeTool = np.array([parameters[6+len(piN):9+len(piN)]]).T
+        RFlangeTool = R.from_mrp(parameters[9+len(piN):12+len(piN)]).as_matrix()
+        TFlangeTool = np.vstack((np.hstack((RFlangeTool,PFlangeTool)),np.array([[0,0,0,1]])))
+
+        TFlange = np.dot(TFlangeTool,np.linalg.inv(TToolN))
+        saveParameters(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml", TBase = TBase, TFlange = TFlange, pi = pi, TTool = TToolN)
 
     #Additionnal parameters/information
     calibratedModel = {}
-    calibratedModel["TLastLinkTools"] = TTool.flatten().tolist()
+    #calibratedModel["TLastLinkTools"] = TTool.flatten().tolist()
     if(estimateTBaseN != 0):
         calibratedModel["TBaseSensor"] = TBaseSensor.flatten().tolist()
 

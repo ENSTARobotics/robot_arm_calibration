@@ -183,7 +183,7 @@ def getIdentifiableParametersFull(TBase,TFlange,TTool,pi):
     @return     The identifiable parameters vector.
     """
 
-    TFlangeTool = np.dot(TFlange,TTool)
+    TFlangeTool = np.dot(TFlange,TTool[0])
     PFlangeTool = TFlangeTool[:3,-1]
     RFlangeTool = R.from_matrix(TFlangeTool[:3,:3])
 
