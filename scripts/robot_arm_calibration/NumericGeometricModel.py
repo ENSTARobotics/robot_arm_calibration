@@ -158,9 +158,9 @@ def PfuncPartial(parameters, q):
     """
 
     #Robot base
-    PBase = np.array([parameters[:3]]).T
-    RBase = R.from_rotvec(parameters[3:6]).as_matrix()  #TODO Adapt to MRP !
-    TBase = np.vstack((np.hstack((RBase,PBase)),np.array([[0,0,0,1]])))
+    TBase = np.eye(4)
+    TBase = TBase.at[:3,-1].set(parameters[:3])
+    TBase = TBase.at[:3,:3].set(R.from_mrp(parameters[3:6]).as_matrix())
 
     #Robot geometric parameters
     pi = parameters[6:6+len(piN)]
