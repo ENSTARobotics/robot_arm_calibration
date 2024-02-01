@@ -21,7 +21,7 @@ from robot_arm_calibration.ParametersTools import getIdentifiableParametersParti
 #Custom packages (needing robot and marker parameters inclusions)
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
 #from robot_arm_calibration.AnalyticGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
-from robot_arm_calibration.NumericGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
+from robot_arm_calibration.NumericGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER, JOINTS_AXIS, JOINTS_OFFSET, LINKS_TRANSLATIONS, LINKS_ROTATIONS
 
 def simplePreconditionning(pose):
     L = 1
@@ -63,6 +63,7 @@ def computeError(parameters, Pij, Jointi, preconditionning = None):
     """
 
     delta = computeDelta(parameters,Pij,Jointi,preconditionning)
+    print(delta)
     return(np.dot(delta.T,delta))
 
 def computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning = None):
@@ -436,9 +437,9 @@ if __name__ == "__main__":
         preconditionning = simplePreconditionning
         jacobianPreconditionning = simpleJacobianPreconditionning
 
-    estimateTBaseN = 0
+    estimateTBaseOffset = 0
     try:
-        estimateTBaseN = int(sys.argv[1])
+        estimateTBaseOffset = int(sys.argv[1])
     except:
         print("Skipping robot base transform estimation...")
 
@@ -449,33 +450,63 @@ if __name__ == "__main__":
         parameters0 = getIdentifiableParametersFull(TBaseN,TFlangeN,TToolN,piN)
 
     #Estimate the transformation between the sensor reference and the robot base
-    #TODO Fill pose measurement version
-    if(estimateTBaseN != 0):
+    if(estimateTBaseOffset != 0):
+        print("Estimating sensor to base transformation...")
+        TBaseSensor = np.eye(4)
 
-        EEPoints0 = []
-        EEPoints1 = []
-        for i,configuration in enumerate(Items["jointsPositions"]):
-            TBaseFlange = np.dot(TBaseN,np.dot(Tfunc(parameters0,configuration),TFlangeN))
-            EEPoints0.extend(np.vstack([np.dot(np.dot(TBaseFlange,TTool),np.array([[0,0,0,1]]).T)[:-1].T for TTool in TToolN]))
-            for j,item in enumerate(EEItemsNames):
-                EEPoints1.append(Items[item][i])
+        if(len(TToolN) > 1):
+            EEPoints0 = []
+            EEPoints1 = []
+            for i,configuration in enumerate(Items["jointsPositions"]):
+                TBaseFlange = np.dot(TBaseN,np.dot(Tfunc(parameters0,configuration),TFlangeN))
+                EEPoints0.extend(np.vstack([np.dot(np.dot(TBaseFlange,TTool),np.array([[0,0,0,1]]).T)[:-1].T for TTool in TToolN]))
+                for j,item in enumerate(EEItemsNames):
+                    EEPoints1.append(Items[item][i])
 
-        EEPoints0 = np.array(EEPoints0)
-        EEPoints1 = np.array(EEPoints1)
-    
-        #Does not enforce rotation matrix constraints
-        #TSensorBase = np.dot(np.hstack([EEPoints1,np.ones((len(EEPoints1),1))]).T,np.linalg.pinv(np.hstack([np.dot(np.dot(TFlangeBase,TTool),np.array([[0,0,0,1]]).T) for TTool in TToolN])))
+            EEPoints0 = np.array(EEPoints0)
+            EEPoints1 = np.array(EEPoints1)
+        
+            #Does not enforce rotation matrix constraints
+            #TSensorBase = np.dot(np.hstack([EEPoints1,np.ones((len(EEPoints1),1))]).T,np.linalg.pinv(np.hstack([np.dot(np.dot(TFlangeBase,TTool),np.array([[0,0,0,1]]).T) for TTool in TToolN])))
 
-        #Enforces rotation matrix constraints !
-        EEPoints1Centroid = np.mean(EEPoints1,axis=0)
-        EEPoints0Centroid = np.mean(EEPoints0,axis=0)
+            #Enforces rotation matrix constraints !
+            EEPoints1Centroid = np.mean(EEPoints1,axis=0)
+            EEPoints0Centroid = np.mean(EEPoints0,axis=0)
 
-        U,S,V = np.linalg.svd(np.dot((EEPoints0 - EEPoints0Centroid).T,(EEPoints1 - EEPoints1Centroid)))
+            U,S,V = np.linalg.svd(np.dot((EEPoints0 - EEPoints0Centroid).T,(EEPoints1 - EEPoints1Centroid)))
 
-        TSensorBase = np.eye(4)
-        TSensorBase[:3,:3] = np.dot(np.dot(V.T,np.diag(np.append(np.ones(len(S)-1),np.linalg.det(np.dot(V.T,U.T))))),U.T)
-        TSensorBase[:3,-1] = EEPoints1Centroid - np.dot(TSensorBase[:3,:3],EEPoints0Centroid)
-        TBaseSensor = np.linalg.inv(TSensorBase)
+            TSensorBase = np.eye(4)
+            TSensorBase[:3,:3] = np.dot(np.dot(V.T,np.diag(np.append(np.ones(len(S)-1),np.linalg.det(np.dot(V.T,U.T))))),U.T)
+            TSensorBase[:3,-1] = EEPoints1Centroid - np.dot(TSensorBase[:3,:3],EEPoints0Centroid)
+            TBaseSensor = np.linalg.inv(TSensorBase)
+
+        else:
+            PBaseSensor = []
+            RBaseSensor = []
+            for i,configuration in enumerate(Items["jointsPositions"]):
+                EEPose0 = np.dot(TBaseN,np.dot(Tfunc(parameters0,configuration),TFlangeN))
+                EEPose0 = np.dot(EEPose0,TToolN[0])
+
+                EEPose1 = np.eye(4)
+                EEPose1[:3,-1] = Items[EEItemsNames[0]][i][:3]
+                EEPose1[:3,:3] = R.from_mrp(Items[EEItemsNames[0]][i][3:]).as_matrix()
+
+                #TBaseSensor = TBaseTool * TToolSensor
+                DeltaEEPose = np.dot(EEPose0,np.linalg.inv(EEPose1))
+                PBaseSensor.append(DeltaEEPose[:3,-1])
+                RBaseSensor.append(DeltaEEPose[:3,:3])
+
+            PBaseSensor = np.array(PBaseSensor)
+            RBaseSensor = np.array(RBaseSensor)
+            
+            #Compute average transformation over all measurements
+            PBaseSensor = np.average(PBaseSensor,axis=0)
+            RBaseSensor = np.average(RBaseSensor)
+            U,S,V = np.linalg.svd(RBaseSensor)
+            RBaseSensor = np.dot(U,V.T)
+
+            TBaseSensor[:3,-1] = PBaseSensor
+            TBaseSensor[:3,:3] = RBaseSensor        
 
         print("Sensor to base transformation estimation : \n" + str(TBaseSensor))
 
@@ -518,7 +549,7 @@ if __name__ == "__main__":
         else:
             print(Items[item][randomIndex] - Pfunc(parameters0,Items["jointsPositions"][randomIndex]))
 
-    tmp = input()
+    tmp = input("Press enter to continue.")
 
     if(len(TToolN) > 1):
         PijLear = np.empty((N_LEARNING,N_EEPOINTS,3))
@@ -664,7 +695,7 @@ if __name__ == "__main__":
         saveParameters(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml", TBase = TBase, TFlange = TFlange, pi = pi, TTool = TTool)
     else:
         PFlangeTool = np.array([parameters[6+len(piN):9+len(piN)]]).T
-        RFlangeTool = R.from_mrp(parameters[9+len(piN):12+len(piN)]).as_matrix()
+        RFlangeTool = R.from_mrp(parameters[9+len(piN):]).as_matrix()
         TFlangeTool = np.vstack((np.hstack((RFlangeTool,PFlangeTool)),np.array([[0,0,0,1]])))
 
         TFlange = np.dot(TFlangeTool,np.linalg.inv(TToolN))
@@ -673,8 +704,9 @@ if __name__ == "__main__":
     #Additionnal parameters/information
     calibratedModel = {}
     #calibratedModel["TLastLinkTools"] = TTool.flatten().tolist()
-    if(estimateTBaseN != 0):
-        calibratedModel["TBaseSensor"] = TBaseSensor.flatten().tolist()
+    if(estimateTBaseOffset != 0):
+        #robotBaseOffset = TSensorBase
+        calibratedModel["robotBaseOffset"] = np.linalg.inv(TBaseSensor).flatten().tolist()
 
     calibratedModel["initialError"] = float(initialError)
     calibratedModel["finalError"] = float(finalError)
