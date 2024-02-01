@@ -46,6 +46,31 @@ def importRobotParametersFromFile(filePath, caller = None):
     caller.f_globals.update(outputParameters)
     caller.f_globals.update({"robotName":os.path.basename(filePath).split("_")[0]})
 
+def importRobotBaseParametersFromFile(filePath, caller = None):
+    inputParameters = None
+
+    try:
+        with open(filePath,'r') as file:
+            inputParameters = yaml.load(file, Loader=yaml.FullLoader)
+
+        if(inputParameters is None):
+            raise ValueError
+    except:
+        print("Invalid file path for robot base parameters importation !")
+        sys.exit(-1)
+
+    outputParameters = {}
+
+    if("robotBaseOffset" in inputParameters.keys()):
+        outputParameters["TBaseOffset"] = np.array(inputParameters["robotBaseOffset"]).reshape((4,4))
+    else:
+        outputParameters["TBaseOffset"] = np.eye(4)
+
+    if(caller is None):
+        caller = sys._getframe(1)
+
+    caller.f_globals.update(outputParameters)
+
 def importToolParametersFromFile(filePath, caller = None):
     inputParameters = None
 
@@ -88,6 +113,7 @@ def importAllParametersFromFile(filePath, caller = None):
         caller = sys._getframe(1)
 
     importRobotParametersFromFile(filePath, caller)
+    importRobotBaseParametersFromFile(filePath, caller)
     importToolParametersFromFile(filePath, caller)
 
     splitName = os.path.basename(os.path.dirname(filePath)).split("_")
@@ -105,6 +131,7 @@ def importParameters(robotName = "", toolName = ""):
 
     try:
         importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
+        importRobotBaseParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_base_parameters.yaml", caller)
         importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
 
     except:
@@ -118,11 +145,12 @@ def importParameters(robotName = "", toolName = ""):
         toolName = "_".join(currentParameters[1:])  
 
         importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
+        importRobotBaseParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_base_parameters.yaml", caller)
         importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
 
     caller.f_globals.update({"robotName":robotName,"toolName":toolName}) 
 
-def saveParameters(filePath, TBase = None, TFlange = None, pi = None, TTool = None):
+def saveParameters(filePath, TBase = None, TFlange = None, pi = None, TTool = None, TBaseOffset = None  ):
 
     #Robot model
     outputParameters = {}
@@ -134,6 +162,8 @@ def saveParameters(filePath, TBase = None, TFlange = None, pi = None, TTool = No
     #Robot parameters
     if(TBase is not None):
         outputParameters["robotBase"] = TBase.flatten().tolist()
+    if(TBaseOffset is not None):
+        outputParameters["robotBaseOffset"] = TBaseOffset.flatten().tolist()
     if(TFlange is not None):
         outputParameters["robotFlange"] = TFlange.flatten().tolist()
     if(pi is not None):
