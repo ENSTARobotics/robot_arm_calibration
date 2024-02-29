@@ -10,6 +10,11 @@ from multiprocessing import Pool
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+# Gradient packages
+from jax import jacfwd
+import jax.numpy as jnp
+from jax.scipy.spatial.transform import Rotation as jR
+
 # Optimization packages
 # from cyipopt import minimize_ipopt
 from scipy.optimize import basinhopping, minimize, least_squares
@@ -50,8 +55,44 @@ def simplePreconditionning(pose):
 
 
 def sphericPreconditionning(pose):
-    # TODO
-    return np.hstack([pose[:, :3], pose[:, 3:]])
+    position = pose[:3]
+    rotation = jR.from_mrp(pose[3:]).as_matrix()
+
+    # Re-orient rotation matrix to match spheric coordinates
+    rotation = rotation.at[:, 2].set(rotation[:, 2] * (-1))
+    rotation = rotation.at[:, 0].set(rotation[:, 0] * (-1))
+
+    # Find theta s.t. R*Rz(theta)[2,1] = 0 = -sin(theta)*x[2] + cos(theta)*y[2]
+    # => tan(theta) = y[2]/x[2]
+    # Also, R*Rz(theta)[2,0] < 0 => cos(theta)*x[0] + sin(theta)*y[0] < 0
+    # => theta = pi + atan(y[2]/x[2])
+    theta = jnp.pi + jnp.arctan2(rotation[2, 1], rotation[2, 0])
+    rotation = jnp.dot(
+        rotation,
+        jnp.array(
+            [
+                [jnp.cos(theta), -jnp.sin(theta), 0],
+                [jnp.sin(theta), jnp.cos(theta), 0],
+                [0, 0, 1],
+            ]
+        ),
+    )
+
+    # Find intersection between e_r and z=0 plane
+    # => (p + t*z)[2] = 0 => t = -p[2]/z[2]
+    # inter = p + (-p[2]/z[2])*z
+    # A priori, we have position[2] > 0 and rotation[2,2] > 0 (after fix to match spheric coordinates)
+    # origin = position + (-position[2]/rotation[2,2])*rotation[:,2]
+
+    # Spheric coordinates
+    r = position[2] / rotation[2, 2]
+    theta = jnp.arccos(rotation[2, 2])
+    phi = jnp.arccos(rotation[0, 2] / jnp.sin(theta))
+
+    return jnp.append(jnp.array([r, theta, phi]), jR.from_matrix(rotation).as_mrp())
+
+
+partialSphericJacobianPreconditionning = jacfwd(sphericPreconditionning)
 
 
 # Remark : for more complex preconditionning, we need to use the chain rule :
@@ -65,6 +106,7 @@ def simpleJacobianPreconditionning(pose, jacobian):
 def sphericJacobianPreconditionning(pose, jacobian):
     # TODO
     return np.vstack([jacobian[:3], L * jacobian[3:]])
+    return np.dot(partialSphericJacobianPreconditionning(pose), jacobian)
 
 
 defaultPreconditionning = simplePreconditionning
