@@ -45,7 +45,7 @@ from robot_arm_calibration.NumericGeometricModel import (
 
 
 def simplePreconditionning(pose):
-    L = 0.75
+    L = 1.0
     return np.hstack([pose[:, :3], L * pose[:, 3:]])
 
 
@@ -57,14 +57,14 @@ def sphericPreconditionning(pose):
 # Remark : for more complex preconditionning, we need to use the chain rule :
 # P_preconditionned(pi,q) = foP(pi,q)
 # JP_preconditionned(pi,q) = J(foP(pi,q)) = JfoP(pi,q)*JP(pi,q) = Jf(P(pi,q))*JP(pi,q)
-def simpleJacobianPreconditionning(jacobian):
-    L = 0.75
+def simpleJacobianPreconditionning(pose, jacobian):
+    L = 1.0
     return np.vstack([jacobian[:3], L * jacobian[3:]])
 
 
-def sphericJacobianPreconditionning(jacobian):
+def sphericJacobianPreconditionning(pose, jacobian):
     # TODO
-    return np.vstack([jacobian[:3], jacobian[3:]])
+    return np.vstack([jacobian[:3], L * jacobian[3:]])
 
 
 defaultPreconditionning = simplePreconditionning
@@ -117,9 +117,11 @@ def computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning=N
         return np.vstack([Jfunc(parameters, q) for q in Jointi])
     else:
         return np.vstack(
-            [jacobianPreconditionning(Jfunc(parameters, q)) for q in Jointi]
+            [
+                jacobianPreconditionning(Pfunc(parameters, q), Jfunc(parameters, q))
+                for q in Jointi
+            ]
         )
-
 
 def computeIdentificationGradient(
     parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=None
@@ -777,8 +779,7 @@ if __name__ == "__main__":
 
     ### Create learning and testing subsets
     N_MEASUREMENTS = len(Items["jointsPositions"])
-    # N_LEARNING = min(N_MEASUREMENTS, 2 * len(parameters0))
-    N_LEARNING = 10
+    N_LEARNING = min(N_MEASUREMENTS, 2 * len(parameters0))
     N_TESTS = 0
 
     print("Number of experiments : " + str(N_LEARNING))
@@ -820,7 +821,9 @@ if __name__ == "__main__":
             print(
                 defaultPreconditionning(np.array([Items[item][randomIndex]]))
                 - defaultPreconditionning(
-                    np.array([Pfunc(parameters0, Items["jointsPositions"][randomIndex])])
+                    np.array(
+                        [Pfunc(parameters0, Items["jointsPositions"][randomIndex])]
+                    )
                 )
             )
 
