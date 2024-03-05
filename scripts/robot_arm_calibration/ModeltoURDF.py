@@ -145,6 +145,10 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, inputURDFFilePath,
 
     #Adding actuated joints to the robot model
     linksNames = np.array([link.name for link in robot.links])
+
+    fixedJoints = np.array([joint for joint in robot.joints if joint.joint_type == "fixed"])
+    fixedJointsParentNames = np.array([joint.parent for joint in robot.joints if joint.joint_type == "fixed"])
+
     for i,joint in enumerate(actuatedJoints):
 
         globalTRobot = np.dot(globalTRobot,joint.origin)
@@ -173,6 +177,28 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, inputURDFFilePath,
         #Collision parameters
         for collision in link.collisions:
             collision.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,collision.origin))
+
+        #Sometimes, and additional "fake" joint is added to the URDF file to handle collisions !
+        linkFixedJoint = fixedJoints[np.where(fixedJointsParentNames == link.name)[0]]
+
+        for fixedJoint in linkFixedJoint:
+
+            #Not needed : it always an identity matrix
+            #fixedJoint.origin = Joints[i].tranformationMatrix
+            #fixedJoint.axis = Joints[i].axis
+
+            fixedLink = robot.links[np.where(linksNames == fixedJoint.child)[0][0]]
+        
+            #Inertial parameters
+            fixedLink.inertial.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,fixedLink.inertial.origin))
+
+            #Visual parameters
+            for visual in fixedLink.visuals:  
+                visual.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,visual.origin))      
+
+            #Collision parameters
+            for collision in fixedLink.collisions:
+                collision.origin = np.dot(np.linalg.inv(globalTN),np.dot(globalTRobot,collision.origin))
 
 
     #Adding flange joints to the robot model
