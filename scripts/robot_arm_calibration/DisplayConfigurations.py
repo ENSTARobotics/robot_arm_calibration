@@ -112,7 +112,7 @@ elif(plotMode == "mesh"):
     cfg = {}
 
     for configuration in Configurations:
-        robot = URDF.load('/tmp/tmp.urdf')
+        robot = URDF.load('/tmp/tmp.urdf',True)
 
         for i,joint in enumerate(robot.actuated_joints):
             cfg[joint.name] = configuration[i]

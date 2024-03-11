@@ -238,7 +238,7 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, inputURDFFilePath,
 
     if(show):
 
-        robot = URDF.load(outputURDFFilePath)
+        robot = URDF.load(outputURDFFilePath,True)
 
         import trimesh
         scene = trimesh.Scene()
