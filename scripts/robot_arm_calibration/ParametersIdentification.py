@@ -104,8 +104,6 @@ def simpleJacobianPreconditionning(pose, jacobian):
 
 
 def sphericJacobianPreconditionning(pose, jacobian):
-    # TODO
-    return np.vstack([jacobian[:3], L * jacobian[3:]])
     return np.dot(partialSphericJacobianPreconditionning(pose), jacobian)
 
 
@@ -164,6 +162,7 @@ def computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning=N
                 for q in Jointi
             ]
         )
+
 
 def computeIdentificationGradient(
     parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=None
