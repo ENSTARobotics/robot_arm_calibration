@@ -5,7 +5,7 @@ import numpy as np
 TToolN = np.array([np.eye(4)])
 
 N_EEPOINTS = 1
-EEItemsNames = ["EEPose"]
+EEItemsNames = ["EEPose","AimedPosition"]
 
 from robot_arm_calibration.ParametersTools import saveParameters
 import os
