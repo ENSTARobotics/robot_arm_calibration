@@ -54,7 +54,7 @@ def simplePreconditionning(pose):
     return np.hstack([pose[:, :3], L * pose[:, 3:]])
 
 
-def sphericPreconditionning(pose):
+def halfSphericPreconditionning(pose):
     position = pose[:3]
     rotation = jR.from_mrp(pose[3:]).as_matrix()
 
@@ -92,8 +92,12 @@ def sphericPreconditionning(pose):
     return jnp.append(jnp.array([r, theta, phi]), jR.from_matrix(rotation).as_mrp())
 
 
-partialSphericJacobianPreconditionning = jacfwd(sphericPreconditionning)
+JhalfSphericPreconditionning = jacfwd(halfSphericPreconditionning)
 
+
+def sphericPreconditionning(pose,aimedPosition):
+    #TODO
+    return(simplePreconditionning(pose))
 
 # Remark : for more complex preconditionning, we need to use the chain rule :
 # P_preconditionned(pi,q) = foP(pi,q)
@@ -103,8 +107,13 @@ def simpleJacobianPreconditionning(pose, jacobian):
     return np.vstack([jacobian[:3], L * jacobian[3:]])
 
 
-def sphericJacobianPreconditionning(pose, jacobian):
-    return np.dot(partialSphericJacobianPreconditionning(pose), jacobian)
+def halfSphericJacobianPreconditionning(pose, jacobian):
+    return np.dot(JhalfSphericPreconditionning(pose), jacobian)
+
+
+def sphericalJacobianPreconditionning(pose, jacobian, aimedPosition):
+    #TODO
+    return(simpleJacobianPreconditionning(pose,jacobian))
 
 
 defaultPreconditionning = simplePreconditionning
