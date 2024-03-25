@@ -163,7 +163,9 @@ preconditionningType = "spheric"
 defaultPreconditionning = sphericPreconditionning
 defaultJacobianPreconditionning = sphericJacobianPreconditionning
 
-def computeDelta(parameters, Pij, Jointi, preconditionning=None):
+def computeDelta(
+    parameters, Pij, Jointi, preconditionning=None, additionnalParameters=None
+):
     """! Computes the deltas between the measured and modeled positions.
 
     @param parameters   The current robot parameters vector.
@@ -176,13 +178,31 @@ def computeDelta(parameters, Pij, Jointi, preconditionning=None):
     computedData = np.vstack([Pfunc(parameters, q) for q in Jointi])
 
     if not preconditionning is None:
-        Pij = preconditionning(Pij)
-        computedData = preconditionning(computedData)
+        if additionnalParameters is None:
+            delta = np.hstack(
+                [
+                    preconditionning(computed, measured)
+                    for measured, computed in zip(Pij, computedData)
+                ]
+            )
+        else:
+            delta = np.hstack(
+                [
+                    preconditionning(computed, measured, additionnalParameters=additionnal)
+                    for measured, computed, additionnal in zip(
+                        Pij, computedData, additionnalParameters
+                    )
+                ]
+            )
+    else:
+        delta = (Pij - computedData).flatten()
 
-    return Pij.flatten() - computedData.flatten()
+    return delta
 
 
-def computeError(parameters, Pij, Jointi, preconditionning=None):
+def computeError(
+    parameters, Pij, Jointi, preconditionning=None, additionnalParameters=None
+):
     """! Computes the error (i.e. euclidian distance) between the measured and modeled positions.
 
     @param parameters   The current robot parameters vector.
@@ -192,11 +212,15 @@ def computeError(parameters, Pij, Jointi, preconditionning=None):
     @return  The computed error.
     """
 
-    delta = computeDelta(parameters, Pij, Jointi, preconditionning)
+    delta = computeDelta(
+        parameters, Pij, Jointi, preconditionning, additionnalParameters
+    )
     return np.dot(delta.T, delta)
 
 
-def computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning=None):
+def computeIdentificationJacobian(
+    parameters, Pij, Jointi, jacobianPreconditionning=None, additionnalParameters=None
+):
     """! Computes the identifiaction jacobian matrix.
 
     @param parameters   The current robot parameters vector.
@@ -208,16 +232,33 @@ def computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning=N
     if jacobianPreconditionning is None:
         return np.vstack([Jfunc(parameters, q) for q in Jointi])
     else:
-        return np.vstack(
-            [
-                jacobianPreconditionning(Pfunc(parameters, q), Jfunc(parameters, q))
-                for q in Jointi
-            ]
-        )
+        if additionnalParameters is None:
+            return np.vstack(
+                [
+                    jacobianPreconditionning(
+                        Pfunc(parameters, q), p, Jfunc(parameters, q)
+                    )
+                    for p, q in zip(Pij, Jointi)
+                ]
+            )
+        else:
+            return np.vstack(
+                [
+                    jacobianPreconditionning(
+                        Pfunc(parameters, q), p, Jfunc(parameters, q), additionnalParameters=additionnal
+                    )
+                    for p, q, additionnal in zip(Pij, Jointi, additionnalParameters)
+                ]
+            )
 
 
 def computeIdentificationGradient(
-    parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=None
+    parameters,
+    Pij,
+    Jointi,
+    preconditionning=None,
+    jacobianPreconditionning=None,
+    additionnalParameters=None,
 ):
     """! Computes the identifiaction gradient vector.
 
@@ -228,18 +269,27 @@ def computeIdentificationGradient(
     @return  The identification jacbobian matrix.
     """
 
-    delta = computeDelta(parameters, Pij, Jointi, preconditionning)
-    gradient = -2 * np.dot(
-        computeIdentificationJacobian(parameters, Jointi).T,
-        delta,
-        jacobianPreconditionning,
+    delta = computeDelta(
+        parameters, Pij, Jointi, preconditionning, additionnalParameters
     )
+    gradient = 2 * np.dot(
+        computeIdentificationJacobian(
+            parameters, Pij, Jointi, jacobianPreconditionning, additionnalParameters
+        ).T,
+        delta,
+    )
+
     # gradient /= np.linalg.norm(gradient)
     return gradient
 
 
 def computeLearningRate(
-    parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=None
+    parameters,
+    Pij,
+    Jointi,
+    preconditionning=None,
+    jacobianPreconditionning=None,
+    additionnalParameters=None,
 ):
     """! Computes the optimal learning rate for the gradient descend according to Wolfe conditions.
 
@@ -250,8 +300,12 @@ def computeLearningRate(
     @return  The optimal learning rate.
     """
 
-    delta = computeDelta(parameters, Pij, Jointi, preconditionning)
-    J = computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning)
+    delta = computeDelta(
+        parameters, Pij, Jointi, preconditionning, additionnalParameters
+    )
+    J = computeIdentificationJacobian(
+        parameters, Pij, Jointi, jacobianPreconditionning, additionnalParameters
+    )
     JtJ = np.dot(J, J.T)
     alpha = np.dot(np.dot(delta.T, JtJ), delta) / (
         2 * np.dot(np.dot(delta.T, np.dot(JtJ, JtJ)), delta)
@@ -272,6 +326,7 @@ def globalIdentifyParameters(
     JointiTest=None,
     preconditionning=None,
     jacobianPreconditionning=None,
+    additionnalParameters=None,
 ):
     """! Performs the robot model parameters identification using the specified global algorithm.
 
@@ -296,12 +351,17 @@ def globalIdentifyParameters(
         JointiTest,
         preconditionning=preconditionning,
         jacobianPreconditionning=jacobianPreconditionning,
+        additionnalParameters=additionnalParameters,
     )
 
-    errorLear = computeError(parameters, PijLear, JointiLear, preconditionning)
+    errorLear = computeError(
+        parameters, PijLear, JointiLear, preconditionning, additionnalParameters
+    )
     errorTest = None
     if len(JointiTest) != 0:
-        errorTest = computeError(parameters, PijTest, JointiTest, preconditionning)
+        errorTest = computeError(
+            parameters, PijTest, JointiTest, preconditionning, additionnalParameters
+        )
 
     return (parameters, errorLear, errorTest)
 
@@ -315,6 +375,7 @@ def BH(
     JointiTest,
     preconditionning=None,
     jacobianPreconditionning=None,
+    additionnalParameters=None,
 ):
     """! Performs the robot model parameters identification using the BFGS based Basin-Hopping algorithm.
 
@@ -331,13 +392,16 @@ def BH(
 
     def function(parameters):
         return (
-            computeError(parameters, PijLear, JointiLear, preconditionning),
+            computeError(
+                parameters, PijLear, JointiLear, preconditionning, additionnalParameters
+            ),
             computeIdentificationGradient(
                 parameters,
                 PijLear,
                 JointiLear,
                 preconditionning,
                 jacobianPreconditionning,
+                additionnalParameters,
             ),
         )
 
@@ -348,7 +412,11 @@ def BH(
         if len(JointiTest) != 0:
             print(
                 "Intermediate test error :  "
-                + str(computeError(x, PijTest, JointiTest, preconditionning))
+                + str(
+                    computeError(
+                        x, PijTest, JointiTest, preconditionning, additionnalParameters
+                    )
+                )
             )
 
         return accept
@@ -389,6 +457,7 @@ def localIdentifyParameters(
     maxIterations=100,
     preconditionning=None,
     jacobianPreconditionning=None,
+    additionnalParameters=None,
 ):
     """! Performs the robot model parameters identification using the specified locally iterative algorithm.
 
@@ -425,15 +494,20 @@ def localIdentifyParameters(
             JointiLear,
             preconditionning=preconditionning,
             jacobianPreconditionning=jacobianPreconditionning,
+            additionnalParameters=additionnalParameters,
         )
 
         # Intermediate error
         errorLearPrev = errorLear
-        errorLear = computeError(parameters, PijLear, JointiLear, preconditionning)
+        errorLear = computeError(
+            parameters, PijLear, JointiLear, preconditionning, additionnalParameters
+        )
         print("Intermediate error :  " + str(errorLear))
 
         if len(JointiTest) != 0:
-            errorTest = computeError(parameters, PijTest, JointiTest, preconditionning)
+            errorTest = computeError(
+                parameters, PijTest, JointiTest, preconditionning, additionnalParameters
+            )
             print("Intermediate test error :  " + str(errorTest))
 
         # Stopping criterion
@@ -444,7 +518,14 @@ def localIdentifyParameters(
     return (parameters, errorLear, errorTest)
 
 
-def GN(parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=None):
+def GN(
+    parameters,
+    Pij,
+    Jointi,
+    preconditionning=None,
+    jacobianPreconditionning=None,
+    additionnalParameters=None,
+):
     """! Performs the robot model parameters identification using the Gauss-Newton algorithm.
 
     @param parameters   The current robot parameters vector.
@@ -454,11 +535,13 @@ def GN(parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=
     @return  The optimized parameters vector.
     """
 
-    optimizedParameters = parameters + np.dot(
+    optimizedParameters = parameters - np.dot(
         np.linalg.pinv(
-            computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning)
+            computeIdentificationJacobian(
+                parameters, Pij, Jointi, jacobianPreconditionning, additionnalParameters
+            )
         ),
-        computeDelta(parameters, Pij, Jointi, preconditionning),
+        computeDelta(parameters, Pij, Jointi, preconditionning, additionnalParameters),
     )
 
     return optimizedParameters
@@ -468,9 +551,10 @@ def TLS(
     parameters,
     Pij,
     Jointi,
-    covarianceMatrix=np.eye(3 * len(TToolN)),
+    covarianceMatrix=np.eye(6 * len(TToolN)),
     preconditionning=None,
     jacobianPreconditionning=None,
+    additionnalParameters=None,
 ):
     """! Performs the robot model parameters identification using the Total Least-Squares algorithm.
 
@@ -483,19 +567,28 @@ def TLS(
     """
 
     covarianceMatrix = np.kron(np.eye(N_LEARNING, dtype=int), covarianceMatrix)
-    J = computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning)
+    J = computeIdentificationJacobian(
+        parameters, Pij, Jointi, jacobianPreconditionning, additionnalParameters
+    )
     tJW = np.dot(J.T, np.linalg.inv(covarianceMatrix))
     tJWJ = np.dot(tJW, J)
 
-    optimizedParameters = parameters + np.dot(
+    optimizedParameters = parameters - np.dot(
         np.dot(np.linalg.inv(tJWJ), tJW),
-        computeDelta(parameters, Pij, Jointi, preconditionning),
+        computeDelta(parameters, Pij, Jointi, preconditionning, additionnalParameters),
     )
 
     return optimizedParameters
 
 
-def GD(parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=None):
+def GD(
+    parameters,
+    Pij,
+    Jointi,
+    preconditionning=None,
+    jacobianPreconditionning=None,
+    additionnalParameters=None,
+):
     """! Performs the robot model parameters identification using the gradient descent algorithm.
 
     @param parameters   The current robot parameters vector.
@@ -506,16 +599,33 @@ def GD(parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=
     """
 
     alpha = computeLearningRate(
-        parameters, Pij, Jointi, preconditionning, jacobianPreconditionning
+        parameters,
+        Pij,
+        Jointi,
+        preconditionning,
+        jacobianPreconditionning,
+        additionnalParameters,
     )
     optimizedParameters = parameters - alpha * computeIdentificationGradient(
-        parameters, Pij, Jointi, preconditionning, jacobianPreconditionning
+        parameters,
+        Pij,
+        Jointi,
+        preconditionning,
+        jacobianPreconditionning,
+        additionnalParameters,
     )
 
     return optimizedParameters
 
 
-def LM(parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=None):
+def LM(
+    parameters,
+    Pij,
+    Jointi,
+    preconditionning=None,
+    jacobianPreconditionning=None,
+    additionnalParameters=None,
+):
     """! Performs the robot model parameters identification using the Levendberg-Marquardt algorithm.
 
     @param parameters   The current robot parameters vector.
@@ -525,22 +635,33 @@ def LM(parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=
     @return  The optimized parameters vector.
     """
 
-    delta = computeDelta(parameters, Pij, Jointi, preconditionning)
-    J = computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning)
+    delta = computeDelta(
+        parameters, Pij, Jointi, preconditionning, additionnalParameters
+    )
+    J = computeIdentificationJacobian(
+        parameters, Pij, Jointi, jacobianPreconditionning, additionnalParameters
+    )
     JtJ = np.dot(J, J.T)
     alpha = np.dot(np.dot(delta.T, JtJ), delta) / (
         2 * np.dot(np.dot(delta.T, np.dot(JtJ, JtJ)), delta)
     )
 
     tJJ = np.dot(J.T, J)
-    optimizedParameters = parameters + np.dot(
+    optimizedParameters = parameters - np.dot(
         np.linalg.inv(tJJ + alpha * np.diag(np.diag(tJJ))), np.dot(J.T, delta)
     )
 
     return optimizedParameters
 
 
-def BFGS(parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionning=None):
+def BFGS(
+    parameters,
+    Pij,
+    Jointi,
+    preconditionning=None,
+    jacobianPreconditionning=None,
+    additionnalParameters=None,
+):
     """! Performs the robot model parameters identification using the Broyden-Fletcher-Goldfarb-Shanno algorithm.
 
     @param parameters   The current robot parameters vector.
@@ -550,34 +671,44 @@ def BFGS(parameters, Pij, Jointi, preconditionning=None, jacobianPreconditionnin
     @return  The optimized parameters vector.
     """
 
-    delta = computeDelta(parameters, Pij, Jointi, preconditionning)
-    J = computeIdentificationJacobian(parameters, Jointi, jacobianPreconditionning)
-    gradient = -2 * np.dot(J.T, delta)
+    delta = computeDelta(
+        parameters, Pij, Jointi, preconditionning, additionnalParameters
+    )
+    J = computeIdentificationJacobian(
+        parameters, Pij, Jointi, jacobianPreconditionning, additionnalParameters
+    )
+    gradient = 2 * np.dot(J.T, delta)
 
     try:
         # Compute direction
         global B
-        d = -np.dot(np.linalg.inv(B), gradient)
+        d = np.dot(np.linalg.inv(B), gradient)
     except:
         # Initialisation step
         B = np.eye(len(parameters))
 
         # Compute direction
-        d = -np.dot(np.linalg.inv(B), gradient)
+        d = np.dot(np.linalg.inv(B), gradient)
 
     # Compute learning rate
     alpha = np.dot(np.dot(delta.T, J), d) / np.dot(np.dot(np.dot(d.T, J.T), J), d)
 
     # Update parameters
     deltaParameters = alpha * d
-    optimizedParameters = parameters + alpha * d
+    optimizedParameters = parameters - alpha * d
 
     # Update B matrix
-    delta = computeDelta(optimizedParameters, Pij, Jointi, preconditionning)
-    J = computeIdentificationJacobian(
-        optimizedParameters, Jointi, jacobianPreconditionning
+    delta = computeDelta(
+        optimizedParameters, Pij, Jointi, preconditionning, additionnalParameters
     )
-    newGradient = -2 * np.dot(J.T, delta)
+    J = computeIdentificationJacobian(
+        optimizedParameters,
+        Pij,
+        Jointi,
+        jacobianPreconditionning,
+        additionnalParameters,
+    )
+    newGradient = 2 * np.dot(J.T, delta)
 
     deltaGradient = np.array([newGradient - gradient]).T
     B += np.dot(deltaGradient, deltaGradient.T) / np.dot(
@@ -610,6 +741,7 @@ def localLibIdentifyParameters(
     maxIterations=100,
     preconditionning=None,
     jacobianPreconditionning=None,
+    additionnalParameters=None,
 ):
     """! Performs the robot model parameters identification using the specified locally iterative algorithm.
 
@@ -637,26 +769,45 @@ def localLibIdentifyParameters(
     result = None
 
     def function_min(parameters):
-        return computeError(parameters, PijLear, JointiLear, preconditionning)
+        return computeError(
+            parameters, PijLear, JointiLear, preconditionning, additionnalParameters
+        )
 
     def jacobian_min(parameters):
         return computeIdentificationGradient(
-            parameters, PijLear, JointiLear, preconditionning, jacobianPreconditionning
+            parameters,
+            PijLear,
+            JointiLear,
+            preconditionning,
+            jacobianPreconditionning,
+            additionnalParameters,
         )
 
     def function_res(parameters):
-        return computeDelta(parameters, PijLear, JointiLear, preconditionning)
+        return computeDelta(
+            parameters, PijLear, JointiLear, preconditionning, additionnalParameters
+        )
 
     def jacobian_res(parameters):
         return computeIdentificationJacobian(
-            parameters, JointiLear, jacobianPreconditionning
+            parameters,
+            PijLear,
+            JointiLear,
+            jacobianPreconditionning,
+            additionnalParameters,
         )
 
     def callback(IntermediateResult):
         print(
             "Intermediate error : "
             + str(
-                computeError(IntermediateResult, PijLear, JointiLear, preconditionning)
+                computeError(
+                    IntermediateResult,
+                    PijLear,
+                    JointiLear,
+                    preconditionning,
+                    additionnalParameters,
+                )
             )
         )
 
@@ -665,7 +816,11 @@ def localLibIdentifyParameters(
                 "Intermediate test error :  "
                 + str(
                     computeError(
-                        IntermediateResult, PijTest, JointiTest, preconditionning
+                        IntermediateResult,
+                        PijTest,
+                        JointiTest,
+                        preconditionning,
+                        additionnalParameters,
                     )
                 )
             )
@@ -696,11 +851,19 @@ def localLibIdentifyParameters(
 
         optimizedParameters = result.x
         errorLear = computeError(
-            optimizedParameters, PijLear, JointiLear, preconditionning
+            optimizedParameters,
+            PijLear,
+            JointiLear,
+            preconditionning,
+            additionnalParameters,
         )
         if len(JointiTest) != 0:
             errorTest = computeError(
-                optimizedParameters, PijTest, JointiTest, preconditionning
+                optimizedParameters,
+                PijTest,
+                JointiTest,
+                preconditionning,
+                additionnalParameters,
             )
 
         return (parameters, errorLear, errorTest)
@@ -711,8 +874,9 @@ def localLibIdentifyParameters(
         # optimizedParameters = result.x
         # errorLear = result.fun
         # if(len(JointiTest)!=0):
-        #     errorTest = computeError(optimizedParameters,PijTest,JointiTest,preconditionning)
+        #     errorTest = computeError(optimizedParameters,PijTest,JointiTest,preconditionning,additionnalParameters)
 
+        print("WARNING - NOT IMPLEMENTED YET")
         return (parameters, errorLear, errorTest)
 
     else:
