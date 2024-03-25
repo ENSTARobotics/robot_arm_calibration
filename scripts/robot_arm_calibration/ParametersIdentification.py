@@ -907,13 +907,20 @@ if __name__ == "__main__":
     if len(TToolN) > 1:
         preconditionning = None
         jacobianPreconditionning = None
+        additionnalParameters = None
     else:
         preconditionning = defaultPreconditionning
         jacobianPreconditionning = defaultJacobianPreconditionning
+        additionnalParameters = None
+
+    try:
+        additionnalParameters = Items[sys.argv[1]]
+    except:
+        print("No additionnal parameters provided...")
 
     estimateTBaseOffset = 0
     try:
-        estimateTBaseOffset = int(sys.argv[1])
+        estimateTBaseOffset = int(sys.argv[2])
     except:
         print("Skipping robot base transform estimation...")
 
@@ -1043,20 +1050,29 @@ if __name__ == "__main__":
     print("Number of tests : " + str(N_TESTS))
 
     print("Test on first measurement :")
-    for i, item in enumerate(EEItemsNames):
-        print("Delta end effector point " + item)
-        if len(TToolN) > 1:
+    if len(TToolN) > 1:
+        for i, item in enumerate(EEItemsNames):
+            print("Delta end effector point " + item)
             print(
                 Items[item][0]
                 - Pfunc(parameters0, Items["jointsPositions"][0])[3 * i : 3 * i + 3].T[
                     0
                 ]
             )
+    else:
+        if additionnalParameters is None:
+            print(
+                defaultPreconditionning(
+                    Pfunc(parameters0, Items["jointsPositions"][0]),
+                    Items[EEItemsNames[0]][0],
+                )
+            )
         else:
             print(
-                defaultPreconditionning(np.array([Items[item][0]]))
-                - defaultPreconditionning(
-                    np.array([Pfunc(parameters0, Items["jointsPositions"][0])])
+                defaultPreconditionning(
+                    Pfunc(parameters0, Items["jointsPositions"][0]),
+                    Items[EEItemsNames[0]][0],
+                    additionnalParameters=additionnalParameters[0],
                 )
             )
 
@@ -1065,22 +1081,29 @@ if __name__ == "__main__":
     randomIndex = np.random.randint(0, N_MEASUREMENTS)
     print("Test on random measurement (" + str(randomIndex) + ") :")
     randomIndex = np.random.randint(0, N_MEASUREMENTS)
-    for i, item in enumerate(EEItemsNames):
-        print("End effector point " + item)
-        if len(TToolN) > 1:
+    if len(TToolN) > 1:
+        for i, item in enumerate(EEItemsNames):
+            print("Delta end effector point " + item)
             print(
                 Items[item][randomIndex]
                 - Pfunc(parameters0, Items["jointsPositions"][randomIndex])[
                     3 * i : 3 * i + 3
                 ].T[0]
             )
+    else:
+        if additionnalParameters is None:
+            print(
+                defaultPreconditionning(
+                    Pfunc(parameters0, Items["jointsPositions"][randomIndex]),
+                    Items[EEItemsNames[0]][randomIndex],
+                )
+            )
         else:
             print(
-                defaultPreconditionning(np.array([Items[item][randomIndex]]))
-                - defaultPreconditionning(
-                    np.array(
-                        [Pfunc(parameters0, Items["jointsPositions"][randomIndex])]
-                    )
+                defaultPreconditionning(
+                    Pfunc(parameters0, Items["jointsPositions"][randomIndex]),
+                    Items[EEItemsNames[0]][randomIndex],
+                    additionnalParameters=additionnalParameters[randomIndex],
                 )
             )
 
@@ -1090,8 +1113,8 @@ if __name__ == "__main__":
         PijLear = np.empty((N_LEARNING, N_EEPOINTS, 3))
         PijTest = np.empty((N_TESTS, N_EEPOINTS, 3))
     else:
-        PijLear = np.empty((N_LEARNING, N_EEPOINTS, 6))
-        PijTest = np.empty((N_TESTS, N_EEPOINTS, 6))
+        PijLear = np.empty((N_LEARNING, 6))
+        PijTest = np.empty((N_TESTS, 6))
 
     JointiLear = np.empty((N_LEARNING, JOINTS_NUMBER))
     JointiTest = np.empty((N_TESTS, JOINTS_NUMBER))
@@ -1101,29 +1124,39 @@ if __name__ == "__main__":
 
     # Randomly shuffle measurements between the learning and testing subsets
     indexLear = randomIndices[:N_LEARNING]
-    for i, item in enumerate(EEItemsNames):
-        PijLear[:, i, :] = Items[item][indexLear]
+    if len(TToolN) > 1:
+        for i, item in enumerate(EEItemsNames):
+            PijLear[:, i, :] = Items[item][indexLear]
+    else:
+        PijLear[:, :] = Items[EEItemsNames[0]][indexLear]
     JointiLear = Items["jointsPositions"][indexLear]
 
     if N_TESTS != 0:
         indexTest = randomIndices[-N_TESTS:]
-        for i, item in enumerate(EEItemsNames):
-            PijTest[:, i, :] = Items[item][indexTest]
+        if len(TToolN) > 1:
+            for i, item in enumerate(EEItemsNames):
+                PijTest[:, i, :] = Items[item][indexTest]
+        else:
+            PijTest[:, :] = Items[EEItemsNames[0]][indexTest]
         JointiTest = Items["jointsPositions"][indexTest]
 
     # Initial error
-    initialError = computeError(parameters0, PijLear, JointiLear, preconditionning)
+    initialError = computeError(
+        parameters0, PijLear, JointiLear, preconditionning, additionnalParameters
+    )
     print("Initial error : " + str(initialError))
 
     if len(JointiTest) != 0:
-        errorTest = computeError(parameters0, PijTest, JointiTest, preconditionning)
+        errorTest = computeError(
+            parameters0, PijTest, JointiTest, preconditionning, additionnalParameters
+        )
         print("Initial test error : " + str(errorTest))
 
     ### Retreive identification parameters
     algorithmName = "GN"
     algorithmType = "local"
     try:
-        tmpAlgorithmName = sys.argv[2]
+        tmpAlgorithmName = sys.argv[3]
         if tmpAlgorithmName in localAlgorithms.keys():
             algorithmType = "local"
         elif tmpAlgorithmName in localAlgorithmsLib.keys():
@@ -1144,19 +1177,19 @@ if __name__ == "__main__":
     if algorithmType == "local" or algorithmType == "localLib":
         stopDelta = 1e-8
         try:
-            stopDelta = float(sys.argv[3])
+            stopDelta = float(sys.argv[4])
         except:
             print("No stop delta criterion given, defaulting to " + str(stopDelta))
 
         stopAbs = 1e-12
         try:
-            stopAbs = float(sys.argv[4])
+            stopAbs = float(sys.argv[5])
         except:
             print("No stop absolute criterion given, defaulting to " + str(stopAbs))
 
         initialisations = 5
         try:
-            initialisations = int(sys.argv[5])
+            initialisations = int(sys.argv[6])
         except:
             print(
                 "No initialisations number given, defaulting to " + str(initialisations)
@@ -1182,7 +1215,11 @@ if __name__ == "__main__":
                 num_parents_mating=int(max(10, 2 * initialisations) / 2),
                 fitness_func=lambda instance, solution, solution_idx: (-1)
                 * computeError(
-                    parameters0 + solution, PijLear, JointiLear, preconditionning
+                    parameters0 + solution,
+                    PijLear,
+                    JointiLear,
+                    preconditionning,
+                    additionnalParameters,
                 ),
                 initial_population=initialisationDeltas,
                 init_range_low=-1,
@@ -1214,6 +1251,7 @@ if __name__ == "__main__":
                         JointiTest,
                         preconditionning=preconditionning,
                         jacobianPreconditionning=jacobianPreconditionning,
+                        additionnalParameters=additionnalParameters,
                     )
                 else:
                     return localLibIdentifyParameters(
@@ -1227,6 +1265,7 @@ if __name__ == "__main__":
                         JointiTest,
                         preconditionning=preconditionning,
                         jacobianPreconditionning=jacobianPreconditionning,
+                        additionnalParameters=additionnalParameters,
                     )
 
             with Pool(processes=os.cpu_count() - 1) as pool:
@@ -1257,6 +1296,7 @@ if __name__ == "__main__":
                     JointiTest,
                     preconditionning=preconditionning,
                     jacobianPreconditionning=jacobianPreconditionning,
+                    additionnalParameters=additionnalParameters,
                 )
             else:
                 parameters, finalError, finalTestError = localLibIdentifyParameters(
@@ -1270,12 +1310,13 @@ if __name__ == "__main__":
                     JointiTest,
                     preconditionning=preconditionning,
                     jacobianPreconditionning=jacobianPreconditionning,
+                    additionnalParameters=additionnalParameters,
                 )
 
     elif algorithmType == "global":
         maxIterations = 10
         try:
-            maxIterations = float(sys.argv[3])
+            maxIterations = float(sys.argv[4])
         except:
             print(
                 "No maximum iterations number given, defaulting to "
@@ -1292,6 +1333,7 @@ if __name__ == "__main__":
             JointiTest,
             preconditionning=preconditionning,
             jacobianPreconditionning=jacobianPreconditionning,
+            additionnalParameters=additionnalParameters,
         )
 
     # Final error
@@ -1356,6 +1398,7 @@ if __name__ == "__main__":
 
     calibratedModel["initialError"] = float(initialError)
     calibratedModel["finalError"] = float(finalError)
+    calibratedModel["preconditionningType"] = preconditionningType
 
     with open(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml", "a") as file:
         yaml.dump(calibratedModel, file)
