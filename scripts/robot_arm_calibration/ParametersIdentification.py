@@ -1021,10 +1021,22 @@ if __name__ == "__main__":
         # Transfering measurements in the estimated robot base frame !
         with open("CalibrationCorrected.csv", "wb+") as file:
             for i, jointsPosition in enumerate(Items["jointsPositions"]):
-                for j, item in enumerate(EEItemsNames):
-                    Items[item][i] = np.dot(
-                        TBaseSensor, np.append(Items[item][i], 1).T
-                    )[:3]
+                if len(TToolN) > 1:
+                    for j, item in enumerate(EEItemsNames):
+                        Items[item][i] = np.dot(
+                            TBaseSensor, np.append(Items[item][i], 1).T
+                        )[:3]
+                        np.savetxt(
+                            file,
+                            np.round(Items[item][i].reshape(1, -1), 6),
+                            delimiter=",",
+                            fmt="%1.6f",
+                        )
+                else:
+                    T = np.eye(4)
+                    T[:3, -1] = Items[EEItemsNames[0]][i][:3]
+                    T[:3, :3] = R.from_mrp(Items[EEItemsNames[0]][i][3:]).as_matrix()
+                    Items[EEItemsNames[0]][i] = np.dot(TBaseSensor, T).flatten()
                     np.savetxt(
                         file,
                         np.round(Items[item][i].reshape(1, -1), 6),
