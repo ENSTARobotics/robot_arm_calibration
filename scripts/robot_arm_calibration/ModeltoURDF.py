@@ -281,14 +281,22 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, inputURDFFilePath,
 
 if __name__ == "__main__":
     try : 
+        #TODO CATCH THESE ERRORS !
         modelFilePath = sys.argv[1]
         inputURDFFilePath = sys.argv[2]
+
         try:
             flangeLinkName = sys.argv[3]
         except:
             flangeLinkName = ""
+
+        try:
+            outputPath = sys.argv[4]
+        except:
+            outputPath = "/tmp/output.urdf"
+
     except:
         print("Invalid model and URDF/XACRO file paths !")
         sys.exit(-1)
     
-    ModeltoURDF(modelFilePath,inputURDFFilePath,flangeLinkName,"/tmp/output.urdf",True)
+    ModeltoURDF(modelFilePath,inputURDFFilePath,flangeLinkName,outputPath)
