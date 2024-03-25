@@ -1149,7 +1149,8 @@ if __name__ == "__main__":
     tmp = input("Press enter to continue.")
 
     ### Create learning and testing subsets
-    N_LEARNING = min(N_MEASUREMENTS, 2 * len(parameters0))
+    N_LEARNING = 15 #TO REMOVE !
+    #N_LEARNING = min(N_MEASUREMENTS, 2 * len(parameters0)) #TO RESTORE !
     #N_LEARNING = N_MEASUREMENTS
     N_TESTS = 0
     
@@ -1180,7 +1181,8 @@ if __name__ == "__main__":
     JointiTest = np.empty((N_TESTS, JOINTS_NUMBER))
 
     # Randomly shuffle measurements between the learning and testing subsets
-    randomIndices = np.random.permutation(N_LEARNING + N_TESTS)
+    #randomIndices = np.random.permutation(N_LEARNING + N_TESTS)    #TO RESTORE
+    randomIndices = np.arange(N_LEARNING + N_TESTS)    #TO REMOVE
 
     indexLear = randomIndices[:N_LEARNING]
     PijLear = Pij[indexLear]
