@@ -1,9 +1,14 @@
-from distutils.core import setup
-from catkin_pkg.python_setup import generate_distutils_setup
-setup_args = generate_distutils_setup(
-    packages=['robot_arm_calibration'],
-    package_dir={'': 'scripts'},
-    install_requires=[
+from setuptools import setup
+
+setup(
+   name='robot_arm_calibration',
+   version='1.0',
+   description='A ROS-based kinematic calibration tool for serial robots: the unberdening of a crucial task',
+   author='Caroline PASCAL',
+   author_email='caroline.pascal.2020@ensta-paris.fr',
+   packages=['robot_arm_calibration'], 
+   package_dir={'': 'scripts'},
+   install_requires=[
         #Arrays
         "numpy",
         #Rotation and optimization tools
@@ -25,6 +30,9 @@ setup_args = generate_distutils_setup(
         #Jacobian computation
         "jaxlib",
         "jax",
-    ]
+        #ROS packages folders recovery
+        "rospkg",
+        #YAML files
+        "pyyaml",
+   ]
 )
-setup(**setup_args)
