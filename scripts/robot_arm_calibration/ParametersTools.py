@@ -94,6 +94,8 @@ def importToolParametersFromFile(filePath, caller = None):
             outputParameters["EEItemsNames"] = ["EEPosition" + str(i+1) for i in range(outputParameters["N_EEPOINTS"])]
         else:
             outputParameters["EEItemsNames"] = ["EEPose"]
+        if("additionnalParameters" in inputParameters.keys()):
+            outputParameters["EEItemsNames"].append(inputParameters["additionnalParameters"])
     else:
         print("Invalid file path for tools parameters importation, defaulting to no tool.")
         outputParameters["TToolN"] = np.array([np.eye(4)])
