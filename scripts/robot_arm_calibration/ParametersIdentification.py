@@ -48,77 +48,120 @@ from robot_arm_calibration.NumericGeometricModel import (
     LINKS_ROTATIONS,
 )
 
+# Remark : Results obtained using the delta rotation matirx are slightly better than those obtained using the MRP difference directly, certainly due to a faster convergence by doing so.
+def simplePreconditionning(computedPose, measuredPose, **kwargs):
+    L = 1.0  # TODO As parameter
+    #delta = measuredPose - computedPose
+    #return jnp.hstack((delta[:3], L * delta[3:]))
 
-def simplePreconditionning(pose):
-    L = 1.0
-    return np.hstack([pose[:, :3], L * pose[:, 3:]])
+    delta_position = measuredPose[:3] - computedPose[:3]
+
+    measuredOrientation = jR.from_mrp(measuredPose[3:]).as_matrix()
+    computedOrientation = jR.from_mrp(computedPose[3:]).as_matrix()
+    delta_orientation = jnp.dot(measuredOrientation.T, computedOrientation)
+    delta_orientation = jR.from_matrix(delta_orientation).as_mrp()
+
+    return jnp.append(delta_position,delta_orientation)
 
 
-def halfSphericPreconditionning(pose):
-    position = pose[:3]
-    rotation = jR.from_mrp(pose[3:]).as_matrix()
+JsimplePreconditionning = jacfwd(simplePreconditionning)
 
-    # Re-orient rotation matrix to match spheric coordinates
-    rotation = rotation.at[:, 2].set(rotation[:, 2] * (-1))
-    rotation = rotation.at[:, 0].set(rotation[:, 0] * (-1))
 
-    # Find theta s.t. R*Rz(theta)[2,1] = 0 = -sin(theta)*x[2] + cos(theta)*y[2]
-    # => tan(theta) = y[2]/x[2]
-    # Also, R*Rz(theta)[2,0] < 0 => cos(theta)*x[0] + sin(theta)*y[0] < 0
-    # => theta = pi + atan(y[2]/x[2])
-    theta = jnp.pi + jnp.arctan2(rotation[2, 1], rotation[2, 0])
-    rotation = jnp.dot(
-        rotation,
-        jnp.array(
-            [
-                [jnp.cos(theta), -jnp.sin(theta), 0],
-                [jnp.sin(theta), jnp.cos(theta), 0],
-                [0, 0, 1],
-            ]
-        ),
+def simpleEulerPreconditionning(computedPose, measuredPose, **kwargs):
+    L = 1.0  # TODO As parameter
+    #delta = measuredPose - computedPose
+    #return jnp.hstack((delta[:3], L * delta[3:]))
+
+    delta_position = measuredPose[:3] - computedPose[:3]
+
+    measuredOrientation = jR.from_mrp(measuredPose[3:]).as_matrix()
+    computedOrientation = jR.from_mrp(computedPose[3:]).as_matrix()
+    delta_orientation = jnp.dot(measuredOrientation.T, computedOrientation)
+    delta_orientation = jR.from_matrix(delta_orientation).as_euler("xyz")
+
+    return jnp.append(delta_position,L*delta_orientation)
+
+
+JsimpleEulerPreconditionning = jacfwd(simpleEulerPreconditionning)
+
+
+# Remark : Results obtained here slightly differ from the ones obtained by computing the aimed target with the measurements directly. This is likely caused by (1) the faulty measurement of the target position relative to the robot base and (2) the parallelism assumption of the robot base and the target plane.
+def partialSphericPreconditionning(computedPose, measuredPose, **kwargs):
+    zRef = 0.904 + 0.4 - 0.006  # TODO As parameter
+    position = measuredPose[:3]
+    orientation = jR.from_mrp(measuredPose[3:]).as_matrix()
+
+    # Find intersection between axis(p,z) and z = zRef plane
+    # => (p + t*z)[2] = zRef => t = (zRef-p[2])/z[2]
+    # intersection = p + (zRef-p[2]/z[2])*z
+
+    aimedPosition = (
+        position + (zRef - position[2] / orientation[2, 2]) * orientation[:, 2]
     )
 
-    # Find intersection between e_r and z=0 plane
-    # => (p + t*z)[2] = 0 => t = -p[2]/z[2]
-    # inter = p + (-p[2]/z[2])*z
-    # A priori, we have position[2] > 0 and rotation[2,2] > 0 (after fix to match spheric coordinates)
-    # origin = position + (-position[2]/rotation[2,2])*rotation[:,2]
-
-    # Spheric coordinates
-    r = position[2] / rotation[2, 2]
-    theta = jnp.arccos(rotation[2, 2])
-    phi = jnp.arccos(rotation[0, 2] / jnp.sin(theta))
-
-    return jnp.append(jnp.array([r, theta, phi]), jR.from_matrix(rotation).as_mrp())
+    return sphericPreconditionning(computedPose, measuredPose, additionnalParameters=aimedPosition)
 
 
-JhalfSphericPreconditionning = jacfwd(halfSphericPreconditionning)
+JpartialSphericPreconditionning = jacfwd(partialSphericPreconditionning)
 
 
-def sphericPreconditionning(pose,aimedPosition):
-    #TODO
-    return(simplePreconditionning(pose))
+def sphericPreconditionning(computedPose, measuredPose, **kwargs):
+
+    aimedPosition = kwargs["additionnalParameters"]
+
+    # Spheric coordinates difference : r, theta, phi
+    measuredPosition = measuredPose[:3] - aimedPosition
+    computedPosition = computedPose[:3] - aimedPosition
+
+    measured_r = jnp.linalg.norm(measuredPosition)
+    computed_r = jnp.linalg.norm(computedPosition)
+    delta_r = measured_r - computed_r
+    delta_theta = jnp.arccos(measuredPosition[2] / measured_r) - jnp.arccos(
+        computedPosition[2] / computed_r
+    )
+    delta_phi = jnp.arctan2(measuredPosition[1], measuredPosition[0]) - jnp.arctan2(
+        computedPosition[1], computedPosition[0]
+    )
+
+    # Axis-wise orientation difference : euler angles, x, y, z
+    measuredOrientation = jR.from_mrp(measuredPose[3:]).as_matrix()
+    computedOrientation = jR.from_mrp(computedPose[3:]).as_matrix()
+    delta_orientation = jnp.dot(measuredOrientation.T, computedOrientation)
+
+    delta_angles = jR.from_matrix(delta_orientation).as_euler("xyz")
+
+    # TODO Weighting !
+    delta_angles = delta_angles.at[2].set(0.1 * delta_angles[2])
+    #delta_theta*=0.1
+    #delta_phi*=0.1
+
+    return jnp.append(jnp.array([delta_r, delta_theta, delta_phi]), delta_angles)
+
+
+JsphericPreconditionning = jacfwd(sphericPreconditionning)
+
 
 # Remark : for more complex preconditionning, we need to use the chain rule :
 # P_preconditionned(pi,q) = foP(pi,q)
 # JP_preconditionned(pi,q) = J(foP(pi,q)) = JfoP(pi,q)*JP(pi,q) = Jf(P(pi,q))*JP(pi,q)
-def simpleJacobianPreconditionning(pose, jacobian):
-    L = 1.0
-    return np.vstack([jacobian[:3], L * jacobian[3:]])
+def simpleJacobianPreconditionning(computedPose, measuredPose, jacobian, **kwargs):
+    return np.dot(JsimplePreconditionning(computedPose, measuredPose, **kwargs), jacobian)
 
 
-def halfSphericJacobianPreconditionning(pose, jacobian):
-    return np.dot(JhalfSphericPreconditionning(pose), jacobian)
+def partialSphericJacobianPreconditionning(computedPose, measuredPose, jacobian, **kwargs):
+    return np.dot(JpartialSphericPreconditionning(computedPose, measuredPose, **kwargs), jacobian)
 
 
-def sphericalJacobianPreconditionning(pose, jacobian, aimedPosition):
-    #TODO
-    return(simpleJacobianPreconditionning(pose,jacobian))
+def sphericJacobianPreconditionning(
+    computedPose, measuredPose, jacobian, **kwargs
+):
+    return np.dot(
+        JsphericPreconditionning(computedPose, measuredPose, **kwargs), jacobian
+    )
 
-
-defaultPreconditionning = simplePreconditionning
-defaultJacobianPreconditionning = simpleJacobianPreconditionning
-
+preconditionningType = "spheric"
+defaultPreconditionning = sphericPreconditionning
+defaultJacobianPreconditionning = sphericJacobianPreconditionning
 
 def computeDelta(parameters, Pij, Jointi, preconditionning=None):
     """! Computes the deltas between the measured and modeled positions.
