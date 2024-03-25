@@ -9,12 +9,11 @@ from multiprocessing import Pool
 # Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from scipy.optimize import basinhopping, minimize, least_squares
 
+# Optimization packages
 # from cyipopt import minimize_ipopt
-
+from scipy.optimize import basinhopping, minimize, least_squares
 from pygad import GA
-from simanneal import Annealer
 
 ### Import robot and marker parameters
 from robot_arm_calibration.ParametersTools import (

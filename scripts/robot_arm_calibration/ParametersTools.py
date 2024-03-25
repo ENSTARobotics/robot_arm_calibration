@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 #System packages
-from importlib import machinery
 import sys
 import os
 import yaml
@@ -10,7 +9,7 @@ import yaml
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-#ROS package
+#ROS packages
 import rospkg
 rospack = rospkg.RosPack()
 

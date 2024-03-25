@@ -8,7 +8,7 @@ import yaml
 #Utility modules
 import numpy as np
 
-#Comutation modules
+#Combinatorial optimization packages
 from pygad import GA
 from simanneal import Annealer
 
