@@ -120,9 +120,16 @@ def importAllParametersFromFile(filePath, caller = None):
     importRobotBaseParametersFromFile(filePath, caller)
     importToolParametersFromFile(filePath, caller)
 
-    splitName = os.path.basename(os.path.dirname(filePath)).split("_")
-    robotName = splitName[0]
-    toolName = "" if len(splitName) == 1 else splitName[1]
+    if("calibratedModels" in filePath):
+        splitName = np.array(filePath.split("/"))
+        splitName = splitName[np.where(splitName == "calibratedModels")[0][0] + 1:]
+        splitName = splitName[0].split("_")
+        robotName = splitName[0]
+        toolName = splitName[1]
+    else:
+        splitName = os.path.basename(os.path.dirname(filePath)).split("_")
+        robotName = splitName[0]
+        toolName = "" if len(splitName) == 1 else splitName[1]
 
     caller.f_globals.update({"robotName":robotName,"toolName":toolName})
 
