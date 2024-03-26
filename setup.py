@@ -22,7 +22,7 @@ setup(
         #YAML file handling
         "pyyaml",
         #URDF handling and visualization
-        #"urchin" #c.f. README
+        "urchin",
         "trimesh",
         #Combinatorial optimization
         "pygad",
