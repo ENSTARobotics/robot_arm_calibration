@@ -44,7 +44,8 @@ More details are provided in the [Used technologies](#used-technologies) section
   - [Contents](#contents)
   - [Getting Started](#getting-started)
     - [Requirements](#requirements)
-    - [Install](#install)
+    - [Install from source](#install-from-source)
+    - [Install via Docker](#install-via-docker)
   - [Usage](#usage)
     - [Preliminary configurations](#preliminary-configurations)
     - [Complete procedure](#complete-procedure)
@@ -90,12 +91,14 @@ sudo apt update
 rosdep update
 rosdep install --from-paths src --ignore-src -y
 
-python3 -m pip install -r ~/catkin_ws/src/robot_arm_calibration/requirements.txt
+#python3 -m pip install -r ~/catkin_ws/src/robot_arm_calibration/requirements.txt #Optionnal
+python3 -m pip install -e ~/catkin_ws/src/robot_arm_calibration
 ```
 
-And build packages :
+And build package :
 
 ```bash
+
 catkin_make
 source devel/setup.bash
 ```
