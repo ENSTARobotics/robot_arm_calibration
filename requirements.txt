@@ -1,12 +1,25 @@
+#Arrays
 numpy
-matplotlib
-PyYAML
+#Rotation and optimization tools
 scipy
+#Plots
+matplotlib
+#Pickle file handling
 dill
+#Symbolic mathematics
 sympy
+#YAML file handling
+pyyaml
+#URDF handling and visualization
+urchin
 trimesh
+#Combinatorial optimization
 pygad
 simanneal
-
-urchin @ git+https://github.com/CarolinePascal/urchin@bugfix/lazy-save
-
+#Jacobian computation
+jaxlib
+jax
+#ROS packages folders recovery
+rospkg
+#YAML files
+pyyaml
