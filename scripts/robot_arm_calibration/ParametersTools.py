@@ -9,9 +9,12 @@ import yaml
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-#ROS packages
-import rospkg
-rospack = rospkg.RosPack()
+def getPackagePath():
+    import robot_arm_calibration
+    modulePath = os.path.dirname(robot_arm_calibration.__file__)
+    scriptsPath = os.path.dirname(modulePath)
+    packagePath = os.path.dirname(scriptsPath)
+    return packagePath
 
 def importRobotParametersFromFile(filePath, caller = None):
     inputParameters = None
@@ -124,9 +127,7 @@ def importAllParametersFromFile(filePath, caller = None):
 def importParameters(robotName = "", toolName = ""):
 
     caller = sys._getframe(1)
-    import rospkg
-    rospack = rospkg.RosPack()
-    configFolderPath = rospack.get_path("robot_arm_calibration") + "/config/nominalModels/"
+    configFolderPath = getPackagePath() + "/config/nominalModels/"
 
     try:
         importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)

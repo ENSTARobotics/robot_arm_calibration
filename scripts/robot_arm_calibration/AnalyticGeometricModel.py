@@ -9,10 +9,8 @@ import sys
 import sympy as sp
 import numpy as np
 
-#ROS package
-#TODO Create dedicated function in ParametersTools ?
-import rospkg
-rospack = rospkg.RosPack()
+#Robot parameters tools
+from robot_arm_calibration.ParametersTools import getPackagePath, importParameters, importAllParametersFromFile
 
 ### Tool functions
 def size(L):
@@ -94,8 +92,6 @@ def mrp_to_matrix(mrp):
 #1) Non cartesian aligned axes (ie, not X(1),Y(2),Z(3) aligned)
 #2) Joints flexibilities
 
-from robot_arm_calibration.ParametersTools import importParameters, importAllParametersFromFile
-
 ### Default => Get model from parameters file
 try:
     importAllParametersFromFile(sys.argv[1])
@@ -120,7 +116,7 @@ except:
     importParameters(robotName,toolName)
 
     ### Get robot config directory path
-    configPathRobot = rospack.get_path("robot_arm_calibration") + "/config/nominalModels/robots/" + robotName + "/"
+    configPathRobot = getPackagePath() + "/config/nominalModels/robots/" + robotName + "/"
 
 fileID = str(robotName) + "_" + str(toolName) if (len(toolName) != 0) else str(robotName)
 

@@ -8,6 +8,14 @@ import glob
 #Utility packages
 import numpy as np
 
+#Plot packages
+import subprocess
+import numpy as np
+import trimesh
+
+import rospkg
+rospack = rospkg.RosPack()
+
 ### Import robot and marker parameters
 from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial
 
@@ -82,13 +90,6 @@ if(plotMode == "axes"):
     plt.show()
 
 elif(plotMode == "mesh"):
-
-    import subprocess
-    import numpy as np
-    import trimesh
-
-    import rospkg
-    rospack = rospkg.RosPack()
 
     xacro = "echo $(xacro $(rospack find robot_arm_tools)/config/tools/" + toolName + "/" + robotName + "/" + robotName + "_" + toolName + ".urdf.xacro)"
     xacroProcess = subprocess.run(xacro,shell=True,stdout=subprocess.PIPE)
