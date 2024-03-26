@@ -1,6 +1,11 @@
 from distutils.core import setup
 from catkin_pkg.python_setup import generate_distutils_setup
 setup_args = generate_distutils_setup(
+    name='robot_arm_calibration',
+    version='0.0.0',
+    description='The robot_arm_calibration package',
+    author='Caroline PASCAL',
+    author_email='caroline.pascal.2020@ensta-paris.fr',
     packages=['robot_arm_calibration'],
     package_dir={'': 'scripts'},
     install_requires=[

@@ -2,8 +2,8 @@ from setuptools import setup
 
 setup(
    name='robot_arm_calibration',
-   version='1.0',
-   description='A ROS-based kinematic calibration tool for serial robots: the unberdening of a crucial task',
+   version='0.0.0',
+   description='The robot_arm_calibration package',
    author='Caroline PASCAL',
    author_email='caroline.pascal.2020@ensta-paris.fr',
    packages=['robot_arm_calibration'], 
