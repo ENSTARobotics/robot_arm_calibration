@@ -744,8 +744,8 @@ if __name__ == "__main__":
             # Compute average transformation over all measurements
             PBaseSensor = np.average(PBaseSensor, axis=0)
             RBaseSensor = np.average(RBaseSensor)
-            U, S, V = np.linalg.svd(RBaseSensor)
-            RBaseSensor = np.dot(U, V.T)
+            U, _, V = np.linalg.svd(RBaseSensor)
+            RBaseSensor = np.dot(U, V)
 
             TBaseSensor[:3, -1] = PBaseSensor
             TBaseSensor[:3, :3] = RBaseSensor

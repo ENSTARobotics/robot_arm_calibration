@@ -4,11 +4,12 @@
 import sys
 
 #Utility packages
+#from jax import jit    #Using a just-in-time (JIT) compilation decorator, sequences of operations can be optimized together and run at once. Not all JAX code can be JIT compiled, as it requires array shapes to be static & known at compile time.
 import jax.numpy as np
 from jax.scipy.spatial.transform import Rotation as R
 
 #Jacobian computation package
-from jax import jacfwd, jacrev
+from jax import jacfwd, jacrev  #jacfwd uses forward-mode automatic differentiation, which is more efficient for “tall” Jacobian matrices, while jacrev uses reverse-mode, which is more efficient for “wide” Jacobian matrices. For matrices that are near-square, jacfwd probably has an edge over jacrev.
 
 from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial, getIdentifiableParametersFull
 
@@ -213,8 +214,8 @@ if(len(TToolN) > 1):
 else:
     Pfunc = PfuncFull
 
-### Robot identification jacobian matrix (jacrev is better for wide jacobians, i.e. highest number of columns than rows)
-Jfunc = jacrev(Pfunc)
+### Robot identification jacobian matrix
+Jfunc = jacfwd(Pfunc)
 
 #q = np.zeros(JOINTS_NUMBER)
 #np.set_printoptions(edgeitems=30, linewidth=100000, 
