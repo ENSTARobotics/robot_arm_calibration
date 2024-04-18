@@ -88,6 +88,7 @@ class GeometricModel(ABC):
         self.transformation_flange_tool = self.transformation_flange_tool_N
 
         ### BASE OFFSET ###
+        # Remark : this transformation is always equal to the identity matrix, as we always set the robot base frame as the world/sensor frame. It is still kept for possible future use.
         
         # Model nominal parameters
         self.transformation_world_base_N = kwargs["TBaseOffset"]
