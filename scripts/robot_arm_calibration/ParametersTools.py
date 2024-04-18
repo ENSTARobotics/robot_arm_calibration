@@ -42,11 +42,14 @@ def importRobotParametersFromFile(filePath, caller = None):
 
     outputParameters["piN"] = np.array(inputParameters["robotParameters"])
 
+    outputParameters["robotName"] = os.path.basename(filePath).split("_")[0]
+
     if(caller is None):
         caller = sys._getframe(1)
 
     caller.f_globals.update(outputParameters)
-    caller.f_globals.update({"robotName":os.path.basename(filePath).split("_")[0]})
+    return(outputParameters)
+
 
 def importRobotBaseParametersFromFile(filePath, caller = None):
     inputParameters = None
@@ -72,6 +75,7 @@ def importRobotBaseParametersFromFile(filePath, caller = None):
         caller = sys._getframe(1)
 
     caller.f_globals.update(outputParameters)
+    return(outputParameters)
 
 def importToolParametersFromFile(filePath, caller = None):
     inputParameters = None
@@ -105,20 +109,24 @@ def importToolParametersFromFile(filePath, caller = None):
         else:
             outputParameters["EEItemsNames"] = ["EEPose"]
 
+    outputParameters["toolName"] = os.path.basename(filePath).split("_")[0]
+
     if(caller is None):
         caller = sys._getframe(1)
 
     caller.f_globals.update(outputParameters)
-    caller.f_globals.update({"toolName":os.path.basename(filePath).split("_")[0]})
+    return(outputParameters)
 
 def importAllParametersFromFile(filePath, caller = None):
     
     if(caller is None):
         caller = sys._getframe(1)
 
-    importRobotParametersFromFile(filePath, caller)
-    importRobotBaseParametersFromFile(filePath, caller)
-    importToolParametersFromFile(filePath, caller)
+    robotParameters = importRobotParametersFromFile(filePath, caller)
+    baseParameters = importRobotBaseParametersFromFile(filePath, caller)
+    toolParameters = importToolParametersFromFile(filePath, caller)
+
+    allParameters = {**robotParameters,**baseParameters,**toolParameters}
 
     if("calibratedModels" in filePath):
         splitName = np.array(filePath.split("/"))
@@ -131,17 +139,20 @@ def importAllParametersFromFile(filePath, caller = None):
         robotName = splitName[0]
         toolName = "" if len(splitName) == 1 else splitName[1]
 
+    allParameters["robotName"] = robotName
+    allParameters["toolName"] = toolName
     caller.f_globals.update({"robotName":robotName,"toolName":toolName})
+    return(allParameters)
 
-def importParameters(robotName = "", toolName = ""):
+def importAllParametersFromNames(robotName = "", toolName = ""):
 
     caller = sys._getframe(1)
     configFolderPath = getPackagePath() + "/config/nominalModels/"
 
     try:
-        importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
-        importRobotBaseParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_base_parameters.yaml", caller)
-        importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
+        robotParameters = importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
+        baseParameters = importRobotBaseParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_base_parameters.yaml", caller)
+        toolParameters = importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
 
     except:
         import os
@@ -153,11 +164,15 @@ def importParameters(robotName = "", toolName = ""):
         robotName = currentParameters[0]
         toolName = "_".join(currentParameters[1:])  
 
-        importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
-        importRobotBaseParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_base_parameters.yaml", caller)
-        importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
+        robotParameters = importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
+        baseParameters = importRobotBaseParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_base_parameters.yaml", caller)
+        toolParameters = importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
 
-    caller.f_globals.update({"robotName":robotName,"toolName":toolName}) 
+    allParameters = {**robotParameters,**baseParameters,**toolParameters}
+    allParameters["robotName"] = robotName
+    allParameters["toolName"] = toolName
+    caller.f_globals.update({"robotName":robotName,"toolName":toolName})
+    return(allParameters)
 
 def saveParameters(filePath, TBase = None, TFlange = None, pi = None, TTool = None, TBaseOffset = None  ):
 
@@ -207,7 +222,7 @@ def getIdentifiableParametersPartial(TBase,TFlange,TTool,pi):
     RBase = R.from_matrix(TBase[:3,:3])
     PFlangeTool = TFlangeTool[:,:3,-1]
 
-    parameters = np.hstack((PBase,R.as_rotvec(RBase),pi,PFlangeTool.flatten())) #TODO Adapt to MRP !
+    parameters = np.hstack((PBase,R.as_mrp(RBase),pi,PFlangeTool.flatten()))
 
     return(parameters)
 
@@ -230,27 +245,5 @@ def getIdentifiableParametersFull(TBase,TFlange,TTool,pi):
     RBase = R.from_matrix(TBase[:3,:3])
     
     parameters = np.hstack((PBase,R.as_mrp(RBase),pi,PFlangeTool,R.as_mrp(RFlangeTool)))
-
-    return(parameters)
-
-def getIdentifiableParametersPartial(TBase,TFlange,TTool,pi):
-    """! Converts readable parameters into an identifiable parameters vector for full pose approach.
-
-    @param TBase            The robot base homogeneous transformation matrix (relative to the measuring device reference frame).
-    @param TFLange          The robot flange homogeneous transformation matrix (relative to the last robot joint frame).
-    @param TTool            The list containing the end effector points homogeneous transformation matrix (relative to the robot flange).
-    @param pi               The robot kinematic parmeters vector.
-
-    @return     The identifiable parameters vector.
-    """
-
-    TFlangeTool = np.dot(TFlange,TTool)
-    PFlangeTool = TFlangeTool[:,:3,-1]
-    RFlangeTool = R.from_matrix(TFlangeTool[:3,:3])
-
-    PBase = TBase[:3,-1]
-    RBase = R.from_matrix(TBase[:3,:3])
-    
-    parameters = np.hstack((PBase,R.as_rotvec(RBase),pi,PFlangeTool,R.as_rotvec(RFlangeTool)))
 
     return(parameters)

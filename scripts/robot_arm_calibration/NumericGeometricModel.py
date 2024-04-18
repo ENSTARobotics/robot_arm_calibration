@@ -9,23 +9,9 @@ import jax.numpy as np
 from jax.scipy.spatial.transform import Rotation as R
 
 #Jacobian computation package
-from jax import jacfwd, jacrev  #jacfwd uses forward-mode automatic differentiation, which is more efficient for “tall” Jacobian matrices, while jacrev uses reverse-mode, which is more efficient for “wide” Jacobian matrices. For matrices that are near-square, jacfwd probably has an edge over jacrev.
+from jax import jacfwd, jacrev  #jacfwd uses forward-mode automatic differentiation, which is more efficient for “tall” Jacobian matrices, while jacrev uses reverse-mode, which is more efficient for “wide” Jacobian matrices. For matrices that are near-square, jacfwd probably has an edge over jacrev.        
 
-from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial, getIdentifiableParametersFull
-
-def size(L):
-    """! Computes the size of a nested list as the sum of the sizes of all contained lists
-
-    @param L   The nested list.
-
-    @return  The size of the nested list.
-    """
-    if type(L) == list or type(L) == np.ndarray:
-        return(sum(size(l) for l in L))
-    else:
-        return(1) 
-
-from robot_arm_calibration.ParametersTools import importParameters, importAllParametersFromFile
+from robot_arm_calibration.ParametersTools import importAllParametersFromNames, importAllParametersFromFile
 
 ### Default => Get model from parameters file
 try:
@@ -45,7 +31,22 @@ except:
     except:
         pass
 
-    importParameters(robotName,toolName)
+    importAllParametersFromNames(robotName,toolName)
+
+def size(L):
+    """! Computes the size of a nested list as the sum of the sizes of all contained lists
+
+    @param L   The nested list.
+
+    @return  The size of the nested list.
+    """
+
+    try:
+        _ = iter(L)
+    except TypeError:
+        return(1) 
+    else:
+        return(sum(size(l) for l in L))
 
 ### Robot geometric model (revolute joints only)
 

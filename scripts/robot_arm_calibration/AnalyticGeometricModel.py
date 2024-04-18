@@ -113,7 +113,7 @@ except:
     except:
         pass
 
-    importParameters(robotName,toolName)
+    importAllParametersFromNames(robotName,toolName)
 
     ### Get robot config directory path
     configPathRobot = getPackagePath() + "/config/nominalModels/robots/" + robotName + "/"
