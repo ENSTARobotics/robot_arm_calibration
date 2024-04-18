@@ -24,6 +24,6 @@ TToolN = np.array([np.dot(TToolN_body,np.array([[1,0,0,item[0]],
 N_EEPOINTS = len(d)
 EEItemsNames = ["EEPositions" + str(i) for i in range(len(d))]
 
-from robot_arm_calibration.ParametersTools import saveParameters
+from robot_arm_calibration.ParametersTools import save_parameters
 import os
-saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + ".yaml",TTool=TToolN)
+save_parameters(os.path.splitext(os.path.abspath(__file__))[0] + ".yaml",transformation_flange_tool = TToolN)

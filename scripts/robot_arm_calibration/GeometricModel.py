@@ -5,6 +5,7 @@ import os
 import cloup
 import functools
 from abc import ABC, abstractmethod
+import yaml
 
 #Utility packages
 #from jax import jit    
@@ -20,7 +21,7 @@ import sympy as sp
 import dill
 
 #Geometric parameters tools
-from robot_arm_calibration.ParametersTools import importAllParametersFromNames, importAllParametersFromFile, getPackagePath
+from robot_arm_calibration.ParametersTools import import_all_parameters_from_names, import_all_parameters_from_file, get_package_path
 
 def load_geometric_model(func):
     @cloup.option("--robot_name", type=str)
@@ -32,9 +33,9 @@ def load_geometric_model(func):
     def wrapper(robot_name, tool_name, parameters_file, *args, **kwargs):
         parameters = {}
         if parameters_file:
-            parameters = importAllParametersFromFile(parameters_file)
+            parameters = import_all_parameters_from_file(parameters_file)
         else:
-            parameters = importAllParametersFromNames(robot_name, tool_name)
+            parameters = import_all_parameters_from_names(robot_name, tool_name)
 
         if kwargs["model_type"] == "numeric":
             robot_model = NumericRobotModel(**parameters)
@@ -46,10 +47,10 @@ def load_geometric_model(func):
         return func(robot_model, *args, **kwargs)
     return wrapper
 
-class RobotModel(ABC):
+class GeometricModel(ABC):
 
     def __init__(self, **kwargs):
-        """! Initializes the robot geometric model."""
+        """! Initializes the robot and tool geometric model."""
 
         ### ROBOT ###
         self.robot_name = kwargs["robotName"]
@@ -66,9 +67,14 @@ class RobotModel(ABC):
                                           for i in range(self.joints_number+1)])
         
         # Model nominal parameters
-        self.transformation_base_N = kwargs["TBaseN"]
-        self.transformation_flange_N = kwargs["TFlangeN"]
+        self.transformation_base_first_joint_N = kwargs["TBaseN"]
+        self.transformation_last_joint_flange_N = kwargs["TFlangeN"]
         self.pi_N = kwargs["piN"]
+
+        # Model calibrated parameters
+        self.transformation_base_first_joint = self.transformation_base_first_joint_N
+        self.transformation_last_joint_flange = self.transformation_last_joint_flange_N
+        self.pi = self.pi_N
 
         ### TOOL ###  
         self.tool_name = kwargs["toolName"]
@@ -78,18 +84,84 @@ class RobotModel(ABC):
         # Model nominal parameters
         self.transformation_flange_tool_N = kwargs["TToolN"]
 
+        # Model calibrated parameters
+        self.transformation_flange_tool = self.transformation_flange_tool_N
+
         ### BASE OFFSET ###
-        self.transformation_world_base = kwargs["TBaseOffset"]
+        
+        # Model nominal parameters
+        self.transformation_world_base_N = kwargs["TBaseOffset"]
+
+        # Model calibrated parameters
+        self.transformation_world_base = self.transformation_world_base_N
+
+        @classmethod
+        def create_from_file(cls,parameters_file):
+            """! Initializes the robot and tool geometric model from a parameters file.
+
+            @param parameters_file   The parameters file path.
+
+            @return                  The robot and tool geometric model.
+            """
+
+            parameters = import_all_parameters_from_file(parameters_file)
+            return cls(**parameters)
+
+        @classmethod
+        def create_from_names(cls,robot_name, tool_name):
+            """! Initializes the robot and tool geometric model from their names.
+
+            @param robot_name   The robot name.
+            @param tool_name    The tool name.
+
+            @return             The robot and tool geometric model.
+            """
+
+            parameters = import_all_parameters_from_names(robot_name, tool_name)
+            return cls(**parameters)
+        
+        def save_calibrated_model(self, file_path):
+            """! Saves the robot and tool geometric model parameters to a file.
+
+            @param file_path   The file path.
+            """
+
+            output_parameters = {}
+
+            #Robot base offset
+            if(self.transformation_world_base is not None):
+                output_parameters["robotBaseOffset"] = self.transformation_world_base.flatten().tolist()
+
+            #Robot tools
+            if(self.transformation_flange_tool is not None):
+                output_parameters["robotTools"] = self.transformation_flange_tool.flatten().tolist()
+
+            #Robot parameters
+            if(self.transformation_base_first_joint is not None):
+                output_parameters["robotBase"] = self.transformation_base_first_joint.flatten().tolist()
+            if(self.transformation_last_joint_flange is not None):
+                output_parameters["robotFlange"] = self.transformation_last_joint_flange.flatten().tolist()
+            if(self.pi is not None):
+                output_parameters["robot_parameters"] = self.pi.tolist()
+                output_parameters["jointsAxis"] = self.joints_axis.tolist()
+                output_parameters["jointsOffset"] = self.joints_offset.tolist()
+                output_parameters["linksTranslations"] = self.links_translations.tolist()
+                output_parameters["linksRotations"] = self.links_rotations.tolist()
+
+            if(not os.path.isdir(os.path.dirname(file_path))):
+                os.makedirs(os.path.dirname(file_path))
+            with open(file_path,'w') as file:
+                yaml.dump(output_parameters, file)
 
         ### MODEL FUNCTIONS ###
         @abstractmethod
         def T_func(self, parameters, q):
-            """! Computes the transformation matrix between the robot first frame and the robot flange frame (kinematic chain only).
+            """! Computes the transformation matrix between the robot first and last joint frames (kinematic chain only).
 
             @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
             @param q            The robot angular configuration (i.e. actuators values).
 
-            @return  The transformation matrix between the robot base frame and the robot flange frame.
+            @return             The transformation matrix between the robot base frame and the robot flange frame.
             """
             pass
 
@@ -100,7 +172,7 @@ class RobotModel(ABC):
             @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
             @param q            The robot angular configuration (i.e. actuators values).
 
-            @return  The transformation matrix between the robot base frame and the robot flange frame.
+            @return             The transformation matrix between the robot base frame and the robot flange frame.
             """
             pass
 
@@ -111,11 +183,11 @@ class RobotModel(ABC):
             @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
             @param q            The robot angular configuration (i.e. actuators values).
 
-            @return  The transformation matrix between the robot base frame and the robot flange frame.
+            @return             The transformation matrix between the robot base frame and the robot flange frame.
             """
             pass
 
-class NumericRobotModel(RobotModel):
+class NumericRobotModel(GeometricModel):
         
     def __init__(self, **kwargs):
         """! Initializes the robot numeric geometric model."""
@@ -130,13 +202,13 @@ class NumericRobotModel(RobotModel):
         self.J_func = jacfwd(self.P_func)
 
     def T_i(self, i, q, pi = None):
-        """! Computes the local homogeneous transformation matrix for the ith robot joint.
+        """! Computes the transformation matrix for the ith robot joint.
 
-        @param i   The robot joint index.
-        @param q   The robot angular configuration (i.e. actuators values).
-        @param pi  The robot kinematic parameters vector.
+        @param i    The robot joint index.
+        @param q    The robot angular configuration (i.e. actuators values).
+        @param pi   The robot kinematic parameters vector.
 
-        @return  The local homogeneous transformation matrix, the list of the involved successive primitive transformations (single axis translation/rotation) matrices.
+        @return     The transformation matrix.
         """
 
         if pi is None:
@@ -183,41 +255,41 @@ class NumericRobotModel(RobotModel):
 
         return(T)
 
-    def T(self, q, pi = None, transformation_world_base = None, transformation_flange_tool = None):
-        """! Computes the transformation matrix between the world reference frame and the robot tool.
+    def T(self, q, pi = None, transformation_world_first_joint = None, transformation_last_joint_tool = None):
+        """! Computes the transformation matrix between the world frame and the robot tool.
 
-        @param q        The robot angular configuration (i.e. actuators values).
-        @param pi       The robot kinematic parameters vector.
-        @param transformation_world_base    The homogeneous transformation matrix between the world reference frame and the robot base.
-        @param transformation_flange_tool    The homogeneous transformation matrix between the last robot joint and the robot tool.
+        @param q                                The robot angular configuration (i.e. actuators values).
+        @param pi                               The robot kinematic parameters vector.
+        @param transformation_world_first_joint The transformation matrix between the world frame and the robot first joint.
+        @param transformation_last_joint_tool   The transformation matrix between the robot last joint and the robot tool.
 
-        @return  The transformation matrix.
+        @return                                 The transformation matrix.
         """
 
         if pi is None:
             pi = self.pi_N
-        if transformation_world_base is None:
-            transformation_world_base = self.transformation_base_N
-        if transformation_flange_tool is None:
-            transformation_flange_tool = self.transformation_flange_N
+        if transformation_world_first_joint is None:
+            transformation_world_first_joint = self.transformation_base_first_joint_N
+        if transformation_last_joint_tool is None:
+            transformation_last_joint_tool = self.transformation_last_joint_flange_N
 
-        T = transformation_world_base
+        T = transformation_world_first_joint
         for i in range(self.joints_number):
             T = np.dot(T,self.T_i(i,q,pi))
-        return(np.dot(T,transformation_flange_tool))
+        return(np.dot(T,transformation_last_joint_tool))
     
-    def P(self, q, pi = None, transformation_world_base = None, transformation_flange_tool = None):
-        """! Computes the position of end effector points in the world reference frame.
+    def P(self, q, pi = None, transformation_world_first_joint = None, transformation_last_joint_tool = None):
+        """! Computes the position of end effector points in the world frame.
 
-        @param q        The robot angular configuration (i.e. actuators values).
-        @param pi       The robot kinematic parameters vector.
-        @param transformation_world_base    The homogeneous transformation matrix between the world reference frame and the robot base frame.
-        @param transformation_flange_tool    The homogeneous transformation matrix between the last robot joint and the robot tool.
+        @param q                                The robot angular configuration (i.e. actuators values).
+        @param pi                               The robot kinematic parameters vector.
+        @param transformation_world_first_joint The transformation matrix between the world frame and the robot first joint.
+        @param transformation_last_joint_tool   The transformation matrix between the robot last joint and the robot tool.
 
-        @return  The positions of end effector points
+        @return                                 The positions of end effector points
         """
 
-        P = np.vstack([self.T(q,pi,transformation_world_base,t)[:3,-1] for t in transformation_flange_tool])
+        P = np.vstack([self.T(q,pi,transformation_world_first_joint,t)[:3,-1] for t in transformation_last_joint_tool])
         return(P)
     
     def T_func(self, parameters, q):
@@ -226,7 +298,7 @@ class NumericRobotModel(RobotModel):
         @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
         @param q            The robot angular configuration (i.e. actuators values).
 
-        @return  The transformation matrix between the robot base frame and the robot flange frame.
+        @return             The transformation matrix between the robot base frame and the robot flange frame.
         """
         
         pi = parameters[6:6+len(self.pi_N)]
@@ -238,25 +310,25 @@ class NumericRobotModel(RobotModel):
         @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
         @param q            The robot angular configuration (i.e. actuators values).
 
-        @return  The positions of end effector points in the robot base frame.
+        @return             The positions of end effector points in the robot base frame.
         """
 
         #Robot base
-        transformation_world_base = np.eye(4)
-        transformation_world_base = transformation_world_base.at[:3,-1].set(parameters[:3])
-        transformation_world_base = transformation_world_base.at[:3,:3].set(R.from_mrp(parameters[3:6]).as_matrix())
+        transformation_world_first_joint = np.eye(4)
+        transformation_world_first_joint = transformation_world_first_joint.at[:3,-1].set(parameters[:3])
+        transformation_world_first_joint = transformation_world_first_joint.at[:3,:3].set(R.from_mrp(parameters[3:6]).as_matrix())
 
         #Robot geometric parameters
         pi = parameters[6:6+len(self.pi_N)]
 
         #Robot flange and tool
-        transformation_flange_tool = np.empty(np.shape(self.transformation_flange_tool_N))
+        transformation_last_joint_tool = np.empty(np.shape(self.transformation_flange_tool_N))
         for i,P in enumerate(np.reshape(parameters[6+len(self.pi_N):],(-1,3))):
-            tmp = np.dot(self.transformation_flange_N,self.transformation_flange_tool_N[i])
+            tmp = np.dot(self.transformation_last_joint_flange_N,self.transformation_flange_tool_N[i])
             tmp = tmp.at[:3,-1].set(P)
-            transformation_flange_tool = transformation_flange_tool.at[i].set(tmp)
+            transformation_last_joint_tool = transformation_last_joint_tool.at[i].set(tmp)
 
-        return(self.P(q,pi,transformation_world_base,transformation_flange_tool))
+        return(self.P(q,pi,transformation_world_first_joint,transformation_last_joint_tool))
     
     def P_full_func(self, parameters, q):
         """! Computes the transformation matrix between the tool and the world frame.
@@ -264,27 +336,27 @@ class NumericRobotModel(RobotModel):
         @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
         @param q            The robot angular configuration (i.e. actuators values).
 
-        @return  The transformation matrix between the robot base frame and the robot flange frame.
+        @return             The transformation matrix between the robot base frame and the robot flange frame.
         """
         
         #Robot base
-        transformation_world_base = np.eye(4)
-        transformation_world_base = transformation_world_base.at[:3,-1].set(parameters[:3])
-        transformation_world_base = transformation_world_base.at[:3,:3].set(R.from_mrp(parameters[3:6]).as_matrix())
+        transformation_world_first_joint = np.eye(4)
+        transformation_world_first_joint = transformation_world_first_joint.at[:3,-1].set(parameters[:3])
+        transformation_world_first_joint = transformation_world_first_joint.at[:3,:3].set(R.from_mrp(parameters[3:6]).as_matrix())
 
         #Robot geometric parameters
         pi = parameters[6:6+len(self.pi_N)]
 
         #Robot flange and tool
-        transformation_flange_tool = np.eye(4)
-        transformation_flange_tool = transformation_flange_tool.at[:3,-1].set(parameters[6+len(self.pi_N):9+len(self.pi_N)])
-        transformation_flange_tool = transformation_flange_tool.at[:3,:3].set(R.from_mrp(parameters[9+len(self.pi_N):]).as_matrix())
+        transformation_last_joint_tool = np.eye(4)
+        transformation_last_joint_tool = transformation_last_joint_tool.at[:3,-1].set(parameters[6+len(self.pi_N):9+len(self.pi_N)])
+        transformation_last_joint_tool = transformation_last_joint_tool.at[:3,:3].set(R.from_mrp(parameters[9+len(self.pi_N):]).as_matrix())
 
-        T = self.T(q,pi,transformation_world_base,transformation_flange_tool)
+        T = self.T(q,pi,transformation_world_first_joint,transformation_last_joint_tool)
         P = np.hstack((T[:3,-1],R.from_matrix(T[:3,:3]).as_mrp()))
         return(P)
 
-class AnalyticRobotModel(RobotModel):
+class AnalyticRobotModel(GeometricModel):
 
     @staticmethod
     def rot_axis(angle,axis_index):
@@ -293,7 +365,7 @@ class AnalyticRobotModel(RobotModel):
         @param angle        The analytic rotation angle.
         @param axisIndex    The index of the rotation axis : 1 -> X, 2 -> Y, 3 -> Z.
 
-        @return  The analytic matrix representation of the rotation.
+        @return             The analytic matrix representation of the rotation.
         """
         if(axis_index == 1):
             return(sp.rot_axis1(angle).T)
@@ -309,6 +381,7 @@ class AnalyticRobotModel(RobotModel):
         """! Converts a rotation matrix into a rotation vector representation.
 
         @param matrix   The rotation matrix.
+
         @return         The rotation vector representation.
         """
             
@@ -324,6 +397,7 @@ class AnalyticRobotModel(RobotModel):
         """! Converts a rotation vector representation into a rotation matrix
         
         @param rotvec   The rotation vector representation.
+
         @return         The rotation matrix.
         """
         
@@ -343,6 +417,7 @@ class AnalyticRobotModel(RobotModel):
         """! Converts a quaternion into a MRP representation.
 
         @param quat     The quaternion.
+
         @return         The MRP representation.
         """
             
@@ -355,7 +430,8 @@ class AnalyticRobotModel(RobotModel):
     def mrp_to_matrix(mrp):
         """! Converts a MRP representation into a quaternion.
 
-        @param mrp     The MRP representation.
+        @param mrp      The MRP representation.
+
         @return         The quaternion.
         """
             
@@ -371,7 +447,7 @@ class AnalyticRobotModel(RobotModel):
 
         super().__init__(**kwargs)
 
-        self.model_folder = getPackagePath() + "/config/nominalModels/robots/" + self.robot_name + "/"
+        self.model_folder = get_package_path() + "/config/nominalModels/robots/" + self.robot_name + "/"
         self.model_suffix = self.robot_name + "_" + self.tool_name if (self.tool_name != 0) else self.robot_name
 
         #If the analytic model does not exist, it is generated
@@ -491,7 +567,7 @@ class AnalyticRobotModel(RobotModel):
         @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
         @param q            The robot angular configuration (i.e. actuators values).
 
-        @return  The transformation matrix between the robot base frame and the robot flange frame.
+        @return             The transformation matrix between the robot base frame and the robot flange frame.
         """
         
         T = self.T_raw(parameters,q)
@@ -509,7 +585,7 @@ class AnalyticRobotModel(RobotModel):
         @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
         @param q            The robot angular configuration (i.e. actuators values).
 
-        @return  The transformation matrix between the robot base frame and the robot flange frame.
+        @return             The transformation matrix between the robot base frame and the robot flange frame.
         """
 
         P = self.P_raw(parameters,q)
@@ -526,7 +602,7 @@ class AnalyticRobotModel(RobotModel):
         @param parameters   The robot identifiable kinematic parameters vector (base, link/joints, tools).
         @param q            The robot angular configuration (i.e. actuators values).
 
-        @return  The transformation matrix between the robot base frame and the robot flange frame.
+        @return             The transformation matrix between the robot base frame and the robot flange frame.
         """
 
         J = self.J_raw(parameters,q)

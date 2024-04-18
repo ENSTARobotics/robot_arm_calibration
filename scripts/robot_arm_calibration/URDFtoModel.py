@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation as R
 from urchin import URDF 
 
 #Custom package
-from robot_arm_calibration.URDFTools import getURDF, getSortedJoints, size
+from robot_arm_calibration.URDFTools import get_urdf, get_sorted_joints, size
 
 def URDFtoModel(URDFFilePath, flangeLinkName):
     """! Converts an URDF description to identifiable geometric parameters.
@@ -23,10 +23,10 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
     """
 
     #Load URDF file
-    robot = getURDF(URDFFilePath)
+    robot = get_urdf(URDFFilePath)
 
     #Get URDF joints in the right order
-    baseJoints,actuatedJoints,flangeJoints = getSortedJoints(robot,flangeLinkName)
+    baseJoints,actuatedJoints,flangeJoints = get_sorted_joints(robot,flangeLinkName)
 
     ### Create model
 

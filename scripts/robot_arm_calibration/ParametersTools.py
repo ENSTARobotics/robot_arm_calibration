@@ -9,241 +9,290 @@ import yaml
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-def getPackagePath():
+def get_package_path():
+    """! Returns robot_arm_calibration package path (for configuration files importation)
+
+    @return         The package path.
+    """
+
     import robot_arm_calibration
-    modulePath = os.path.dirname(robot_arm_calibration.__file__)
-    scriptsPath = os.path.dirname(modulePath)
-    packagePath = os.path.dirname(scriptsPath)
-    return packagePath
+    module_path = os.path.dirname(robot_arm_calibration.__file__)
+    scripts_path = os.path.dirname(module_path)
+    package_path = os.path.dirname(scripts_path)
+    return package_path
 
-def importRobotParametersFromFile(filePath, caller = None):
-    inputParameters = None
+def import_robot_parameters_from_file(file_path, caller = None):
+    """! Imports robot model parameters from a YAML file.
 
-    try:
-        with open(filePath,'r') as file:
-            inputParameters = yaml.load(file, Loader=yaml.FullLoader)
+    @param file_path    The path to the YAML file containing the robot model parameters.
+    @param caller       The caller frame #TODO REMOVE
 
-        if(inputParameters is None):
-            raise ValueError
-    except:
-        print("Invalid file path for robot parameters importation !")
-        sys.exit(-1)
+    @return             The robot parameters dictionary.
+    """
 
-    outputParameters = {}
+    input_parameters = None
 
-    outputParameters["JOINTS_AXIS"] = inputParameters["jointsAxis"]
-    outputParameters["JOINTS_NUMBER"] = len(outputParameters["JOINTS_AXIS"])
-    outputParameters["TBaseN"] = np.array(inputParameters["robotBase"]).reshape((4,4))
-    outputParameters["TFlangeN"] = np.array(inputParameters["robotFlange"]).reshape((4,4))
+    with open(file_path,'r') as file:
+        input_parameters = yaml.load(file, Loader=yaml.FullLoader)
 
-    outputParameters["JOINTS_OFFSET"] = inputParameters["jointsOffset"]
-    outputParameters["LINKS_TRANSLATIONS"] = inputParameters["linksTranslations"]
-    outputParameters["LINKS_ROTATIONS"] = inputParameters["linksRotations"]
+    if(input_parameters is None):
+        raise ValueError("Empty file path for robot parameters importation !")
 
-    outputParameters["piN"] = np.array(inputParameters["robotParameters"])
+    output_parameters = {}
 
-    outputParameters["robotName"] = os.path.basename(filePath).split("_")[0]
+    output_parameters["JOINTS_AXIS"] = input_parameters["jointsAxis"]
+    output_parameters["JOINTS_NUMBER"] = len(output_parameters["JOINTS_AXIS"])
+    output_parameters["TBaseN"] = np.array(input_parameters["robotBase"]).reshape((4,4))
+    output_parameters["TFlangeN"] = np.array(input_parameters["robotFlange"]).reshape((4,4))
+
+    output_parameters["JOINTS_OFFSET"] = input_parameters["jointsOffset"]
+    output_parameters["LINKS_TRANSLATIONS"] = input_parameters["linksTranslations"]
+    output_parameters["LINKS_ROTATIONS"] = input_parameters["linksRotations"]
+
+    output_parameters["piN"] = np.array(input_parameters["robot_parameters"])
+
+    output_parameters["robotName"] = os.path.basename(file_path).split("_")[0]
 
     if(caller is None):
         caller = sys._getframe(1)
 
-    caller.f_globals.update(outputParameters)
-    return(outputParameters)
+    caller.f_globals.update(output_parameters)
+    return(output_parameters)
 
 
-def importRobotBaseParametersFromFile(filePath, caller = None):
-    inputParameters = None
+def import_robot_base_parameters_from_file(file_path, caller = None):
+    """! Imports robot base transformation parameters from a YAML file.
+
+    @param file_path    The path to the YAML file containing the robot base transformation parameters.
+    @param caller       The caller frame #TODO REMOVE
+
+    @return             The robot base transformation dictionary.
+    """
+        
+    input_parameters = None
 
     try:
-        with open(filePath,'r') as file:
-            inputParameters = yaml.load(file, Loader=yaml.FullLoader)
+        with open(file_path,'r') as file:
+            input_parameters = yaml.load(file, Loader=yaml.FullLoader)
 
-        if(inputParameters is None):
-            raise ValueError
-    except:
-        print("Invalid file path for robot base parameters importation !")
-        sys.exit(-1)
+        if(input_parameters is None):
+            raise ValueError("Invalid file path for robot base transformation importation !")
+    except (FileNotFoundError, ValueError):
+        input_parameters = {}
 
-    outputParameters = {}
+    output_parameters = {}
 
-    if("robotBaseOffset" in inputParameters.keys()):
-        outputParameters["TBaseOffset"] = np.array(inputParameters["robotBaseOffset"]).reshape((4,4))
+    if("robotBaseOffset" in input_parameters.keys()):
+        output_parameters["TBaseOffset"] = np.array(input_parameters["robotBaseOffset"]).reshape((4,4))
     else:
-        outputParameters["TBaseOffset"] = np.eye(4)
+        output_parameters["TBaseOffset"] = np.eye(4)
 
     if(caller is None):
         caller = sys._getframe(1)
 
-    caller.f_globals.update(outputParameters)
-    return(outputParameters)
+    caller.f_globals.update(output_parameters)
+    return(output_parameters)
 
-def importToolParametersFromFile(filePath, caller = None):
-    inputParameters = None
+def import_tools_parameters_from_file(file_path, caller = None):
+    """! Imports tool model parameters from a YAML file.
+
+    @param file_path    The path to the YAML file containing the tool model parameters.
+    @param caller       The caller frame #TODO REMOVE
+
+    @return             The tool parameters dictionary.
+    """
+        
+    input_parameters = None
 
     try:
-        with open(filePath,'r') as file:
-            inputParameters = yaml.load(file, Loader=yaml.FullLoader)
+        with open(file_path,'r') as file:
+            input_parameters = yaml.load(file, Loader=yaml.FullLoader)
 
-        if(inputParameters is None):
-            raise ValueError
-    except:
-        inputParameters = {}
+        if(input_parameters is None):
+            raise ValueError("Invalid file path for tools parameters importation !")
+    except (FileNotFoundError, ValueError):
+        input_parameters = {}
 
-    outputParameters = {}
+    output_parameters = {}
 
-    if("robotTools" in inputParameters.keys()):
-        outputParameters["TToolN"] = np.array(inputParameters["robotTools"]).reshape((-1,4,4))
-        outputParameters["N_EEPOINTS"] = len(outputParameters["TToolN"])
-        if(outputParameters["N_EEPOINTS"] > 1):
-            outputParameters["EEItemsNames"] = ["EEPosition" + str(i+1) for i in range(outputParameters["N_EEPOINTS"])]
+    if("robotTools" in input_parameters.keys()):
+        output_parameters["TToolN"] = np.array(input_parameters["robotTools"]).reshape((-1,4,4))
+        output_parameters["N_EEPOINTS"] = len(output_parameters["TToolN"])
+        if(output_parameters["N_EEPOINTS"] > 1):
+            output_parameters["EEItemsNames"] = ["EEPosition" + str(i+1) for i in range(output_parameters["N_EEPOINTS"])]
         else:
-            outputParameters["EEItemsNames"] = ["EEPose"]
-        if("additionnalParameters" in inputParameters.keys()):
-            outputParameters["EEItemsNames"].append(inputParameters["additionnalParameters"])
+            output_parameters["EEItemsNames"] = ["EEPose"]
+        if("additionnalParameters" in input_parameters.keys()):
+            output_parameters["EEItemsNames"].append(input_parameters["additionnalParameters"])
     else:
         print("Invalid file path for tools parameters importation, defaulting to no tool.")
-        outputParameters["TToolN"] = np.array([np.eye(4)])
-        outputParameters["N_EEPOINTS"] = len(outputParameters["TToolN"])
-        if(outputParameters["N_EEPOINTS"] > 1):
-            outputParameters["EEItemsNames"] = ["EEPosition" + str(i+1) for i in range(outputParameters["N_EEPOINTS"])]
+        output_parameters["TToolN"] = np.array([np.eye(4)])
+        output_parameters["N_EEPOINTS"] = len(output_parameters["TToolN"])
+        if(output_parameters["N_EEPOINTS"] > 1):
+            output_parameters["EEItemsNames"] = ["EEPosition" + str(i+1) for i in range(output_parameters["N_EEPOINTS"])]
         else:
-            outputParameters["EEItemsNames"] = ["EEPose"]
+            output_parameters["EEItemsNames"] = ["EEPose"]
 
-    outputParameters["toolName"] = os.path.basename(filePath).split("_")[0]
+    output_parameters["toolName"] = os.path.basename(file_path).split("_")[0]
 
     if(caller is None):
         caller = sys._getframe(1)
 
-    caller.f_globals.update(outputParameters)
-    return(outputParameters)
+    caller.f_globals.update(output_parameters)
+    return(output_parameters)
 
-def importAllParametersFromFile(filePath, caller = None):
+def import_all_parameters_from_file(file_path, caller = None):
+    """! Imports all model parameters from a YAML file.
+
+    @param file_path    The path to the YAML file containing all model parameters.
+    @param caller       The caller frame #TODO REMOVE
+
+    @return             The model parameters dictionary.
+    """
     
     if(caller is None):
         caller = sys._getframe(1)
 
-    robotParameters = importRobotParametersFromFile(filePath, caller)
-    baseParameters = importRobotBaseParametersFromFile(filePath, caller)
-    toolParameters = importToolParametersFromFile(filePath, caller)
+    robot_parameters = import_robot_parameters_from_file(file_path, caller)
+    base_parameters = import_robot_base_parameters_from_file(file_path, caller)
+    tool_parameters = import_tools_parameters_from_file(file_path, caller)
 
-    allParameters = {**robotParameters,**baseParameters,**toolParameters}
+    all_parameters = {**robot_parameters,**base_parameters,**tool_parameters}
 
-    if("calibratedModels" in filePath):
-        splitName = np.array(filePath.split("/"))
-        splitName = splitName[np.where(splitName == "calibratedModels")[0][0] + 1:]
-        splitName = splitName[0].split("_")
-        robotName = splitName[0]
-        toolName = splitName[1]
+    #Extract robot and tool names from folder structure
+    if("calibratedModels" in file_path):
+        split_name = np.array(file_path.split("/"))
+        split_name = split_name[np.where(split_name == "calibratedModels")[0][0] + 1:]
+        split_name = split_name[0].split("_")
+        robot_name = split_name[0]
+        tool_name = split_name[1]
+    #Extract robot and tool names from file name
     else:
-        splitName = os.path.basename(os.path.dirname(filePath)).split("_")
-        robotName = splitName[0]
-        toolName = "" if len(splitName) == 1 else splitName[1]
+        split_name = os.path.basename(os.path.dirname(file_path)).split("_")
+        robot_name = split_name[0]
+        tool_name = "" if len(split_name) == 1 else split_name[1]
 
-    allParameters["robotName"] = robotName
-    allParameters["toolName"] = toolName
-    caller.f_globals.update({"robotName":robotName,"toolName":toolName})
-    return(allParameters)
+    all_parameters["robotName"] = robot_name
+    all_parameters["toolName"] = tool_name
+    caller.f_globals.update({"robotName":robot_name,"toolName":tool_name})
+    return(all_parameters)
 
-def importAllParametersFromNames(robotName = "", toolName = ""):
+def import_all_parameters_from_names(robot_name = "", tool_name = ""):
+    """! Imports all model parameters from robot and tool names
+
+    @param robot_name    The name of the robot.
+    @param tool_name     The name of the tool.
+
+    @return             The model parameters dictionary.
+    """
 
     caller = sys._getframe(1)
-    configFolderPath = getPackagePath() + "/config/nominalModels/"
+    model_path = get_package_path() + "/config/nominalModels/"
 
+    #Import parameters using the provided names
     try:
-        robotParameters = importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
-        baseParameters = importRobotBaseParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_base_parameters.yaml", caller)
-        toolParameters = importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
+        robot_parameters = import_robot_parameters_from_file(model_path +  "robots/" + robot_name + "/" + robot_name + "_parameters.yaml", caller)
+        base_parameters = import_robot_base_parameters_from_file(model_path +  "robots/" + robot_name + "/" + robot_name + "_base_parameters.yaml", caller)
+        tool_parameters = import_tools_parameters_from_file(model_path + "tools/" + tool_name + "/" + tool_name + "_parameters.yaml", caller)
 
-    except:
-        import os
-        currentParameters = np.array(os.getcwd().split("/"))
-        currentParameters = currentParameters[np.where(currentParameters == "calibratedModels")[0][0] + 1:]
-        currentParameters = currentParameters[0].split("_")
+    #Retrieve robot and tool names from folder structure
+    except (FileNotFoundError, ValueError):
+        current_parameters = np.array(os.getcwd().split("/"))
+        current_parameters = current_parameters[np.where(current_parameters == "calibratedModels")[0][0] + 1:]
+        current_parameters = current_parameters[0].split("_")
 
         #Assumption : the robot name does not contain "_", TODO better : neither the marker name, nor the robot name contains "_"
-        robotName = currentParameters[0]
-        toolName = "_".join(currentParameters[1:])  
+        robot_name = current_parameters[0]
+        tool_name = "_".join(current_parameters[1:])  
 
-        robotParameters = importRobotParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_parameters.yaml", caller)
-        baseParameters = importRobotBaseParametersFromFile(configFolderPath +  "robots/" + robotName + "/" + robotName + "_base_parameters.yaml", caller)
-        toolParameters = importToolParametersFromFile(configFolderPath + "tools/" + toolName + "/" + toolName + "_parameters.yaml", caller)
+        robot_parameters = import_robot_parameters_from_file(model_path +  "robots/" + robot_name + "/" + robot_name + "_parameters.yaml", caller)
+        base_parameters = import_robot_base_parameters_from_file(model_path +  "robots/" + robot_name + "/" + robot_name + "_base_parameters.yaml", caller)
+        tool_parameters = import_tools_parameters_from_file(model_path + "tools/" + tool_name + "/" + tool_name + "_parameters.yaml", caller)
 
-    allParameters = {**robotParameters,**baseParameters,**toolParameters}
-    allParameters["robotName"] = robotName
-    allParameters["toolName"] = toolName
-    caller.f_globals.update({"robotName":robotName,"toolName":toolName})
-    return(allParameters)
+    all_parameters = {**robot_parameters,**base_parameters,**tool_parameters}
+    all_parameters["robotName"] = robot_name
+    all_parameters["toolName"] = tool_name
+    caller.f_globals.update({"robotName":robot_name,"toolName":tool_name})
+    return(all_parameters)
 
-def saveParameters(filePath, TBase = None, TFlange = None, pi = None, TTool = None, TBaseOffset = None  ):
+#TODO Sort arguments properly !
+def save_parameters(file_path, transformation_base_first_joint = None, transformation_last_joint_flange = None, pi = None, transformation_flange_tool = None, transformation_world_base = None):
+    """! Save all model parameters in a YAML file.
+
+    @param file_path                        The path where to save the model parameters.
+    @param transformation_base_first_joint  The robot base to first joint transformation matrix.
+    @param transformation_last_joint_flange The robot last joint to flange transformation matrix.
+    @param pi                               The robot kinematic parameters vector.
+    @param transformation_flange_tool       The robot flange to tool(s) transformation matrix.
+    @param transformation_world_base        The world to robot base transformation matrix.
+    """
 
     #Robot model
-    outputParameters = {}
+    output_parameters = {}
 
-    #Robot tools
-    if(TTool is not None):
-        outputParameters["robotTools"] = TTool.flatten().tolist()
+    #Robot base offset
+    if(transformation_world_base is not None):
+        output_parameters["robotBaseOffset"] = transformation_world_base.flatten().tolist()
+
+    #Robot tool(s)
+    if(transformation_flange_tool is not None):
+        output_parameters["robotTools"] = transformation_flange_tool.flatten().tolist()
 
     #Robot parameters
-    if(TBase is not None):
-        outputParameters["robotBase"] = TBase.flatten().tolist()
-    if(TBaseOffset is not None):
-        outputParameters["robotBaseOffset"] = TBaseOffset.flatten().tolist()
-    if(TFlange is not None):
-        outputParameters["robotFlange"] = TFlange.flatten().tolist()
+    if(transformation_base_first_joint is not None):
+        output_parameters["robotBase"] = transformation_base_first_joint.flatten().tolist()
+    if(transformation_last_joint_flange is not None):
+        output_parameters["robotFlange"] = transformation_last_joint_flange.flatten().tolist()
     if(pi is not None):
-        outputParameters["robotParameters"] = pi.tolist()
+        output_parameters["robot_parameters"] = pi.tolist()
+
+        #TODO REMOVE !
         caller = sys._getframe(1)
-        outputParameters["jointsAxis"] = caller.f_globals.get("JOINTS_AXIS")
-        outputParameters["jointsOffset"] = caller.f_globals.get("JOINTS_OFFSET")
-        outputParameters["linksTranslations"] = caller.f_globals.get("LINKS_TRANSLATIONS")
-        outputParameters["linksRotations"] = caller.f_globals.get("LINKS_ROTATIONS")
+        output_parameters["jointsAxis"] = caller.f_globals.get("JOINTS_AXIS")
+        output_parameters["jointsOffset"] = caller.f_globals.get("JOINTS_OFFSET")
+        output_parameters["linksTranslations"] = caller.f_globals.get("LINKS_TRANSLATIONS")
+        output_parameters["linksRotations"] = caller.f_globals.get("LINKS_ROTATIONS")
 
-    if(not os.path.isdir(os.path.dirname(filePath))):
-        os.makedirs(os.path.dirname(filePath))
-    with open(filePath,'w') as file:
-        yaml.dump(outputParameters, file)
+    if(not os.path.isdir(os.path.dirname(file_path))):
+        os.makedirs(os.path.dirname(file_path))
+    with open(file_path,'w') as file:
+        yaml.dump(output_parameters, file)
 
-def getIdentifiableParametersPartial(TBase,TFlange,TTool,pi):
-    """! Converts readable parameters into an identifiable parameters vector for partial pose approach.
+def get_identifiable_parameters(transformation_base_first_joint = None, transformation_last_joint_flange = None, pi = None, transformation_flange_tool = None, transformation_world_base = None):
+    """! Converts readable parameters into an identifiable parameters vector.
 
-    @param TBase            The robot base homogeneous transformation matrix (relative to the measuring device reference frame).
-    @param TFLange          The robot flange homogeneous transformation matrix (relative to the last robot joint frame).
-    @param TTool            The list containing the end effector points homogeneous transformation matrix (relative to the robot flange).
-    @param pi               The robot kinematic parmeters vector.
+    @param transformation_base_first_joint  The robot base to first joint transformation matrix.
+    @param transformation_last_joint_flange The robot last joint to flange transformation matrix.
+    @param pi                               The robot kinematic parameters vector.
+    @param transformation_flange_tool       The robot flange to tool(s) transformation matrix.
+    @param transformation_world_base        The world to robot base transformation matrix.
 
-    @return     The identifiable parameters vector.
+    @return                                 The identifiable parameters vector.
     """
 
-    TFlangeTool = np.empty((len(TTool),4,4))
-    for j in range(len(TTool)):
-        TFlangeTool[j] = np.dot(TFlange,TTool[j])
-
-    PBase = TBase[:3,-1]
-    RBase = R.from_matrix(TBase[:3,:3])
-    PFlangeTool = TFlangeTool[:,:3,-1]
-
-    parameters = np.hstack((PBase,R.as_mrp(RBase),pi,PFlangeTool.flatten()))
-
-    return(parameters)
-
-def getIdentifiableParametersFull(TBase,TFlange,TTool,pi):
-    """! Converts readable parameters into an identifiable parameters vector for full pose approach.
-
-    @param TBase            The robot base homogeneous transformation matrix (relative to the measuring device reference frame).
-    @param TFLange          The robot flange homogeneous transformation matrix (relative to the last robot joint frame).
-    @param TTool            The list containing the end effector points homogeneous transformation matrix (relative to the robot flange).
-    @param pi               The robot kinematic parmeters vector.
-
-    @return     The identifiable parameters vector.
-    """
-
-    TFlangeTool = np.dot(TFlange,TTool[0])
-    PFlangeTool = TFlangeTool[:3,-1]
-    RFlangeTool = R.from_matrix(TFlangeTool[:3,:3])
-
-    PBase = TBase[:3,-1]
-    RBase = R.from_matrix(TBase[:3,:3])
+    ### Robot base ###
     
-    parameters = np.hstack((PBase,R.as_mrp(RBase),pi,PFlangeTool,R.as_mrp(RFlangeTool)))
+    transformation_world_first_joint = np.dot(transformation_world_base,transformation_base_first_joint)
+    P_world_first_joint = transformation_world_first_joint[:3,-1]
+    R_world_first_joint = R.from_matrix(transformation_world_first_joint[:3,:3])
 
+    ### Robot tool(s) ###
+
+    #Partial pose measurements
+    if(len(transformation_flange_tool.shape) > 1):
+        list_transformation_last_joint_tool = np.empty((len(transformation_flange_tool.shape),4,4))
+        for i in range(len(transformation_flange_tool.shape)):
+            list_transformation_last_joint_tool[i] = np.dot(transformation_last_joint_flange,transformation_flange_tool[i])
+        P_last_joint_tool = list_transformation_last_joint_tool[:,:3,-1]
+
+        parameters = np.hstack((P_world_first_joint,R.as_mrp(R_world_first_joint),pi,P_last_joint_tool.flatten()))
+
+    #Full pose measurements
+    else:
+        transformation_last_joint_tool = np.dot(transformation_last_joint_flange,transformation_flange_tool[0])
+        P_last_joint_tool = transformation_last_joint_tool[:3,-1]
+        R_last_joint_tool = R.from_matrix(transformation_last_joint_tool[:3,:3])
+
+        parameters = np.hstack((P_world_first_joint,R.as_mrp(R_world_first_joint),pi,P_last_joint_tool,R.as_mrp(R_last_joint_tool)))
+    
     return(parameters)

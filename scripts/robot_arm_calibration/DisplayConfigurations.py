@@ -18,13 +18,13 @@ import rospkg
 rospack = rospkg.RosPack()
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial
+from robot_arm_calibration.ParametersTools import get_identifiable_parameters
 
 #Custom packages
 from robot_arm_calibration.NumericGeometricModel import T, TBaseN, TFlangeN, TToolN, piN, JOINTS_NUMBER, toolName, robotName
 
 ### Retreive nominal parameters
-parameters0 = getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN)
+parameters0 = get_identifiable_parameters(TBaseN,TFlangeN,piN,TToolN)
 
 ### Loading calibration poses
 print("Loading configurations...")

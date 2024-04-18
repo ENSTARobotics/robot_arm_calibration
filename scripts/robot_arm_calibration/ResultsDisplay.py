@@ -14,7 +14,7 @@ from functools import reduce
 import matplotlib.pyplot as plt
 
 ### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial
+from robot_arm_calibration.ParametersTools import get_identifiable_parameters
 
 #Custom packages
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
@@ -28,7 +28,7 @@ itemsNames = EEItemsNames + ["jointsPositions"]
 testingSamplingMethod = input("Testing configurations ? " + str([folder[:-1] for folder in glob.glob("*/")]))
 Items0 = calibrationCSVParsing(itemsNames,os.getcwd() + "/" + testingSamplingMethod + "/measurements/Calibration.csv")
 
-parameters0 = getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN)
+parameters0 = get_identifiable_parameters(TBaseN,TFlangeN,piN,TToolN)
 
 #Estimate the transformation between the sensor reference and the robot base
 defaultItems0 = copy.deepcopy(Items0)
@@ -261,7 +261,7 @@ for folder in foldersNames:
     with open(folder + "/CalibratedModel.yaml",'r') as file:
         calibratedModel = yaml.load(file, Loader=yaml.FullLoader)
 
-    parameters = getIdentifiableParametersPartial(np.array(calibratedModel["robotBase"]).reshape((4,4)), np.array(calibratedModel["robotFlange"]).reshape((4,4)), TToolN,np.array(calibratedModel["robotParameters"])[np.array(calibratedModel["robotParameters"]) != 0])
+    parameters = get_identifiable_parameters(np.array(calibratedModel["robotBase"]).reshape((4,4)), np.array(calibratedModel["robotFlange"]).reshape((4,4)), np.array(calibratedModel["robotParameters"]), TToolN)
 
     #Transfering measurements in the estimated robot base frame
     if("robotBaseOffset" in calibratedModel):

@@ -22,9 +22,8 @@ from pygad import GA
 
 ### Import robot and marker parameters
 from robot_arm_calibration.ParametersTools import (
-    getIdentifiableParametersPartial,
-    getIdentifiableParametersFull,
-    saveParameters,
+    get_identifiable_parameters,
+    save_parameters
 )
 
 # Custom packages (needing robot and marker parameters inclusions)
@@ -925,10 +924,7 @@ if __name__ == "__main__":
         print("Skipping robot base transform estimation...")
 
     ### Robot base, robot parameters and end effector points transformations estimations
-    if len(TToolN) > 1:
-        parameters0 = getIdentifiableParametersPartial(TBaseN, TFlangeN, TToolN, piN)
-    else:
-        parameters0 = getIdentifiableParametersFull(TBaseN, TFlangeN, TToolN, piN)
+    parameters0 = get_identifiable_parameters(TBaseN, TFlangeN, piN, TToolN)
 
     # Estimate the transformation between the sensor reference and the robot base
     if estimateTBaseOffset != 0:
@@ -1376,12 +1372,12 @@ if __name__ == "__main__":
             TFlangeList[i] = np.dot(TTool[i], np.linalg.inv(TToolN[i]))
         TFlange = np.average(TFlangeList, axis=0)
 
-        saveParameters(
+        save_parameters(
             os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml",
-            TBase=TBase,
-            TFlange=TFlange,
+            transformation_base_first_joint = TBase,
+            transformation_last_joint_flange = TFlange,
             pi=pi,
-            TTool=TTool,
+            transformation_flange_tool = TTool,
         )
     else:
         PFlangeTool = np.array([parameters[6 + len(piN) : 9 + len(piN)]]).T
@@ -1391,12 +1387,12 @@ if __name__ == "__main__":
         )
 
         TFlange = np.dot(TFlangeTool, np.linalg.inv(TToolN))
-        saveParameters(
+        save_parameters(
             os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml",
-            TBase=TBase,
-            TFlange=TFlange,
-            pi=pi,
-            TTool=TToolN,
+            transformation_base_first_joint = TBase,
+            transformation_last_joint_flange = TFlange,
+            pi = pi,
+            transformation_flange_tool = TToolN,
         )
 
     # Additionnal parameters/information

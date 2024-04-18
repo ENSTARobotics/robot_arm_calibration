@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation as R
 from urchin import URDF
 
 #Custom package
-from robot_arm_calibration.URDFTools import getURDF, getSortedJoints, size
+from robot_arm_calibration.URDFTools import get_urdf, get_sorted_joints, size
 from robot_arm_calibration.URDFtoModel import URDFtoModel
 
 class Joint:
@@ -128,14 +128,14 @@ def ModeltoURDF_(TBase, TFlange, robotParameters, jointsAxis, inputURDFFilePath,
     JointsN.append(Joint(TFlangeN,3,0))
 
     ### Load URDF file
-    robot = getURDF(inputURDFFilePath)
+    robot = get_urdf(inputURDFFilePath)
 
     globalTRobot = np.eye(4)    #For the complete transformation without calibration and "native" frames conventions
     globalTCalibration = np.eye(4)  #For the complete transformation with calibration
     globalTN = np.eye(4)  #For the complete transformation without calibration and calibrated model frames conventions
 
     #Get URDF sorted joints, in the correct order
-    baseJoints,actuatedJoints,flangeJoints = getSortedJoints(robot,flangeLinkName)
+    baseJoints,actuatedJoints,flangeJoints = get_sorted_joints(robot,flangeLinkName)
 
     #Adding base joints to the robot model
     for joint in baseJoints:

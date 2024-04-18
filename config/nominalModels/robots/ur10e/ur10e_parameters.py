@@ -10,6 +10,6 @@ flangeLinkName = 'tool0'
 from robot_arm_calibration.URDFtoModel import URDFtoModel
 JOINTS_NUMBER,JOINTS_AXIS,JOINTS_OFFSET,LINKS_TRANSLATIONS,LINKS_ROTATIONS,piN,TBaseN,TFlangeN = URDFtoModel(urdfFilePath,flangeLinkName)
 
-from robot_arm_calibration.ParametersTools import saveParameters
+from robot_arm_calibration.ParametersTools import save_parameters
 import os
-saveParameters(os.path.splitext(os.path.abspath(__file__))[0] + ".yaml",TBase=TBaseN,TFlange=TFlangeN,pi=piN)
+save_parameters(os.path.splitext(os.path.abspath(__file__))[0] + ".yaml",transformation_base_first_joint = TBaseN, transformation_last_joint_flange = TFlangeN, pi = piN)
