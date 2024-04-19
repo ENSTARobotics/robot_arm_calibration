@@ -7,6 +7,7 @@ import glob
 
 #Utility packages
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 #Plot packages
 import subprocess
@@ -38,7 +39,7 @@ except:
 
 with open(fileName,"r") as file:
     Configurations = yaml.load(file, Loader=yaml.FullLoader)
-    Configurations = np.array(Configurations[list(Configurations.keys())[0]]).reshape((-1,JOINTS_NUMBER))[:10]
+    Configurations = np.array(Configurations[list(Configurations.keys())[0]]).reshape((-1,JOINTS_NUMBER))[:20]
 print("Done !")
 
 print('Number of configurations : ' + str(len(Configurations)))
@@ -91,6 +92,60 @@ if(plotMode == "axes"):
 
 elif(plotMode == "mesh"):
 
+    #Tool functions
+    def parsePose(pose):
+        transform = np.eye(4)
+        transform[:3,-1] = np.array([pose["x"],pose["y"],pose["z"]])
+        transform[:3,:3] = R.from_euler('xyz', [pose["rx"],pose["ry"],pose["rz"]]).as_matrix()
+        return(transform)
+
+    def parseBox(box):
+        box = trimesh.creation.box(extents=[box["size"]["dx"],box["size"]["dy"],box["size"]["dz"]],transform=parsePose(box["pose"]))
+        box.visual.face_colors = np.array([0, 126, 159])
+        return(box)
+
+    def parseCylinder(cylinder):
+        cylinder = trimesh.creation.cylinder(radius=cylinder["size"]["radius"],height=cylinder["size"]["height"],transform=parsePose(cylinder["pose"]))
+        cylinder.visual.face_colors = np.array([0, 126, 159])
+        return(cylinder)
+    
+    def parseSphere(sphere):
+        sphere = trimesh.creation.icosphere(subdivisions=3,radius=sphere["size"]["radius"])
+        sphere.apply_transform(parsePose(sphere["pose"]))
+        sphere.visual.face_colors = np.array([0, 126, 159])
+        return(sphere)
+
+    def parseBorder(border):
+        transform = np.eye(4)
+        extents = np.zeros(3)
+        if(border["axis"] == "x"):
+            transform[0,3] = border["offset"]
+            extents[0] = 0.001
+            extents[1] = 2.0
+            extents[2] = 2.0
+        elif(border["axis"] == "y"):
+            transform[1,3] = border["offset"]
+            extents[0] = 2.0
+            extents[1] = 0.001
+            extents[2] = 2.0
+        elif(border["axis"] == "z"):
+            transform[2,3] = border["offset"]
+            extents[0] = 2.0
+            extents[1] = 2.0
+            extents[2] = 0.001
+        else:
+            pass
+        border = trimesh.creation.box(extents=extents,transform=transform)
+        border.visual.face_colors = np.array([0, 126, 159])
+        return(border)
+
+    import subprocess
+    import numpy as np
+    import trimesh
+
+    import rospkg
+    rospack = rospkg.RosPack()
+
     xacro = "echo $(xacro $(rospack find robot_arm_tools)/config/tools/" + toolName + "/" + robotName + "/" + robotName + "_" + toolName + ".urdf.xacro)"
     xacroProcess = subprocess.run(xacro,shell=True,stdout=subprocess.PIPE)
     XACROOutput = str(xacroProcess.stdout)[2:-3]
@@ -112,8 +167,8 @@ elif(plotMode == "mesh"):
     scene = trimesh.Scene()
     cfg = {}
 
-    for configuration in Configurations:
-        robot = URDF.load('/tmp/tmp.urdf',True)
+    for k,configuration in enumerate(Configurations):
+        robot = URDF.load('/tmp/tmp.urdf')
 
         for i,joint in enumerate(robot.actuated_joints):
             cfg[joint.name] = configuration[i]
@@ -130,13 +185,43 @@ elif(plotMode == "mesh"):
             submesh.apply_transform(pose)
             mesh = trimesh.util.concatenate([mesh,submesh])
 
-        newColors = np.array(mesh.visual.face_colors)
-        newColors[:,-1] = 150
+        if(k%3!=3):
+            newColors = np.array(mesh.visual.face_colors)
+            newColors[:,-1] = 150
+        else:
+            newColors = np.tile(np.array([0, 200, 0, 200]),(len(mesh.visual.face_colors),1))
+        
         mesh.visual = trimesh.visual.create_visual(face_colors=newColors,mesh=mesh)
         
         scene.add_geometry(mesh)
 
-    scene.set_camera((np.pi/3,0.0,3*np.pi/4),3.5,(0,0,0.5))
+    #Load environment file if provided
+    environmentFileName = ""
+    try:
+        environmentFileName = sys.argv[2]
+    except:
+        pass
+
+    if(environmentFileName != ""):
+
+        import yaml
+        environment = {}
+        with open(environmentFileName,"r") as file:
+            environment = yaml.load(file, Loader=yaml.FullLoader)
+
+        for _,value in environment.items():
+            if(value["type"] == "box"):
+                scene.add_geometry(parseBox(value))
+            elif(value["type"] == "cylinder"):
+                scene.add_geometry(parseCylinder(value))
+            elif(value["type"] == "sphere"):
+                scene.add_geometry(parseSphere(value))
+            elif(value["type"] == "border"):
+                scene.add_geometry(parseBorder(value))
+            else:
+                continue
+
+    scene.set_camera((np.pi/2,0.0,3*np.pi/4),3.5,(0,0,0.1))
     scene.show()
     data = scene.save_image()
     from PIL import Image
