@@ -53,7 +53,7 @@ More details are provided in the [Used technologies](#used-technologies) section
   - [Used technologies](#used-technologies)
     - [About the calibration procedure...](#about-the-calibration-procedure)
       - [Step 1: modeling (`scripts/robot_arm_calibration/AnalyticGeometricModel.py` `scripts/robot_arm_calibration/DHtoModel.py` `scripts/robot_arm_calibration/URDFtoModel.py`)](#step-1-modeling-scriptsrobot_arm_calibrationanalyticgeometricmodelpy-scriptsrobot_arm_calibrationdhtomodelpy-scriptsrobot_arm_calibrationurdftomodelpy)
-      - [Step 2: observations/measurements (`src/robot_arm_calibration/robot_arm_calibration_sampling_node.cpp` `src/robot_arm_calibration/robot_arm_calibration_measurement_node.cpp` \& `scripts/robot_arm_calibration/TargetConfigurationsGeneration.py`)](#step-2-observationsmeasurements-srcrobot_arm_calibrationrobot_arm_calibration_sampling_nodecpp-srcrobot_arm_calibrationrobot_arm_calibration_measurement_nodecpp--scriptsrobot_arm_calibrationtargetconfigurationsgenerationpy)
+      - [Step 2: observations/measurements (`src/robot_arm_calibration_sampling_node.cpp` `src/robot_arm_calibration_measurement_node.cpp` \& `scripts/robot_arm_calibration/TargetConfigurationsGeneration.py`)](#step-2-observationsmeasurements-srcrobot_arm_calibrationrobot_arm_calibration_sampling_nodecpp-srcrobot_arm_calibrationrobot_arm_calibration_measurement_nodecpp--scriptsrobot_arm_calibrationtargetconfigurationsgenerationpy)
       - [Step 3: identification (`scripts/robot_arm_calibration/ParametersIdentification.py`)](#step-3-identification-scriptsrobot_arm_calibrationparametersidentificationpy)
       - [Step 4: verification, compensation and correction (`scripts/robot_arm_calibration/ResultsDisplay.py` `scripts/robot_arm_calibration/ModeltoURDF.py` \& `robot_arm_tool` `RobotModel` class)](#step-4-verification-compensation-and-correction-scriptsrobot_arm_calibrationresultsdisplaypy-scriptsrobot_arm_calibrationmodeltourdfpy--robot_arm_tool-robotmodel-class)
   - [Testing](#testing)
@@ -91,8 +91,8 @@ sudo apt update
 rosdep update
 rosdep install --from-paths src --ignore-src -y
 
-#python3 -m pip install -r ~/catkin_ws/src/robot_arm_calibration/requirements.txt #Optionnal
-python3 -m pip install -e ~/catkin_ws/src/robot_arm_calibration
+#python3 -m pip install -r ~/catkin_ws/scripts/robot_arm_calibration/requirements.txt #Optionnal
+python3 -m pip install -e ~/catkin_ws/scripts/robot_arm_calibration
 ```
 
 And build package :
@@ -134,7 +134,7 @@ The calibration procedure can also be splitted into separated steps as follows :
     ```bash
     rosrun robot_arm_calibration NominalParametersSetting.sh robot_name robot_parameters_file robot_base_parameters_file marker_name marker_parameters_file
     roscd robot_arm_calibration && cd config/calibratedModels/<robot_name>_<marker_name>
-    python3 -m robot_arm_calibration.AnalyticGeometricModel.py
+    python3 -m robot_arm_calibration.AnalyticGeometricModel
     ```
 2. Sampling
     ```bash
@@ -144,7 +144,7 @@ The calibration procedure can also be splitted into separated steps as follows :
 3. Measurements configurations choice
     ```bash
     roscd robot_arm_calibration && cd config/calibratedModels/<robot_name>_<marker_name>/<sampling_parameters>
-    python3 -m robot_arm_calibration.TargetConfigurationsGeneration.py <target_configurations_choice_method> <choice_maximum_iteration_number> <target_configurations_number> <identifiability_score>
+    python3 -m robot_arm_calibration.TargetConfigurationsGeneration <target_configurations_choice_method> <choice_maximum_iteration_number> <target_configurations_number> <identifiability_score>
     ```
 4. Measurements
     ```bash
@@ -153,16 +153,16 @@ The calibration procedure can also be splitted into separated steps as follows :
 5. Identification
     ```bash
     roscd robot_arm_calibration && cd config/calibratedModels/<robot_name>_<marker_name>/<sampling_parameters>/<target_configurations_choice_method>
-    python3 -m robot_arm_calibration.ParametersIdentification.py <identification_method> <stopping_criterion(relative_delta(local) or maximum_iterations(global))>
+    python3 -m robot_arm_calibration.ParametersIdentification <identification_method> <stopping_criterion(relative_delta(local) or maximum_iterations(global))>
     ```
 6. Verification
     ```bash
     roscd robot_arm_calibration && cd /config/calibratedModels/<robot_name>_<marker_name>
-    python3 -m robot_arm_calibration.ResultsDisplay.py
+    python3 -m robot_arm_calibration.ResultsDisplay
     ```
 1. Corrected URDF generation
     ```bash
-    python3 -m robot_arm_calibration.ModeltoURDF.py <calibrated_model_file> <urdf_file>
+    python3 -m robot_arm_calibration.ModeltoURDF <calibrated_model_file> <urdf_file>
     ```
 
 ## Used technologies
@@ -179,7 +179,7 @@ The calibration procedure can also be splitted into separated steps as follows :
 *   [ ] Integration of **full pose models** (_i.e._ all 6 degrees of freedom), and **lower degree partial pose models** (_e.g._ single distance measurements)
 *   [ ] Migrate from a fully **analytical** model handling to a **numerical** one for more flexibility (_e.g._ iterative formulation, etc.)
 
-#### Step 2: observations/measurements (`src/robot_arm_calibration/robot_arm_calibration_sampling_node.cpp` `src/robot_arm_calibration/robot_arm_calibration_measurement_node.cpp` & `scripts/robot_arm_calibration/TargetConfigurationsGeneration.py`)
+#### Step 2: observations/measurements (`src/robot_arm_calibration_sampling_node.cpp` `src/robot_arm_calibration_measurement_node.cpp` & `scripts/robot_arm_calibration/TargetConfigurationsGeneration.py`)
 *   [x] Collision aware and spacially configurable **sampling of reachable robot configurations** using [MoveIt](https://github.com/ros-planning/moveit) simulation tool
 *   [ ] Itegration of the measuring device perception range for robot configuration sampling
 *   [ ] Integration of **cartesian space limits** for robot configurations sampling
