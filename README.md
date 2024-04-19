@@ -53,7 +53,7 @@ More details are provided in the [Used technologies](#used-technologies) section
   - [Used technologies](#used-technologies)
     - [About the calibration procedure...](#about-the-calibration-procedure)
       - [Step 1: modeling (`scripts/robot_arm_calibration/AnalyticGeometricModel.py` `scripts/robot_arm_calibration/DHtoModel.py` `scripts/robot_arm_calibration/URDFtoModel.py`)](#step-1-modeling-scriptsrobot_arm_calibrationanalyticgeometricmodelpy-scriptsrobot_arm_calibrationdhtomodelpy-scriptsrobot_arm_calibrationurdftomodelpy)
-      - [Step 2: observations/measurements (`src/robot_arm_calibration_sampling_node.cpp` `src/robot_arm_calibration_measurement_node.cpp` \& `scripts/robot_arm_calibration/TargetConfigurationsGeneration.py`)](#step-2-observationsmeasurements-srcrobot_arm_calibrationrobot_arm_calibration_sampling_nodecpp-srcrobot_arm_calibrationrobot_arm_calibration_measurement_nodecpp--scriptsrobot_arm_calibrationtargetconfigurationsgenerationpy)
+      - [Step 2: observations/measurements (`src/robot_arm_calibration_sampling_node.cpp` `src/robot_arm_calibration_measurement_node.cpp` \& `scripts/robot_arm_calibration/TargetConfigurationsGeneration.py`)](#step-2-observationsmeasurements-srcrobot_arm_calibration_sampling_nodecpp-srcrobot_arm_calibration_measurement_nodecpp--scriptsrobot_arm_calibrationtargetconfigurationsgenerationpy)
       - [Step 3: identification (`scripts/robot_arm_calibration/ParametersIdentification.py`)](#step-3-identification-scriptsrobot_arm_calibrationparametersidentificationpy)
       - [Step 4: verification, compensation and correction (`scripts/robot_arm_calibration/ResultsDisplay.py` `scripts/robot_arm_calibration/ModeltoURDF.py` \& `robot_arm_tool` `RobotModel` class)](#step-4-verification-compensation-and-correction-scriptsrobot_arm_calibrationresultsdisplaypy-scriptsrobot_arm_calibrationmodeltourdfpy--robot_arm_tool-robotmodel-class)
   - [Testing](#testing)
@@ -98,7 +98,6 @@ python3 -m pip install -e ~/catkin_ws/scripts/robot_arm_calibration
 And build package :
 
 ```bash
-
 catkin_make
 source devel/setup.bash
 ```
@@ -144,8 +143,9 @@ The calibration procedure can also be splitted into separated steps as follows :
 3. Measurements configurations choice
     ```bash
     roscd robot_arm_calibration && cd config/calibratedModels/<robot_name>_<marker_name>/<sampling_parameters>
-    python3 -m robot_arm_calibration.TargetConfigurationsGeneration <target_configurations_choice_method> <choice_maximum_iteration_number> <target_configurations_number> <identifiability_score>
+    python3 -m robot_arm_calibration.TargetConfigurationsGeneration <target_configurations_choice_method> <choice_maximum_iteration_number> <target_configurations_number> <identifiability_score> <configurations_seed_path(default=None)> <redundancy_factor(default=1)>
     ```
+   _Remark_ : Default values must still be set manually when launching the command !
 4. Measurements
     ```bash
     roslaunch robot_arm_calibration Measurements.launch robot_name:=<robot_name> tool_name:=<marker_name> target_configurations_file:=<target_configurations_file> measuring_device:=<measuring_device_name>
@@ -153,8 +153,9 @@ The calibration procedure can also be splitted into separated steps as follows :
 5. Identification
     ```bash
     roscd robot_arm_calibration && cd config/calibratedModels/<robot_name>_<marker_name>/<sampling_parameters>/<target_configurations_choice_method>
-    python3 -m robot_arm_calibration.ParametersIdentification <identification_method> <stopping_criterion(relative_delta(local) or maximum_iterations(global))>
+    python3 -m robot_arm_calibration.ParametersIdentification <additionnal_parameters(default=None)> <estimate_base_offset(default=0)> <identification_method> <stopping_criterion(relative_delta(local) or maximum_iterations(global))> <stopping_criterion(absolute_delta(local))> <initialisations_number(default=0)>
     ```
+  _Remark_ : Default values must still be set manually when launching the command !
 6. Verification
     ```bash
     roscd robot_arm_calibration && cd /config/calibratedModels/<robot_name>_<marker_name>
@@ -162,7 +163,7 @@ The calibration procedure can also be splitted into separated steps as follows :
     ```
 1. Corrected URDF generation
     ```bash
-    python3 -m robot_arm_calibration.ModeltoURDF <calibrated_model_file> <urdf_file>
+    python3 -m robot_arm_calibration.ModeltoURDF <calibrated_model_file> <input_urdf_file> <flange_link_name (default="")> <output_urdf_file>
     ```
 
 ## Used technologies
