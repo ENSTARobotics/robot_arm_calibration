@@ -139,7 +139,7 @@ The calibration procedure can also be splitted into separated steps as follows :
     ```bash
     roslaunch robot_arm_calibration Sampling.launch robot_name:=<robot_name> tool_name:=<marker_name> sampling_parameters_file=<sampling_parameters_file>
     ```
-   > _Remark_ : Examples of sampling parameters files can be found at `config/samplig`.
+   _Remark_ : Examples of sampling parameters files can be found at `config/samplig`.
 3. Measurements configurations choice
     ```bash
     roscd robot_arm_calibration && cd config/calibratedModels/<robot_name>_<marker_name>/<sampling_parameters>
