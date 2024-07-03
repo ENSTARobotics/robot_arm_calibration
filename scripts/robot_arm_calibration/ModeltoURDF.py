@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation as R
 from urchin import URDF
 
 #Custom package
-from robot_arm_calibration.URDFTools import getURDF, getSortedJoints, size
+from robot_arm_tools.URDFTools import getURDF, getSortedJoints, size
 from robot_arm_calibration.URDFtoModel import URDFtoModel
 
 class Joint:
