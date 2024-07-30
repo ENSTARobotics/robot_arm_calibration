@@ -207,7 +207,6 @@ Jfunc = cs.Function('J',[parameters,q],[J])
 # tac = time.perf_counter()
 # print("Elapsed time conversion: ", tac-tic) 
 
-#Formatting analytic functions with proper output shapes
 PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 + len(piN)
 
 # q = np.ones(JOINTS_NUMBER)*np.pi/2
