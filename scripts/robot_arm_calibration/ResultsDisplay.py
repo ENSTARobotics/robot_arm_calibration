@@ -90,7 +90,7 @@ if(estimateTBaseOffset != 0):
         
         #Compute average transformation over all measurements
         PBaseSensor = np.average(PBaseSensor,axis=0)
-        RBaseSensor = np.average(RBaseSensor)
+        RBaseSensor = np.average(RBaseSensor,axis=0)
         U,S,V = np.linalg.svd(RBaseSensor)
         RBaseSensor = np.dot(U,V.T)
 
@@ -98,6 +98,8 @@ if(estimateTBaseOffset != 0):
         TBaseSensor[:3,:3] = RBaseSensor        
 
     print("Sensor to base transformation estimation : \n" + str(TBaseSensor))
+    print("Position error : " + str(np.linalg.norm(TBaseSensor[:3, -1])))
+    print("Rotation error : " + str(np.arccos((np.trace(TBaseSensor[:3, :3]) - 1) / 2)))
 
     #Transfering measurements in the estimated robot base frame !
     with open("CalibrationCorrected.csv",'wb+') as file:
@@ -105,10 +107,10 @@ if(estimateTBaseOffset != 0):
             for j,item in enumerate(EEItemsNames):
                 Items0[item][i] = np.dot(TBaseSensor,np.append(Items0[item][i],1).T)[:3]
 
-Jointi0 = Items0["jointsPositions"][:20]
+Jointi0 = Items0["jointsPositions"]
 Pij0 = np.empty((len(Jointi0),N_EEPOINTS,3))
 for i,item in enumerate(EEItemsNames):
-    Pij0[:,i,:] = Items0[item][:20]
+    Pij0[:,i,:] = Items0[item]
 
 ### Tool functions
 
@@ -122,7 +124,7 @@ def computeGlobalDelta(parameters,Pij=Pij0,Jointi=Jointi0):
     @return  The deltas vector.
     """
 
-    return(Pij.flatten() - np.hstack([Pfunc(parameters,q).flatten() for q in Jointi]))
+    return(Pij.flatten() - np.hstack([np.array(Pfunc(parameters,q)).flatten() for q in Jointi]))
 
 def computeGlobalError(parameters,Pij=Pij0,Jointi=Jointi0):
     """! Computes the global error (i.e. euclidian distance) between the measured and modeled positions.
@@ -172,7 +174,7 @@ def computeLocalDelta(parameters,endEffectorPointIndex,configurationIndex,Pij=Pi
     @return  The deltas vector.
     """
 
-    return(Pij[configurationIndex,endEffectorPointIndex].flatten() - Pfunc(parameters,Jointi[configurationIndex]).flatten()[3*endEffectorPointIndex:3*endEffectorPointIndex+3])
+    return(Pij[configurationIndex,endEffectorPointIndex].flatten() - np.array(Pfunc(parameters,Jointi[configurationIndex])).flatten()[3*endEffectorPointIndex:3*endEffectorPointIndex+3])
 
 def computeLocalError(parameters,endEffectorPointIndex,configurationIndex,Pij=Pij0,Jointi=Jointi0):
     """! Computes the local error (i.e. euclidian distance) between the measured and modeled positions.
@@ -271,7 +273,7 @@ for folder in foldersNames:
             for j,item in enumerate(EEItemsNames):
                 Items0[item][i] = np.dot(TBaseSensor,np.append(Items0[item][i],1).T)[:3]
         for i,item in enumerate(EEItemsNames):
-            Pij0[:,i,:] = Items0[item][:20]
+            Pij0[:,i,:] = Items0[item]
 
     for i,item in enumerate(EEItemsNames):
         for j,joint in enumerate(Jointi0):
