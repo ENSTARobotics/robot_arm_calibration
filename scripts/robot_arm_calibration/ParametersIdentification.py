@@ -1057,7 +1057,7 @@ if __name__ == "__main__":
     if len(TToolN) > 1:     #TODO Full-pose measurements and Test measurements
         for i,(pij,jointValues) in enumerate(zip(PijLear,JointiLear)):
             error = computeError(parameters0, pij, [jointValues])
-            if(error > 0.01):
+            if(error > 0.05):
                 print("Outlier detected at index " + str(i) + " : " + str(error))
                 Outliers.append(i)
     PijLear = np.delete(PijLear,Outliers,axis=0)
