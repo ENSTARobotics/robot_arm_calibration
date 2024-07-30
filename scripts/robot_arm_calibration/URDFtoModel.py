@@ -144,10 +144,11 @@ def URDFtoModel(URDFFilePath, flangeLinkName):
                 needFill.append([i,[LINKS_TRANSLATIONS[i][k] for k in fillable]])
 
             #A non-zero nominal value may have been left behind (i.e. not associated to an identifiable link translation parameter). It may be related to a previously pined link translation parameter.
-            for j in needFill:
-                for n,k in enumerate(j[1]):
+            for j in needFill:  #Link number
+                for k in j[1]:  #Axis number
+                    #if axis number not in current link, and non-zero value translation
                     if(k not in LINKS_TRANSLATIONS[i] and np.abs(deltaP[k-1]) > 1e-5):
-                        piN[sum(JOINTS_OFFSET[:j[0]+1]) + size(LINKS_TRANSLATIONS[:j[0]]) + size(LINKS_ROTATIONS[:j[0]]) + n] = np.round(deltaP[k-1],6)
+                        piN[sum(JOINTS_OFFSET[:j[0]+1]) + size(LINKS_TRANSLATIONS[:j[0]]) + size(LINKS_ROTATIONS[:j[0]]) + LINKS_TRANSLATIONS[j[0]].index(k)] = np.round(deltaP[k-1],6) #+1 on joints offset to take current link into account, not needed afterwards because translations are just next
                         needFill.remove(j)
 
         #Links translations and rotations
