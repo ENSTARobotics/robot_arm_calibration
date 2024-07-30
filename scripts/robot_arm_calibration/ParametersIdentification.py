@@ -72,7 +72,7 @@ computeDelta
     @return  The deltas vector.
     """
 
-    computedData = np.array([np.array(Pfunc(parameters, q)) for q in Jointi])
+    computedData = np.array([np.array(Pfunc(parameters, q)).flatten() for q in Jointi])
 
     if not preconditionning is None:
         if additionnalParameters is None:
