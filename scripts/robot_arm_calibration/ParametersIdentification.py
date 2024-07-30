@@ -1052,6 +1052,19 @@ if __name__ == "__main__":
             PijTest[:, :] = Items[EEItemsNames[0]][indexTest]
         JointiTest = Items["jointsPositions"][indexTest]
 
+    #Filter outliers (i.e. obviously wrong measurements)
+    Outliers = []
+    if len(TToolN) > 1:     #TODO Full-pose measurements and Test measurements
+        for i,(pij,jointValues) in enumerate(zip(PijLear,JointiLear)):
+            error = computeError(parameters0, pij, [jointValues])
+            if(error > 0.01):
+                print("Outlier detected at index " + str(i) + " : " + str(error))
+                Outliers.append(i)
+    PijLear = np.delete(PijLear,Outliers,axis=0)
+    JointiLear = np.delete(JointiLear,Outliers,axis=0)
+    N_LEARNING = len(PijLear)
+    print("Number of experiments after outlier removal : " + str(N_LEARNING))
+
     # Initial error
     initialError = computeError(
         parameters0, PijLear, JointiLear, preconditionning, additionnalParameters
