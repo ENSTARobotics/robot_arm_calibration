@@ -10,11 +10,6 @@ from multiprocessing import Pool
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-# Gradient packages
-from jax import jacfwd
-import jax.numpy as jnp
-from jax.scipy.spatial.transform import Rotation as jR
-
 # Optimization packages
 # from cyipopt import minimize_ipopt
 from scipy.optimize import basinhopping, minimize, least_squares
@@ -31,7 +26,7 @@ from robot_arm_calibration.ParametersTools import (
 from robot_arm_calibration.CalibrationCSVParsing import calibrationCSVParsing
 
 # from robot_arm_calibration.AnalyticGeometricModel import Tfunc, Pfunc, Jfunc, TBaseN, TFlangeN, TToolN, piN, EEItemsNames, N_EEPOINTS, JOINTS_NUMBER
-from robot_arm_calibration.NumericGeometricModel import (
+from robot_arm_calibration.AnalyticGeometricModel import (
     Tfunc,
     Pfunc,
     Jfunc,
@@ -46,128 +41,30 @@ from robot_arm_calibration.NumericGeometricModel import (
     JOINTS_OFFSET,
     LINKS_TRANSLATIONS,
     LINKS_ROTATIONS,
+    quat_to_mrp,
+    mrp_to_matrix,
 )
 
-# Remark : Results obtained using the delta rotation matirx are slightly better than those obtained using the MRP difference directly, certainly due to a faster convergence by doing so.
-def simplePreconditionning(computedPose, measuredPose, **kwargs):
-    L = 1.0  # TODO As parameter
-    #delta = measuredPose - computedPose
-    #return jnp.hstack((delta[:3], L * delta[3:]))
-
-    delta_position = measuredPose[:3] - computedPose[:3]
-
-    measuredOrientation = jR.from_mrp(measuredPose[3:]).as_matrix()
-    computedOrientation = jR.from_mrp(computedPose[3:]).as_matrix()
-    delta_orientation = jnp.dot(measuredOrientation.T, computedOrientation)
-    delta_orientation = jR.from_matrix(delta_orientation).as_mrp()
-
-    return jnp.append(delta_position,delta_orientation)
-
-
-JsimplePreconditionning = jacfwd(simplePreconditionning)
-
-
-def simpleEulerPreconditionning(computedPose, measuredPose, **kwargs):
-    L = 1.0  # TODO As parameter
-    #delta = measuredPose - computedPose
-    #return jnp.hstack((delta[:3], L * delta[3:]))
-
-    delta_position = measuredPose[:3] - computedPose[:3]
-
-    measuredOrientation = jR.from_mrp(measuredPose[3:]).as_matrix()
-    computedOrientation = jR.from_mrp(computedPose[3:]).as_matrix()
-    delta_orientation = jnp.dot(measuredOrientation.T, computedOrientation)
-    delta_orientation = jR.from_matrix(delta_orientation).as_euler("xyz")
-
-    return jnp.append(delta_position,L*delta_orientation)
-
-
-JsimpleEulerPreconditionning = jacfwd(simpleEulerPreconditionning)
-
-
-# Remark : Results obtained here slightly differ from the ones obtained by computing the aimed target with the measurements directly. This is likely caused by (1) the faulty measurement of the target position relative to the robot base and (2) the parallelism assumption of the robot base and the target plane.
-def partialSphericPreconditionning(computedPose, measuredPose, **kwargs):
-    zRef = 0.904 + 0.4 - 0.006  # TODO As parameter
-    position = measuredPose[:3]
-    orientation = jR.from_mrp(measuredPose[3:]).as_matrix()
-
-    # Find intersection between axis(p,z) and z = zRef plane
-    # => (p + t*z)[2] = zRef => t = (zRef-p[2])/z[2]
-    # intersection = p + (zRef-p[2]/z[2])*z
-
-    aimedPosition = (
-        position + (zRef - position[2] / orientation[2, 2]) * orientation[:, 2]
-    )
-
-    return sphericPreconditionning(computedPose, measuredPose, additionnalParameters=aimedPosition)
-
-
-JpartialSphericPreconditionning = jacfwd(partialSphericPreconditionning)
-
-
-def sphericPreconditionning(computedPose, measuredPose, **kwargs):
-
-    aimedPosition = kwargs["additionnalParameters"]
-
-    # Spheric coordinates difference : r, theta, phi
-    measuredPosition = measuredPose[:3] - aimedPosition
-    computedPosition = computedPose[:3] - aimedPosition
-
-    measured_r = jnp.linalg.norm(measuredPosition)
-    computed_r = jnp.linalg.norm(computedPosition)
-    delta_r = measured_r - computed_r
-    delta_theta = jnp.arccos(measuredPosition[2] / measured_r) - jnp.arccos(
-        computedPosition[2] / computed_r
-    )
-    delta_phi = jnp.arctan2(measuredPosition[1], measuredPosition[0]) - jnp.arctan2(
-        computedPosition[1], computedPosition[0]
-    )
-
-    # Axis-wise orientation difference : euler angles, x, y, z
-    measuredOrientation = jR.from_mrp(measuredPose[3:]).as_matrix()
-    computedOrientation = jR.from_mrp(computedPose[3:]).as_matrix()
-    delta_orientation = jnp.dot(measuredOrientation.T, computedOrientation)
-
-    delta_angles = jR.from_matrix(delta_orientation).as_euler("xyz")
-
-    # TODO Weighting !
-    delta_angles = delta_angles.at[2].set(0.1 * delta_angles[2])
-    #delta_theta*=0.1
-    #delta_phi*=0.1
-
-    return jnp.append(jnp.array([delta_r, delta_theta, delta_phi]), delta_angles)
-
-
-JsphericPreconditionning = jacfwd(sphericPreconditionning)
-
-
-# Remark : for more complex preconditionning, we need to use the chain rule :
-# P_preconditionned(pi,q) = foP(pi,q)
-# JP_preconditionned(pi,q) = J(foP(pi,q)) = JfoP(pi,q)*JP(pi,q) = Jf(P(pi,q))*JP(pi,q)
-def simpleJacobianPreconditionning(computedPose, measuredPose, jacobian, **kwargs):
-    return np.dot(JsimplePreconditionning(computedPose, measuredPose, **kwargs), jacobian)
-
-
-def partialSphericJacobianPreconditionning(computedPose, measuredPose, jacobian, **kwargs):
-    return np.dot(JpartialSphericPreconditionning(computedPose, measuredPose, **kwargs), jacobian)
-
-
-def sphericJacobianPreconditionning(
-    computedPose, measuredPose, jacobian, **kwargs
-):
-    return np.dot(
-        JsphericPreconditionning(computedPose, measuredPose, **kwargs), jacobian
-    )
+from robot_arm_calibration.Preconditionning import (
+    simplePreconditionning,
+    simpleJacobianPreconditionning,
+    simpleEulerPreconditionning,
+    simpleEulerJacobianPreconditionning,
+    sphericPreconditionning,
+    sphericJacobianPreconditionning,
+)
 
 preconditionningType = "spheric"
 defaultPreconditionning = sphericPreconditionning
 defaultJacobianPreconditionning = sphericJacobianPreconditionning
 
+defaultCovarianceMatrix = np.eye(3 * len(TToolN))*0.2 if len(TToolN) > 1 else np.eye(6)
+
 def computeDelta(
     parameters, Pij, Jointi, preconditionning=None, additionnalParameters=None
 ):
     """! Computes the deltas between the measured and modeled positions.
-
+computeDelta
     @param parameters   The current robot parameters vector.
     @param Pij          The measured positions vector.
     @param Jointi       The measured joints positions vector.
@@ -175,27 +72,27 @@ def computeDelta(
     @return  The deltas vector.
     """
 
-    computedData = np.vstack([Pfunc(parameters, q) for q in Jointi])
+    computedData = np.array([np.array(Pfunc(parameters, q)) for q in Jointi])
 
     if not preconditionning is None:
         if additionnalParameters is None:
-            delta = np.hstack(
+            delta = np.vstack(
                 [
                     preconditionning(computed, measured)
                     for measured, computed in zip(Pij, computedData)
                 ]
-            )
+            ).flatten()
         else:
-            delta = np.hstack(
+            delta = np.vstack(
                 [
-                    preconditionning(computed, measured, additionnalParameters=additionnal)
+                    preconditionning(computed, measured, additionnal)
                     for measured, computed, additionnal in zip(
                         Pij, computedData, additionnalParameters
                     )
                 ]
-            )
+            ).flatten()
     else:
-        delta = (Pij - computedData).flatten()
+        delta = Pij.flatten() - computedData.flatten()
 
     return delta
 
@@ -236,7 +133,7 @@ def computeIdentificationJacobian(
             return np.vstack(
                 [
                     jacobianPreconditionning(
-                        Pfunc(parameters, q), p, Jfunc(parameters, q)
+                        Jfunc(parameters, q), Pfunc(parameters, q), p
                     )
                     for p, q in zip(Pij, Jointi)
                 ]
@@ -245,7 +142,7 @@ def computeIdentificationJacobian(
             return np.vstack(
                 [
                     jacobianPreconditionning(
-                        Pfunc(parameters, q), p, Jfunc(parameters, q), additionnalParameters=additionnal
+                        Jfunc(parameters, q), Pfunc(parameters, q), p, additionnal
                     )
                     for p, q, additionnal in zip(Pij, Jointi, additionnalParameters)
                 ]
@@ -535,7 +432,7 @@ def GN(
     @return  The optimized parameters vector.
     """
 
-    optimizedParameters = parameters - np.dot(
+    optimizedParameters = parameters + np.dot(
         np.linalg.pinv(
             computeIdentificationJacobian(
                 parameters, Pij, Jointi, jacobianPreconditionning, additionnalParameters
@@ -551,7 +448,7 @@ def TLS(
     parameters,
     Pij,
     Jointi,
-    covarianceMatrix=np.eye(6 * len(TToolN)),
+    covarianceMatrix=defaultCovarianceMatrix,
     preconditionning=None,
     jacobianPreconditionning=None,
     additionnalParameters=None,
@@ -573,7 +470,7 @@ def TLS(
     tJW = np.dot(J.T, np.linalg.inv(covarianceMatrix))
     tJWJ = np.dot(tJW, J)
 
-    optimizedParameters = parameters - np.dot(
+    optimizedParameters = parameters + np.dot(
         np.dot(np.linalg.inv(tJWJ), tJW),
         computeDelta(parameters, Pij, Jointi, preconditionning, additionnalParameters),
     )
@@ -606,7 +503,7 @@ def GD(
         jacobianPreconditionning,
         additionnalParameters,
     )
-    optimizedParameters = parameters - alpha * computeIdentificationGradient(
+    optimizedParameters = parameters + alpha * computeIdentificationGradient(
         parameters,
         Pij,
         Jointi,
@@ -647,7 +544,7 @@ def LM(
     )
 
     tJJ = np.dot(J.T, J)
-    optimizedParameters = parameters - np.dot(
+    optimizedParameters = parameters + np.dot(
         np.linalg.inv(tJJ + alpha * np.diag(np.diag(tJJ))), np.dot(J.T, delta)
     )
 
@@ -695,7 +592,7 @@ def BFGS(
 
     # Update parameters
     deltaParameters = alpha * d
-    optimizedParameters = parameters - alpha * d
+    optimizedParameters = parameters + alpha * d
 
     # Update B matrix
     delta = computeDelta(
@@ -1009,7 +906,7 @@ if __name__ == "__main__":
 
             # Compute average transformation over all measurements
             PBaseSensor = np.average(PBaseSensor, axis=0)
-            RBaseSensor = np.average(RBaseSensor)
+            RBaseSensor = np.average(RBaseSensor, axis=0)
             U, _, V = np.linalg.svd(RBaseSensor)
             RBaseSensor = np.dot(U, V)
 
@@ -1017,6 +914,8 @@ if __name__ == "__main__":
             TBaseSensor[:3, :3] = RBaseSensor
 
         print("Sensor to base transformation estimation : \n" + str(TBaseSensor))
+        print("Position error : " + str(np.linalg.norm(TBaseSensor[:3, -1])))
+        print("Rotation error : " + str(np.arccos((np.trace(TBaseSensor[:3, :3]) - 1) / 2)))
 
         # Transfering measurements in the estimated robot base frame !
         with open("CalibrationCorrected.csv", "wb+") as file:
@@ -1036,10 +935,11 @@ if __name__ == "__main__":
                     T = np.eye(4)
                     T[:3, -1] = Items[EEItemsNames[0]][i][:3]
                     T[:3, :3] = R.from_mrp(Items[EEItemsNames[0]][i][3:]).as_matrix()
-                    Items[EEItemsNames[0]][i] = np.dot(TBaseSensor, T).flatten()
+                    correctedPose = np.dot(TBaseSensor, T)
+                    Items[EEItemsNames[0]][i] = np.append(correctedPose[:3, -1], R.from_matrix(correctedPose[:3, :3]).as_mrp())
                     np.savetxt(
                         file,
-                        np.round(Items[item][i].reshape(1, -1), 6),
+                        np.round(Items[EEItemsNames[0]][i].reshape(1, -1), 6),
                         delimiter=",",
                         fmt="%1.6f",
                     )
@@ -1067,24 +967,24 @@ if __name__ == "__main__":
             print("Delta end effector point " + item)
             print(
                 Items[item][0]
-                - Pfunc(parameters0, Items["jointsPositions"][0])[3 * i : 3 * i + 3].T[
-                    0
+                - Pfunc(parameters0, Items["jointsPositions"][0])[
+                    3 * i : 3 * i + 3
                 ]
             )
     else:
         if additionnalParameters is None:
             print(
-                defaultPreconditionning(
+                preconditionning(
                     Pfunc(parameters0, Items["jointsPositions"][0]),
                     Items[EEItemsNames[0]][0],
                 )
             )
         else:
             print(
-                defaultPreconditionning(
+                preconditionning(
                     Pfunc(parameters0, Items["jointsPositions"][0]),
                     Items[EEItemsNames[0]][0],
-                    additionnalParameters=additionnalParameters[0],
+                    additionnalParameters[0],
                 )
             )
 
@@ -1100,22 +1000,22 @@ if __name__ == "__main__":
                 Items[item][randomIndex]
                 - Pfunc(parameters0, Items["jointsPositions"][randomIndex])[
                     3 * i : 3 * i + 3
-                ].T[0]
+                ]
             )
     else:
         if additionnalParameters is None:
             print(
-                defaultPreconditionning(
+                preconditionning(
                     Pfunc(parameters0, Items["jointsPositions"][randomIndex]),
                     Items[EEItemsNames[0]][randomIndex],
                 )
             )
         else:
             print(
-                defaultPreconditionning(
+                preconditionning(
                     Pfunc(parameters0, Items["jointsPositions"][randomIndex]),
                     Items[EEItemsNames[0]][randomIndex],
-                    additionnalParameters=additionnalParameters[randomIndex],
+                    additionnalParameters[randomIndex],
                 )
             )
 
@@ -1410,7 +1310,8 @@ if __name__ == "__main__":
 
     calibratedModel["initialError"] = float(initialError)
     calibratedModel["finalError"] = float(finalError)
-    calibratedModel["preconditionningType"] = preconditionningType
+    if(preconditionning is not None):
+        calibratedModel["preconditionningType"] = preconditionningType
 
     with open(os.getcwd() + "/" + algorithmName + "/CalibratedModel.yaml", "a") as file:
         yaml.dump(calibratedModel, file)
