@@ -2,6 +2,7 @@
 
 #System packages
 import sys
+import time
 
 #Utility packages
 #from jax import jit    #Using a just-in-time (JIT) compilation decorator, sequences of operations can be optimized together and run at once. Not all JAX code can be JIT compiled, as it requires array shapes to be static & known at compile time.
@@ -176,7 +177,7 @@ def PfuncPartial(parameters, q):
     T = TBase
     for i in range(JOINTS_NUMBER):
         T = np.dot(T,Ti(i,q,pi))
-    P = np.vstack([np.dot(T,t)[:3,-1] for t in TTool])
+    P = np.hstack([np.dot(T,t)[:3,-1] for t in TTool])
     return(P)
 
 def PfuncFull(parameters, q):
@@ -215,10 +216,29 @@ else:
     Pfunc = PfuncFull
 
 ### Robot identification jacobian matrix
+# tic = time.perf_counter()
 Jfunc = jacfwd(Pfunc)
+# tac = time.perf_counter()
+# print("Elapsed time computation: ", tac-tic)
 
-#q = np.zeros(JOINTS_NUMBER)
-#np.set_printoptions(edgeitems=30, linewidth=100000, 
+PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 + len(piN)
+
+# q = np.ones(JOINTS_NUMBER)*np.pi/2
+# np.set_printoptions(edgeitems=30, linewidth=100000, 
 #    formatter=dict(float=lambda x: "%.3g" % x))
-#print(Pfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,np.eye(4),piN),q))
-#print(Jfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,np.eye(4),piN),q))
+# print(Tfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
+# print(Pfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
+# print(Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
+
+# T = []
+# for i in range(10):
+#     import numpy.random as random
+#     q = random.random(JOINTS_NUMBER)
+#     print(q)
+#     tic = time.perf_counter()
+#     print(Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
+#     tac = time.perf_counter()
+#     print("Elapsed time evaluation: ", tac-tic)
+#     T.append(tac-tic)
+# print("Average elapsed time evaluation: ", sum(T)/len(T))
+

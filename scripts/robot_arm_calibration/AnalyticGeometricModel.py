@@ -2,15 +2,16 @@
 
 #System packages
 import os
-import dill
 import sys
+import time
 
 #Utility packages
-import sympy as sp
+import casadi as cs
+from liecasadi import SO3
 import numpy as np
 
 #Robot parameters tools
-from robot_arm_calibration.ParametersTools import getPackagePath, importParameters, importAllParametersFromFile
+from robot_arm_calibration.ParametersTools import getPackagePath, importParameters, importAllParametersFromFile, getIdentifiableParametersPartial, getIdentifiableParametersFull
 
 ### Tool functions
 def size(L):
@@ -34,59 +35,40 @@ def rot_axis(angle,axisIndex):
     @return  The analytic matrix representation of the rotation.
     """
     if(axisIndex == 1):
-        return(sp.rot_axis1(angle).T)
+        return(SO3.qx(angle).as_matrix())
     elif(axisIndex == 2):
-        return(sp.rot_axis2(angle).T)
+        return(SO3.qy(angle).as_matrix())
     elif(axisIndex == 3):
-        return(sp.rot_axis3(angle).T)
+        return(SO3.qz(angle).as_matrix())
     else:
-        return(sp.Identity(3))
-    
-#Singularities are not handled in 0 and pi !!
-def matrix_to_rotvec(matrix):
-    """! Converts a rotation matrix into a scipy rotation vector representation of a rotation
-
-    @param matrix   The rotation matrix.
-    @return         The scipy rotation vector representation of the rotation.
-    """
-        
-    angle = sp.acos((matrix.trace() - 1)/2)
-    x = (matrix[2,1] - matrix[1,2])/sp.sqrt((matrix[2,1] - matrix[1,2])**2+(matrix[0,2] - matrix[2,0])**2+(matrix[1,0] - matrix[0,1])**2)
-    y = (matrix[0,2] - matrix[2,0])/sp.sqrt((matrix[2,1] - matrix[1,2])**2+(matrix[0,2] - matrix[2,0])**2+(matrix[1,0] - matrix[0,1])**2)
-    z = (matrix[1,0] - matrix[0,1])/sp.sqrt((matrix[2,1] - matrix[1,2])**2+(matrix[0,2] - matrix[2,0])**2+(matrix[1,0] - matrix[0,1])**2)
-    return(angle*sp.Matrix([x,y,z]))
-
-def rotvec_to_matrix(rotvec):
-    """! Converts a scipy rotation vector representation of a rotation into a rotation matrix
-    
-    @param rotvec   The scipy rotation vector representation of a rotation.
-    @return         The sympy quaternion representation of the rotation.
-    """
-    
-    (x, y, z) = rotvec
-    angle = sp.sqrt(x**2 + y**2 + z**2)
-    (x, y, z) = (x / angle, y / angle, z / angle)
-    s = sp.sin(angle * sp.core.singleton.S.Half)
-    a = sp.cos(angle * sp.core.singleton.S.Half)
-    b = x * s
-    c = y * s
-    d = z * s
-
-    return(sp.Quaternion(a, b, c, d).to_rotation_matrix())
+        return(cs.SX.eye(4))
 
 def quat_to_mrp(quat):
-    quat_matrix = quat.to_Matrix()
-    sign = -1 if quat_matrix[3] < 0 else 1
-    denominator = 1 + sign * quat_matrix[3]
-    return((sign/denominator) * sp.Matrix([quat_matrix[0],quat_matrix[1],quat_matrix[2]]))
+    """! Converts a casadi quaternion representation of a rotation into a scipy modified Rodrigues parameters representation
+
+    @param quat   The casadi quaternion representation of a rotation.
+    @return       The scipy modified Rodrigues parameters representation of the rotation.
+    """
+
+    quat_matrix = quat.xyzw
+    #sign = -1 if quat_matrix[-1] < 0 else 1
+    sign = quat_matrix[-1]/cs.fabs(quat_matrix[-1])
+    denominator = 1 + sign * quat_matrix[-1]
+    return((sign/denominator) * cs.vertcat(quat_matrix[0],quat_matrix[1],quat_matrix[2]))
 
 def mrp_to_matrix(mrp):
-    mrp_squared_plus_1 = mrp.dot(mrp) + 1
-    a = 2*mrp[0]/mrp_squared_plus_1
-    b = 2*mrp[1]/mrp_squared_plus_1
-    c = 2*mrp[2]/mrp_squared_plus_1
-    d = (2 - mrp_squared_plus_1)/mrp_squared_plus_1
-    return(sp.Quaternion(a, b, c, d).to_rotation_matrix())
+    """! Converts a scipy modified Rodrigues parameters representation of a rotation into a casadi rotation matrix
+
+    @param mrp   The scipy modified Rodrigues parameters representation of a rotation.
+    @return      The casadi quaternion representation of the rotation.
+    """
+
+    mrp_squared_plus_1 = cs.dot(mrp,mrp) + 1
+    x = 2*mrp[0]/mrp_squared_plus_1
+    y = 2*mrp[1]/mrp_squared_plus_1
+    z = 2*mrp[2]/mrp_squared_plus_1
+    w = (2 - mrp_squared_plus_1)/mrp_squared_plus_1
+    return(SO3.from_quat(cs.vertcat(x,y,z,w)).as_matrix())
 
 #TODO 
 #1) Non cartesian aligned axes (ie, not X(1),Y(2),Z(3) aligned)
@@ -120,165 +102,141 @@ except:
 
 fileID = str(robotName) + "_" + str(toolName) if (len(toolName) != 0) else str(robotName)
 
-#If the analytic model does not exist, it is generated
-if(not os.path.exists(configPathRobot + "Jacobian_" + fileID + ".pickle") or not os.path.exists(configPathRobot + "GeometricModel_" + fileID + ".pickle") or not os.path.exists(configPathRobot + "RawGeometricModel_" + robotName + ".pickle")):
+### Global symbols
 
-    #import time
-    #t0 = time.time()
+q = cs.SX.sym('q',JOINTS_NUMBER)
 
-    ### Global symbols
+### Robot geometric model (revolute joints only)
 
-    q = sp.MatrixSymbol("q",JOINTS_NUMBER,1).as_mutable()
+#Indices of the first joint/link i parameter in parameters vector
+PARAMETERS_INDEX = np.array([sum(JOINTS_OFFSET[:i]) + size(LINKS_TRANSLATIONS[:i]) + size(LINKS_ROTATIONS[:i]) for i in range(JOINTS_NUMBER+1)])
 
-    ### Robot geometric model (revolute joints only)
+#Tool function to compute the local transformation and parameters associated to the ith (joint,link)
+def Ti(i):
 
-    #Indices of the first joint/link i parameter in parameters vector
-    PARAMETERS_INDEX = np.array([sum(JOINTS_OFFSET[:i]) + size(LINKS_TRANSLATIONS[:i]) + size(LINKS_ROTATIONS[:i]) for i in range(JOINTS_NUMBER+1)])
-
-    #Tool function to compute the local transformation and parameters associated to the ith (joint,link)
-    def Ti(i):
-
-        T = sp.Identity(4)
-        pi = []
-
-        #Joint rotation and offset
-        Ti = sp.Identity(4).as_mutable()
-        Ti[:3,:3] = rot_axis(np.sign(JOINTS_AXIS[i])*q[i,0],np.abs(JOINTS_AXIS[i]))
-        T = T*Ti
-
-        if(JOINTS_OFFSET[i] == 1):
-            dqi = sp.symbols("dq"+str(i))
-            Ti = sp.Identity(4).as_mutable()
-            Ti[:3,:3] = rot_axis(dqi,np.abs(JOINTS_AXIS[i]))
-            T = T*Ti
-            pi.append(dqi)
-
-        #Link translation
-        Taxisi = sp.symbols("Tx"+str(i)+",Ty"+str(i)+",Tz"+str(i))
-        for k,axis in enumerate(LINKS_TRANSLATIONS[i]):
-            Ti = sp.Identity(4).as_mutable()
-            Ti[np.abs(axis)-1,-1] = [[np.sign(axis)*Taxisi[np.abs(axis)-1]]]
-            T = T*Ti
-            pi.append(Taxisi[np.abs(axis)-1])
-
-        #Link rotation
-        Raxisi = sp.symbols("Rx"+str(i)+",Ry"+str(i)+",Rz"+str(i))
-        for k,axis in enumerate(LINKS_ROTATIONS[i]):
-            Ti = sp.Identity(4).as_mutable()
-            Ti[:3,:3] = rot_axis(np.sign(axis)*Raxisi[np.abs(axis)-1],np.abs(axis))
-            T = T*Ti
-            pi.append(Raxisi[np.abs(axis)-1])
-
-        return(T,pi)
-
-    ### Robot base and tools
-
-    PBase = sp.MatrixSymbol("PBase",3,1).as_mutable()
-    PhiBase = sp.MatrixSymbol("PhiBase",3,1).as_mutable()
-
-    TBase = sp.Identity(4).as_mutable()
-    TBase[:3,:3] = mrp_to_matrix(PhiBase)
-    TBase[:3,3] = PBase
-
-    #Multiple tool transformation matrices => Partial pose measurement
-    if(len(TToolN) > 1):
-        TTool = []
-        for i,_ in enumerate(TToolN):
-            TTooli = sp.ones(4,1).as_mutable()
-            TTooli[:3,0] = sp.MatrixSymbol("PTool"+str(i),3,1).as_mutable()
-            TTool.append(TTooli)
-        TTool = sp.Matrix.hstack(*TTool)
-
-    #Single tool transformation matrix => Full pose measurement
-    else:
-        PTool = sp.MatrixSymbol("PTool",3,1).as_mutable()
-        PhiTool = sp.MatrixSymbol("PhiTool",3,1).as_mutable()
-
-        TTool = sp.Identity(4).as_mutable()
-        TTool[:3,:3] = mrp_to_matrix(PhiTool)
-        TTool[:3,3] = PTool
-
+    T = cs.SX.eye(4)
     pi = []
 
-    print("Computing geometric model...")
-    T = TBase
-    Traw = sp.Matrix(np.eye(4))
-    for i in range(JOINTS_NUMBER):
-        Tii,pii = Ti(i)
-        T = T*Tii
-        Traw = Traw*Tii
-        pi.extend(pii)
-    T = T*TTool
-    print("Computation done !")
+    #Joint rotation and offset
+    Ti = cs.SX.eye(4)
+    Ti[:3,:3] = rot_axis(np.sign(JOINTS_AXIS[i])*q[i],np.abs(JOINTS_AXIS[i]))
+    T = T@Ti
 
-    pi = sp.Matrix(pi)
-    if(len(TToolN) > 1):
-        parameters = sp.Matrix.vstack(PBase,PhiBase,pi,TTool[:3,:].T.reshape(3*len(TToolN),1))
-    else:
-        parameters = sp.Matrix.vstack(PBase,PhiBase,pi,PTool,PhiTool)
+    if(JOINTS_OFFSET[i] == 1):
+        dqi = cs.SX.sym("dq"+str(i))
+        Ti = cs.SX.eye(4)
+        Ti[:3,:3] = rot_axis(dqi,np.abs(JOINTS_AXIS[i]))
+        T = T@Ti
+        pi.append(dqi)
 
-    print("Computing jacobian...")
-    if(len(TToolN) > 1):
-        P = T[:3,:].T.reshape(3*len(TToolN),1)
-    else:
-        #P = sp.Matrix.vstack(T[:3,3],T[:3,:3].reshape(9,1))
-        P = sp.Matrix.vstack(T[:3,3],quat_to_mrp(sp.Quaternion.from_rotation_matrix(T[:3,:3])))
-    J = P.jacobian(parameters)
-    print("Computation done !")
+    #Link translation
+    Taxisi = [cs.SX.sym("Tx"+str(i)),cs.SX.sym("Ty"+str(i)),cs.SX.sym("Tz"+str(i))]
+    for k,axis in enumerate(LINKS_TRANSLATIONS[i]):
+        Ti = cs.SX.eye(4)
+        Ti[np.abs(axis)-1,-1] = np.sign(axis)*Taxisi[np.abs(axis)-1]
+        T = T@Ti
+        pi.append(Taxisi[np.abs(axis)-1])
 
-    dill.settings['recurse'] = True
+    #Link rotation
+    Raxisi = [cs.SX.sym("Rx"+str(i)),cs.SX.sym("Ry"+str(i)),cs.SX.sym("Rz"+str(i))]
+    for k,axis in enumerate(LINKS_ROTATIONS[i]):
+        Ti = cs.SX.eye(4)
+        Ti[:3,:3] = rot_axis(np.sign(axis)*Raxisi[np.abs(axis)-1],np.abs(axis))
+        T = T@Ti
+        pi.append(Raxisi[np.abs(axis)-1])
 
-    print("Turning sympy expressions to lambda functions...")
+    return(T,pi)
 
-    Tfunc = sp.lambdify((parameters,q),Traw,modules=["numpy","scipy"])
-    with open(configPathRobot + "RawGeometricModel_" + robotName + ".pickle", "wb+") as file:
-        dill.dump(Tfunc, file)
-    Pfunc = sp.lambdify((parameters,q),P,modules=["numpy","scipy"])
-    with open(configPathRobot + "GeometricModel_" + fileID + ".pickle", "wb+") as file:
-        dill.dump(Pfunc, file)
-    Jfunc = sp.lambdify((parameters,q),J,modules=["numpy","scipy"])
-    with open(configPathRobot + "Jacobian_" + fileID + ".pickle", "wb+") as file:
-        dill.dump(Jfunc, file)
+### Robot base and tools
 
-    print("Done !")   
+PBase = cs.SX.sym('PBase',3)
+PhiBase = cs.SX.sym('PhiBase',3)
 
-    #print("-- Analytic model computed in " + str(time.time() - t0) + " seconds --")
+TBase = cs.SX.eye(4)
+TBase[:3,:3] = mrp_to_matrix(PhiBase)
+TBase[:3,3] = PBase
 
-#If the analytic model exists, it is loaded
-print("Loading geometric model and jacobian...")
-rawTfunc = dill.load(open(configPathRobot + "RawGeometricModel_" + robotName + ".pickle", "rb"))
-rawJfunc = dill.load(open(configPathRobot + "Jacobian_" + fileID + ".pickle", "rb"))
-rawPfunc = dill.load(open(configPathRobot + "GeometricModel_" + fileID + ".pickle", "rb"))
-print("Done !")
+#Multiple tool transformation matrices => Partial pose measurement
+if(len(TToolN) > 1):
+    TTool = []
+    for i,_ in enumerate(TToolN):
+        TTooli = cs.SX.ones(4,1)
+        TTooli[:3,0] = cs.SX.sym("PTool"+str(i),3,1)
+        TTool.append(TTooli)
+    TTool = cs.horzcat(*TTool)
+
+#Single tool transformation matrix => Full pose measurement
+else:
+    PTool = cs.SX.sym('PTool',3)
+    PhiTool = cs.SX.sym('PhiTool',3)
+
+    TTool = cs.SX.eye(4)
+    TTool[:3,:3] = mrp_to_matrix(PhiTool)
+    TTool[:3,3] = PTool
+
+pi = []
+
+T = TBase
+Traw = cs.SX.eye(4)
+for i in range(JOINTS_NUMBER):
+    Tii,pii = Ti(i)
+    T = T@Tii
+    Traw = Traw@Tii
+    pi.extend(pii)
+T = T@TTool
+
+if(len(TToolN) > 1):
+    parameters = cs.vertcat(PBase,PhiBase,*pi,TTool[:3,:].reshape((3*len(TToolN),1)))
+else:
+    parameters = cs.vertcat(PBase,PhiBase,*pi,PTool,PhiTool)
+
+if(len(TToolN) > 1):
+    P = T[:3,:].reshape((3*len(TToolN),1))
+else:
+    P = cs.vertcat(T[:3,3],quat_to_mrp(SO3.from_matrix(T[:3,:3])))
+
+# tic = time.perf_counter()
+J = cs.jacobian(P,parameters)
+# tac = time.perf_counter()
+# print("Elapsed time computation: ", tac-tic)
+
+# tic = time.perf_counter()
+Tfunc = cs.Function('T',[parameters,q],[Traw])
+Pfunc = cs.Function('P',[parameters,q],[P])
+Jfunc = cs.Function('J',[parameters,q],[J])
+# tac = time.perf_counter()
+# print("Elapsed time conversion: ", tac-tic) 
 
 #Formatting analytic functions with proper output shapes
-#PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 + len(piN)
+PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 + len(piN)
 
-def Tfunc(parameters,q):
-    T = rawTfunc(parameters,q)
-    for i,row in enumerate(T):
-        for j,_ in enumerate(row):
-            try:
-                T[i,j] = T[i,j].item()
-            except:
-                T[i,j] = float(T[i,j])
-    return(T)
+# q = np.ones(JOINTS_NUMBER)*np.pi/2
+# np.set_printoptions(edgeitems=30, linewidth=100000, 
+#    formatter=dict(float=lambda x: "%.3g" % x))
+# print(np.array(Tfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)))
+# print(np.array(Pfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)))
+# print(np.array(Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)))
 
-def Jfunc(parameters,q):
-    J = rawJfunc(parameters,q)
-    for i,row in enumerate(J):
-        for j,_ in enumerate(row):
-            try:
-                J[i,j] = J[i,j].item()
-            except:
-                J[i,j] = float(J[i,j])
-    return(J)
+# T = []
+# for i in range(10):
+#     q = np.random.random(JOINTS_NUMBER)
+#     print(q)
+#     tic = time.perf_counter()
+#     print(Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
+#     tac = time.perf_counter()
+#     print("Elapsed time evaluation: ", tac-tic)
+#     T.append(tac-tic)
+# print("Average elapsed time evaluation: ", sum(T)/len(T))
 
-def Pfunc(parameters,q):
-    P = rawPfunc(parameters,q)
-    for i,_ in enumerate(P):
-        try:
-            P[i] = P[i].item()
-        except:
-            P[i] = float(P[i])
-    return(P)
+# from scipy.spatial.transform import Rotation as R
+# rotation = R.from_matrix(np.eye(3))
+# print(rotation.as_mrp())
+# print(rotation.as_quat())
+
+# rotation_casadi = mrp_to_matrix(rotation.as_mrp())
+# q_casadi = SO3.from_matrix(rotation_casadi).as_quat()
+# print(q_casadi)
+# mrp_casadi = quat_to_mrp(q_casadi)
+# print(mrp_casadi)
+
+# print(rot_axis(np.pi/2,1))
