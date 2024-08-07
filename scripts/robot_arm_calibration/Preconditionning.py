@@ -34,8 +34,9 @@ deltaOrientation = measuredOrientation.T@computedOrientation
 
 deltaOrientationMRP = quat_to_mrp(SO3.from_matrix(deltaOrientation))
 deltaOrientationEuler = SO3.from_matrix(deltaOrientation).as_euler()
+deltaOrientationLog = SO3.from_matrix(deltaOrientation).log().vec
 
-simplePreconditionning = cs.Function('simplePreconditionning',[computedPose,measuredPose],[cs.vertcat(deltaPosition,L*deltaOrientationMRP)])
+simplePreconditionning = cs.Function('simplePreconditionning',[computedPose,measuredPose],[cs.vertcat(deltaPosition,L*deltaOrientationLog)])
 JsimplePreconditionning = cs.jacobian(simplePreconditionning(computedPose,measuredPose),computedPose)
 
 simpleEulerPreconditionning = cs.Function('simpleEulerPreconditionning',[computedPose,measuredPose],[cs.vertcat(deltaPosition,L*deltaOrientationEuler)])
@@ -60,7 +61,6 @@ deltaPhi = measuredPhi - computedPhi
 
 sphericPreconditionning = cs.Function('sphericPreconditionning',[computedPose,measuredPose,aimedPosition],[cs.vertcat(deltaR,deltaTheta,deltaPhi,L*deltaOrientationEuler)])
 JsphericalPreconditionning = cs.jacobian(sphericPreconditionning(computedPose,measuredPose,aimedPosition),computedPose)
-
 
 ### JACOBIANS ###
 
