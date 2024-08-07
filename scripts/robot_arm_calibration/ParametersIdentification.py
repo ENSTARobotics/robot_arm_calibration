@@ -927,9 +927,9 @@ if __name__ == "__main__":
                         )[:3]
                         np.savetxt(
                             file,
-                            np.round(Items[item][i].reshape(1, -1), 6),
+                            Items[item][i].reshape(1, -1),
                             delimiter=",",
-                            fmt="%1.6f",
+                            fmt="%s",
                         )
                 else:
                     T = np.eye(4)
@@ -939,15 +939,15 @@ if __name__ == "__main__":
                     Items[EEItemsNames[0]][i] = np.append(correctedPose[:3, -1], R.from_matrix(correctedPose[:3, :3]).as_mrp())
                     np.savetxt(
                         file,
-                        np.round(Items[EEItemsNames[0]][i].reshape(1, -1), 6),
+                        Items[EEItemsNames[0]][i].reshape(1, -1),
                         delimiter=",",
-                        fmt="%1.6f",
+                        fmt="%s",
                     )
                 np.savetxt(
                     file,
-                    np.round(jointsPosition.reshape(1, -1), 6),
+                    jointsPosition.reshape(1, -1),
                     delimiter=",",
-                    fmt="%1.6f",
+                    fmt="%s",
                 )
                 file.write(str.encode("---\n"))
 
