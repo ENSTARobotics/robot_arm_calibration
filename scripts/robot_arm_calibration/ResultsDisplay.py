@@ -12,6 +12,13 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 from functools import reduce
 import matplotlib.pyplot as plt
+cmap = plt.get_cmap("tab10")
+cmap2 = plt.get_cmap("tab20")
+markers = ["^","s","o","v","D","x","*","+"]
+figsize = (10,9)
+
+plt.rc('font', **{'size': 24, 'family': 'serif', 'serif': ['Computer Modern']})
+plt.rc('text', usetex=True)
 
 ### Import robot and marker parameters
 from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial
@@ -160,7 +167,7 @@ def computeAxisSpecificGlobalDifference(parameters,Pij=Pij0,Jointi=Jointi0):
     globalDifferenceZ = np.mean(delta[2::3])
     globalDifferenceZ_std = np.std(delta[2::3])
 
-    return(globalDifferenceX,globalDifferenceX_std,globalDifferenceY,globalDifferenceY_std,globalDifferenceZ,globalDifferenceZ_std)
+    return(globalDifferenceX,globalDifferenceY,globalDifferenceZ,globalDifferenceX_std,globalDifferenceY_std,globalDifferenceZ_std)
 
 def computeLocalDelta(parameters,endEffectorPointIndex,configurationIndex,Pij=Pij0,Jointi=Jointi0):
     """! Computes the local deltas between the measured and modeled positions.
@@ -235,7 +242,9 @@ if(learningScores):
     tmpInput = input("Utility score function ? " + str(utilityScores))
     utilityScore = tmpInput.lower()
 
-fig,ax = plt.subplots()
+fig,ax = plt.subplots(figsize=figsize)
+fig_hist,ax_hist = plt.subplots(3,1,figsize=(10,12))
+fig_hist_markers, ax_hist_markers = plt.subplots(4,2,figsize=(20,16))
 
 #Plot uncalibrated error
 localError = np.empty((len(Jointi0),N_EEPOINTS))
@@ -245,15 +254,40 @@ for i,item in enumerate(EEItemsNames):
 
 avgLocalError = np.average(localError,axis=1)
 stdLocalError = np.std(localError,axis=1)
-ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label="uncalibrated", marker='o',linestyle="none",markersize=4,capsize=4)
+ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label="uncalibrated", marker=markers[0],linestyle="none",markersize=9,capsize=9,linewidth=2,capthick=2)
 print("Testing error uncalibrated : " + str(computeGlobalError(parameters0)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
+
+from scipy.stats import norm
+localDelta = np.empty((len(Jointi0),N_EEPOINTS,3))
+for i,item in enumerate(EEItemsNames):
+    for j,joint in enumerate(Jointi0):
+        localDelta[j,i,:] = computeLocalDelta(parameters0,i,j)
+
+bins = np.linspace(np.min(localDelta),np.max(localDelta),31)
+for i,(ax_local,data) in enumerate(zip(ax_hist,localDelta.T)):
+    plot_data = data.flatten()
+    (mu, sigma) = norm.fit(plot_data)
+    _,bins,_ = ax_local.hist(plot_data,bins=bins,color=cmap2(2*i+1))
+    best_fit_line = (bins[1]-bins[0])*len(plot_data)*norm.pdf(bins, mu, sigma)
+    ax_local.plot(bins, best_fit_line,color=cmap2(2*i+1),zorder=0,linestyle="--",label="uncalibrated")
 
 print("Axis specific global error uncalibrated : " + str(computeAxisSpecificGlobalError(parameters0)))
 print("Axis specific global difference uncalibrated : " + str(computeAxisSpecificGlobalDifference(parameters0)))
+print("Axis specific deltas (avg,std) " + "uncalibrated" + " : " + str(np.average(localDelta,axis=(0,1))) + " " + str(np.std(localDelta,axis=(0,1))))
+
+localDeltaNorm = np.linalg.norm(localDelta,axis=2)
+bins = np.linspace(np.min(localDeltaNorm),np.max(localDeltaNorm),21)
+for i,(ax_local,data) in enumerate(zip(ax_hist_markers.flatten(),localDeltaNorm.T)):
+    plot_data = data.flatten()
+    _,bins,_ = ax_local.hist(plot_data,bins=bins,color=cmap2(2*i+1),label="uncalibrated")
+
+print("Position deltas (avg,std) " + "uncalibrated" + " : " + str(np.average(localDeltaNorm)) + " " + str(np.std(localDeltaNorm)))
+print("Marker specific position deltas (avg,std) " + "uncalibrated" + " : " + str(np.average(localDeltaNorm,axis=0)) + " " + str(np.std(localDeltaNorm,axis=0)))
+
 
 #Plot calibrated errors
 samplingSelectionMethod = ""
-for folder in foldersNames:
+for k,folder in enumerate(foldersNames):
 
     #Resetting measurements
     Items0 = copy.deepcopy(defaultItems0)
@@ -281,11 +315,34 @@ for folder in foldersNames:
 
     avgLocalError = np.average(localError,axis=1)
     stdLocalError = np.std(localError,axis=1)
-    ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label=label, marker='o',linestyle="none",markersize=4,capsize=4)
+    ax.errorbar(np.arange(1,len(Jointi0)+1), avgLocalError, stdLocalError, label=label, marker=markers[1+k],linestyle="none",markersize=9,capsize=9,linewidth=2,capthick=2)
     print("Testing error " + label + " : " + str(computeGlobalError(parameters)) + " min value : " + str(np.min(localError)) + " max value : " + str(np.max(localError)) + " avg value : " + str(np.average(localError.flatten())) + " std value : " + str(np.std(localError.flatten())))
+
+    localDelta = np.empty((len(Jointi0),N_EEPOINTS,3))
+    for i,item in enumerate(EEItemsNames):
+        for j,joint in enumerate(Jointi0):
+            localDelta[j,i,:] = computeLocalDelta(parameters,i,j)
+
+    bins = np.linspace(np.min(localDelta),np.max(localDelta),31)
+    for i,(ax_local,data) in enumerate(zip(ax_hist,localDelta.T)):
+        plot_data = data.flatten()
+        (mu, sigma) = norm.fit(plot_data)
+        _,bins,_ = ax_local.hist(plot_data,bins=bins,color=cmap2(2*i))
+        best_fit_line = (bins[1]-bins[0])*len(plot_data)*norm.pdf(bins, mu, sigma)
+        ax_local.plot(bins, best_fit_line,color=cmap2(2*i),label=label)
 
     print("Axis specific global error " + label + " : " + str(computeAxisSpecificGlobalError(parameters)))
     print("Axis specific global difference " + label + " : " + str(computeAxisSpecificGlobalDifference(parameters)))
+    print("Axis specific deltas (avg,std) " + label + " : " + str(np.average(localDelta,axis=(0,1))) + " " + str(np.std(localDelta,axis=(0,1))))
+
+    localDeltaNorm = np.linalg.norm(localDelta,axis=2)
+    bins = np.linspace(np.min(localDeltaNorm),np.max(localDeltaNorm),21)
+    for i,(ax_local,data) in enumerate(zip(ax_hist_markers.flatten(),localDeltaNorm.T)):
+        plot_data = data.flatten()
+        _,bins,_ = ax_local.hist(plot_data,bins=bins,color=cmap2(2*i),label=label)
+
+    print("Position deltas (avg,std) " + label + " : " + str(np.average(localDeltaNorm)) + " " + str(np.std(localDeltaNorm)))
+    print("Marker specific position deltas (avg,std) " + label + " : " + str(np.average(localDeltaNorm,axis=0)) + " " + str(np.std(localDeltaNorm,axis=0)))
 
     #Compute learning scores
     if(learningScores):
@@ -309,9 +366,9 @@ for folder in foldersNames:
         print("Final learning error for " + label + " : " + str(computeGlobalError(parameters,Pij,Jointi))) 
 
 #Make plot fancy and all
-ax.set_xlabel("Verification configurations")
+ax.set_xlabel("Verification configurations",labelpad=10)
 ax.set_xticks(np.append(1,np.arange(5,len(Jointi0)+1,5)))
-ax.set_ylabel("Verification error over the " + str(N_EEPOINTS) + " markers (m)")
+ax.set_ylabel("Verification error over the " + str(N_EEPOINTS) + " markers (m)", labelpad=10)
 ax.set_yscale('log', nonpositive="clip")
 
 ax.minorticks_on()
@@ -320,5 +377,31 @@ ax.grid(which = "major", linestyle = '--')
 ax.grid(which = "minor", linestyle = '--')
 
 ax.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left", mode="expand", borderaxespad=0, ncol=2)
+fig.savefig("./ResultsDisplayOutput.pdf",dpi = 300, bbox_inches = 'tight')
 
-plt.savefig("./ResultsDisplayOutput.pdf",bbox_inches='tight',pad_inches=0.01)
+from matplotlib.ticker import FormatStrFormatter
+
+labels = ["x","y","z"]
+for ax_local,label in zip(ax_hist,labels):
+    ax_local.set_xlabel(r"$\Delta " + label + " (m)$",labelpad=5)
+    ax_local.set_ylabel("Counts",labelpad=10)
+    ax_local.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+    ax_local.set_axisbelow(True)
+    ax_local.grid(which = "major", linestyle = '--')
+    ax_local.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left", mode="expand", borderaxespad=0, ncol=2)
+fig_hist.subplots_adjust(hspace=0.75)
+fig_hist.savefig("./ResultsDisplayOutputHist.pdf",dpi = 300, bbox_inches = 'tight')
+
+for i,ax_local in enumerate(ax_hist_markers.flatten()):
+    ax_local.set_xlabel(r"$\|\Delta P_{}\| (m)$".format(i+1),labelpad=10)
+    ax_local.set_ylabel("Counts",labelpad=10)
+    ax_local.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+    ax_local.tick_params(axis='x', which='major', pad=10)
+    ax_local.set_axisbelow(True)
+    ax_local.grid(which = "major", linestyle = '--')
+    ax_local.legend(bbox_to_anchor=(0, 1.02, 1, 0.2), loc="lower left", mode="expand", borderaxespad=0, ncol=2)
+fig_hist_markers.delaxes(ax_hist_markers[-1][-1])
+fig_hist_markers.subplots_adjust(hspace=0.9,wspace=0.12)
+fig_hist_markers.savefig("./ResultsDisplayOutputHistMarkers.pdf",dpi = 300, bbox_inches = 'tight')
+
+
