@@ -671,7 +671,7 @@ def localLibIdentifyParameters(
         )
 
     def jacobian_min(parameters):
-        return computeIdentificationGradient(
+        return -1*computeIdentificationGradient(
             parameters,
             PijLear,
             JointiLear,
@@ -686,7 +686,7 @@ def localLibIdentifyParameters(
         )
 
     def jacobian_res(parameters):
-        return computeIdentificationJacobian(
+        return -1*computeIdentificationJacobian(
             parameters,
             PijLear,
             JointiLear,
@@ -782,10 +782,6 @@ def localLibIdentifyParameters(
 
 ### Main loop
 if __name__ == "__main__":
-
-    # Timer initialisation
-    # import time
-    # t0 = time.time()
 
     ### Retrieve measurements data
     print("Retrieving calibration measurement data...")
@@ -1020,6 +1016,10 @@ if __name__ == "__main__":
             )
 
     tmp = input("Press enter to continue.")
+
+    # Timer initialisation
+    import time
+    t0 = time.time()
 
     if len(TToolN) > 1:
         PijLear = np.empty((N_LEARNING, N_EEPOINTS, 3))
@@ -1331,4 +1331,4 @@ if __name__ == "__main__":
 
     print("Done !")
 
-    # print("-- Parameters identified in " + str(time.time() - t0) + " seconds --")
+    print("-- Parameters identified in " + str(time.time() - t0) + " seconds --")
