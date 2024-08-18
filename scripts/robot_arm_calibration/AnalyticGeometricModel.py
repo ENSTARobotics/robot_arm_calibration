@@ -195,23 +195,23 @@ if(len(TToolN) > 1):
 else:
     P = cs.vertcat(T[:3,3],quat_to_mrp(SO3.from_matrix(T[:3,:3])))
 
-# tic = time.perf_counter()
+tic = time.perf_counter()
 J = cs.jacobian(P,parameters)
-# tac = time.perf_counter()
-# print("Elapsed time computation: ", tac-tic)
+tac = time.perf_counter()
+print("Elapsed time computation: ", tac-tic)
 
-# tic = time.perf_counter()
+tic = time.perf_counter()
 Tfunc = cs.Function('T',[parameters,q],[Traw])
 Pfunc = cs.Function('P',[parameters,q],[P])
 Jfunc = cs.Function('J',[parameters,q],[J])
-# tac = time.perf_counter()
-# print("Elapsed time conversion: ", tac-tic) 
+tac = time.perf_counter()
+print("Elapsed time conversion: ", tac-tic) 
 
 PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 + len(piN)
 
-# q = np.ones(JOINTS_NUMBER)*np.pi/2
-# np.set_printoptions(edgeitems=30, linewidth=100000, 
-#    formatter=dict(float=lambda x: "%.3g" % x))
+#np.set_printoptions(edgeitems=30, linewidth=100000, formatter=dict(float=lambda x: "%.3g" % x))
+#q = np.ones(JOINTS_NUMBER)*np.pi/2
+
 # print(np.array(Tfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)))
 # print(np.array(Pfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)))
 # print(np.array(Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)))
@@ -219,11 +219,15 @@ PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 
 # T = []
 # for i in range(10):
 #     q = np.random.random(JOINTS_NUMBER)
-#     print(q)
+#     #print(q)
 #     tic = time.perf_counter()
-#     print(Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
+#     if(len(TToolN) > 1):
+#         Jtest = Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)
+#     else:
+#         Jtest = Jfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,TToolN,piN),q)
+#     #print(Jtest)
 #     tac = time.perf_counter()
-#     print("Elapsed time evaluation: ", tac-tic)
+#     #print("Elapsed time evaluation: ", tac-tic)
 #     T.append(tac-tic)
 # print("Average elapsed time evaluation: ", sum(T)/len(T))
 

@@ -223,22 +223,26 @@ Jfunc = jacfwd(Pfunc)
 
 PARAMETERS_NUMBER = 6 + 3*len(TToolN) + len(piN) if(len(TToolN) > 1) else 6 + 6 + len(piN)
 
-# q = np.ones(JOINTS_NUMBER)*np.pi/2
-# np.set_printoptions(edgeitems=30, linewidth=100000, 
-#    formatter=dict(float=lambda x: "%.3g" % x))
-# print(Tfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
-# print(Pfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
-# print(Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
+#np.set_printoptions(edgeitems=30, linewidth=100000, formatter=dict(float=lambda x: "%.3g" % x))
+#q = np.ones(JOINTS_NUMBER)*np.pi/2
+
+# print(np.array(Tfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)))
+# print(np.array(Pfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)))
+# print(np.array(Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)))
 
 # T = []
 # for i in range(10):
 #     import numpy.random as random
 #     q = random.random(JOINTS_NUMBER)
-#     print(q)
+#     #print(q)
 #     tic = time.perf_counter()
-#     print(Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q))
+#     if(len(TToolN) > 1):
+#         Jtest = Jfunc(getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN),q)
+#     else:
+#         Jtest = Jfunc(getIdentifiableParametersFull(TBaseN,TFlangeN,TToolN,piN),q)
+#     #print(Jtest)
 #     tac = time.perf_counter()
-#     print("Elapsed time evaluation: ", tac-tic)
+#     #print("Elapsed time evaluation: ", tac-tic)
 #     T.append(tac-tic)
 # print("Average elapsed time evaluation: ", sum(T)/len(T))
 

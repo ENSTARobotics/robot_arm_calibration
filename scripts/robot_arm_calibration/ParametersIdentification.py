@@ -4,6 +4,7 @@
 import sys
 import os
 import yaml
+import time
 from multiprocessing import Pool
 
 # Utility packages
@@ -786,7 +787,6 @@ if __name__ == "__main__":
     ### Retrieve measurements data
     print("Retrieving calibration measurement data...")
     itemsNames = EEItemsNames + ["jointsPositions"]
-
     try:
         Items = calibrationCSVParsing(itemsNames, "Calibration.csv")
     except:
@@ -1098,6 +1098,8 @@ if __name__ == "__main__":
             + " "
             + algorithmName
         )
+        
+    tic = time.perf_counter()
 
     if algorithmType == "local" or algorithmType == "localLib":
         stopDelta = 1e-8
@@ -1260,6 +1262,10 @@ if __name__ == "__main__":
             jacobianPreconditionning=jacobianPreconditionning,
             additionnalParameters=additionnalParameters,
         )
+    
+    tac = time.perf_counter()
+
+    print("-- Parameters identified in " + str(tac - tic) + " seconds --")
 
     # Final error
     print("Final error : " + str(finalError))
@@ -1330,5 +1336,3 @@ if __name__ == "__main__":
         yaml.dump(calibratedModel, file)
 
     print("Done !")
-
-    print("-- Parameters identified in " + str(time.time() - t0) + " seconds --")

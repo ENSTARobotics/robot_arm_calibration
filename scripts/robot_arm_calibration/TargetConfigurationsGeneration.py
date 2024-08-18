@@ -4,6 +4,7 @@
 import sys
 import os
 import yaml
+import time
 
 #Utility modules
 import numpy as np
@@ -383,11 +384,8 @@ def annealing(sampledConfigurations,targetConfigurationsNumber,configurationsSee
 ### Main loop
 if __name__ == "__main__":
 
-    #import time
-    #t0 = time.time()
-
+    tic = time.perf_counter()
     ### Load sampled configurations
-
     SampledCalibrationConfigurations = np.empty((0,0))
     print("Loading sampled target configurations...")
     try:
@@ -397,6 +395,9 @@ if __name__ == "__main__":
         print("No valid sampled configurations file ! Are you in a proper calibrated model folder ?")
         sys.exit(-1)
     print("Done !")
+    tac = time.perf_counter()
+
+    print("-- Target configurations loaded in " + str(tac - tic) + " seconds --")
 
     selectionMethod = "random"
     try:
@@ -450,8 +451,12 @@ if __name__ == "__main__":
     except:
         print("Not redundancy factor give, defaulting to " + str(redundancy))
 
+    tic = time.perf_counter()
     #Get and sort target configurations
-    TargetConfigurations,score = locals()[selectionMethod](SampledCalibrationConfigurations,targetConfigurationsNumber,configurationsSeed,maxCallsNumber,locals()[utilityScore])   #TODO TEST
+    TargetConfigurations,score = locals()[selectionMethod](SampledCalibrationConfigurations,targetConfigurationsNumber,configurationsSeed,maxCallsNumber,locals()[utilityScore])
+    tac = time.perf_counter()
+    
+    print("-- Optimal configurations computed in " + str(tac - tic) + " seconds --")
     
     #Adding redundancy...
     TargetConfigurations = np.tile(sortConfigurations(TargetConfigurations),(redundancy,1))
@@ -460,7 +465,6 @@ if __name__ == "__main__":
     print("Final score with redundancy : " + str(score))
 
     print("Saving optimized target configurations...")
-
     saveDirectory = os.getcwd() + "/" + utilityScore + "_" + selectionMethod + "_" + str(len(TargetConfigurations)) + "/"
 
     if(not os.path.isdir(saveDirectory)):
@@ -469,4 +473,4 @@ if __name__ == "__main__":
         yaml.dump({"targetConfigurations":TargetConfigurations.tolist(),"score":score}, file)
     print("Done !")
 
-    #print("-- Optimal configurations computed in " + str(time.time() - t0) + " seconds --")
+
