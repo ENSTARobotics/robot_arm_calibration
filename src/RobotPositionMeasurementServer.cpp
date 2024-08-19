@@ -208,8 +208,6 @@ bool RobotPositionMeasurementServer::measure()
     double startTime = ros::WallTime::now().toSec();
     while((std::accumulate(m_robotEndEffectorPointsCounter.begin(), m_robotEndEffectorPointsCounter.end(), 0) < m_robotEndEffectorPoints.size()*AVG_WINDOW_DYNAMIC || m_robotJointStateCounter < AVG_WINDOW_DYNAMIC || (m_robotWrenchTopic != "" && m_robotWrenchCounter < AVG_WINDOW_DYNAMIC)) && ros::WallTime::now().toSec() - startTime < 0.1*AVG_WINDOW_DYNAMIC)
     {
-        //DEBUG
-        ros::WallDuration(0.5).sleep();
         double progress = std::accumulate(m_robotEndEffectorPointsCounter.begin(), m_robotEndEffectorPointsCounter.end(), 0)/(m_robotEndEffectorPoints.size()*AVG_WINDOW_DYNAMIC);
         progress += m_robotJointStateCounter/AVG_WINDOW_DYNAMIC;
         if(m_robotWrenchTopic != "")
