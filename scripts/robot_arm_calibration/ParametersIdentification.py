@@ -1002,7 +1002,6 @@ if __name__ == "__main__":
 
     randomIndex = np.random.randint(0, N_MEASUREMENTS)
     print("Test on random measurement (" + str(randomIndex) + ") :")
-    randomIndex = np.random.randint(0, N_MEASUREMENTS)
     if len(TToolN) > 1:
         for i, item in enumerate(EEItemsNames):
             print("Delta end effector point " + item)
@@ -1059,7 +1058,7 @@ if __name__ == "__main__":
 
     # Randomly shuffle measurements between the learning and testing subsets
     randomIndices = np.random.permutation(N_LEARNING + N_TESTS)
-    #randomIndices = np.arange(N_LEARNING + N_TESTS)
+
     indexLear = randomIndices[:N_LEARNING]
     PijLear = Pij[indexLear]
     JointiLear = Jointi[indexLear]
