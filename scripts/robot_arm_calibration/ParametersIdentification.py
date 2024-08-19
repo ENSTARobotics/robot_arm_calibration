@@ -796,6 +796,15 @@ if __name__ == "__main__":
         sys.exit(-1)
     print("Done !")
 
+    Jointi = Items["jointsPositions"]
+    N_MEASUREMENTS = len(Jointi)
+    if len(TToolN) > 1:
+        Pij = np.empty((N_MEASUREMENTS, N_EEPOINTS, 3))
+        for i, item in enumerate(EEItemsNames):
+            Pij[:, i, :] = Items[item]
+    else:
+        Pij = Items[EEItemsNames[0]]
+    
     ### Set preconditionning
     if len(TToolN) > 1:
         preconditionning = None
@@ -823,7 +832,21 @@ if __name__ == "__main__":
     else:
         parameters0 = getIdentifiableParametersFull(TBaseN, TFlangeN, TToolN, piN)
 
-    # Estimate the transformation between the sensor reference and the robot base
+    ### Filter outliers (i.e. obviously wrong measurements)
+    Outliers = []
+    if len(TToolN) > 1:     #TODO Full-pose measurements
+        for i,(pij,jointValues) in enumerate(zip(Pij,Jointi)):
+            error = computeError(parameters0, pij, [jointValues])
+            if(error > 0.05):
+                print("Outlier detected at index " + str(i) + " : " + str(error))
+                Outliers.append(i)
+    Pij = np.delete(Pij,Outliers,axis=0)
+    Jointi = np.delete(Jointi,Outliers,axis=0)
+
+    N_MEASUREMENTS = len(Jointi)
+    print("Number of experiments after outlier removal : " + str(N_MEASUREMENTS))
+
+    ### Estimate the transformation between the sensor reference and the robot base
     if estimateTBaseOffset != 0:
         print("Estimating sensor to base transformation...")
         TBaseSensor = np.eye(4)
@@ -831,7 +854,7 @@ if __name__ == "__main__":
         if len(TToolN) > 1:
             EEPoints0 = []
             EEPoints1 = []
-            for i, configuration in enumerate(Items["jointsPositions"]):
+            for i, configuration in enumerate(Jointi):
                 TBaseFlange = np.dot(
                     TBaseN, np.dot(Tfunc(parameters0, configuration), TFlangeN)
                 )
@@ -845,11 +868,9 @@ if __name__ == "__main__":
                         ]
                     )
                 )
-                for j, item in enumerate(EEItemsNames):
-                    EEPoints1.append(Items[item][i])
 
             EEPoints0 = np.array(EEPoints0)
-            EEPoints1 = np.array(EEPoints1)
+            EEPoints1 = np.reshape(Pij,(-1,3))
 
             # Does not enforce rotation matrix constraints
             # TSensorBase = np.dot(np.hstack([EEPoints1,np.ones((len(EEPoints1),1))]).T,np.linalg.pinv(np.hstack([np.dot(np.dot(TFlangeBase,TTool),np.array([[0,0,0,1]]).T) for TTool in TToolN])))
@@ -882,15 +903,15 @@ if __name__ == "__main__":
         else:
             PBaseSensor = []
             RBaseSensor = []
-            for i, configuration in enumerate(Items["jointsPositions"]):
+            for i, configuration in enumerate(Jointi):
                 EEPose0 = np.dot(
                     TBaseN, np.dot(Tfunc(parameters0, configuration), TFlangeN)
                 )
                 EEPose0 = np.dot(EEPose0, TToolN[0])
 
                 EEPose1 = np.eye(4)
-                EEPose1[:3, -1] = Items[EEItemsNames[0]][i][:3]
-                EEPose1[:3, :3] = R.from_mrp(Items[EEItemsNames[0]][i][3:]).as_matrix()
+                EEPose1[:3, -1] = Pij[:3]
+                EEPose1[:3, :3] = R.from_mrp(Pij[3:]).as_matrix()
 
                 # TBaseSensor = TBaseTool * TToolSensor
                 DeltaEEPose = np.dot(EEPose0, np.linalg.inv(EEPose1))
@@ -915,27 +936,27 @@ if __name__ == "__main__":
 
         # Transfering measurements in the estimated robot base frame !
         with open("CalibrationCorrected.csv", "wb+") as file:
-            for i, jointsPosition in enumerate(Items["jointsPositions"]):
+            for i, jointsPosition in enumerate(Jointi):
                 if len(TToolN) > 1:
                     for j, item in enumerate(EEItemsNames):
-                        Items[item][i] = np.dot(
-                            TBaseSensor, np.append(Items[item][i], 1).T
+                        Pij[i,j] = np.dot(
+                            TBaseSensor, np.append(Pij[i,j], 1).T
                         )[:3]
                         np.savetxt(
                             file,
-                            Items[item][i].reshape(1, -1),
+                            Pij[i,j].reshape(1, -1),
                             delimiter=",",
                             fmt="%s",
                         )
                 else:
                     T = np.eye(4)
-                    T[:3, -1] = Items[EEItemsNames[0]][i][:3]
-                    T[:3, :3] = R.from_mrp(Items[EEItemsNames[0]][i][3:]).as_matrix()
+                    T[:3, -1] = Pij[i][:3]
+                    T[:3, :3] = R.from_mrp(Pij[i][3:]).as_matrix()
                     correctedPose = np.dot(TBaseSensor, T)
-                    Items[EEItemsNames[0]][i] = np.append(correctedPose[:3, -1], R.from_matrix(correctedPose[:3, :3]).as_mrp())
+                    Pij[i] = np.append(correctedPose[:3, -1], R.from_matrix(correctedPose[:3, :3]).as_mrp())
                     np.savetxt(
                         file,
-                        Items[EEItemsNames[0]][i].reshape(1, -1),
+                        Pij[i].reshape(1, -1),
                         delimiter=",",
                         fmt="%s",
                     )
@@ -949,21 +970,14 @@ if __name__ == "__main__":
 
         # print(np.dot(TSensorBase,np.hstack([EEPoints0,np.ones((len(EEPoints0),1))]).T).T[:,:-1] - EEPoints1)
 
-    ### Create learning and testing subsets
-    N_MEASUREMENTS = len(Items["jointsPositions"])
-    N_LEARNING = min(N_MEASUREMENTS, 2 * len(parameters0))
-    N_TESTS = 0
-
-    print("Number of experiments : " + str(N_LEARNING))
-    print("Number of tests : " + str(N_TESTS))
-
+    ### Residuals tests
     print("Test on first measurement :")
     if len(TToolN) > 1:
         for i, item in enumerate(EEItemsNames):
             print("Delta end effector point " + item)
             print(
-                Items[item][0]
-                - Pfunc(parameters0, Items["jointsPositions"][0])[
+                Pij[0,i]
+                - Pfunc(parameters0, Jointi[0])[
                     3 * i : 3 * i + 3
                 ]
             )
@@ -971,15 +985,15 @@ if __name__ == "__main__":
         if additionnalParameters is None:
             print(
                 preconditionning(
-                    Pfunc(parameters0, Items["jointsPositions"][0]),
-                    Items[EEItemsNames[0]][0],
+                    Pfunc(parameters0, Jointi[0]),
+                    Pij[0],
                 )
             )
         else:
             print(
                 preconditionning(
-                    Pfunc(parameters0, Items["jointsPositions"][0]),
-                    Items[EEItemsNames[0]][0],
+                    Pfunc(parameters0, Jointi[0]),
+                    Pij[0],
                     additionnalParameters[0],
                 )
             )
@@ -993,8 +1007,8 @@ if __name__ == "__main__":
         for i, item in enumerate(EEItemsNames):
             print("Delta end effector point " + item)
             print(
-                Items[item][randomIndex]
-                - Pfunc(parameters0, Items["jointsPositions"][randomIndex])[
+                Pij[randomIndex,i]
+                - Pfunc(parameters0, Jointi[randomIndex])[
                     3 * i : 3 * i + 3
                 ]
             )
@@ -1002,24 +1016,36 @@ if __name__ == "__main__":
         if additionnalParameters is None:
             print(
                 preconditionning(
-                    Pfunc(parameters0, Items["jointsPositions"][randomIndex]),
-                    Items[EEItemsNames[0]][randomIndex],
+                    Pfunc(parameters0, Jointi[randomIndex]),
+                    Pij[randomIndex],
                 )
             )
         else:
             print(
                 preconditionning(
-                    Pfunc(parameters0, Items["jointsPositions"][randomIndex]),
-                    Items[EEItemsNames[0]][randomIndex],
+                    Pfunc(parameters0, Jointi[randomIndex]),
+                    Pij[randomIndex],
                     additionnalParameters[randomIndex],
                 )
             )
 
     tmp = input("Press enter to continue.")
 
-    # Timer initialisation
-    import time
-    t0 = time.time()
+    ### Create learning and testing subsets
+    N_LEARNING = min(N_MEASUREMENTS, 2 * len(parameters0))
+    #N_LEARNING = N_MEASUREMENTS
+    N_TESTS = 0
+
+    if(N_TESTS == 0 and N_MEASUREMENTS > N_LEARNING):
+        from robot_arm_calibration.TargetConfigurationsGeneration import greedy,O1
+        bestConfigurations,_ = greedy(Jointi,2*len(parameters0),maxCallsNumber=500,utilityScore=O1)
+        bestConfigurationsIndex = [np.where(np.all(Jointi==configuration,axis=1))[0][0] for configuration in bestConfigurations]
+
+        Jointi = Jointi[bestConfigurationsIndex]
+        Pij = Pij[bestConfigurationsIndex]
+
+    print("Number of experiments : " + str(N_LEARNING))
+    print("Number of tests : " + str(N_TESTS))
 
     if len(TToolN) > 1:
         PijLear = np.empty((N_LEARNING, N_EEPOINTS, 3))
@@ -1031,39 +1057,17 @@ if __name__ == "__main__":
     JointiLear = np.empty((N_LEARNING, JOINTS_NUMBER))
     JointiTest = np.empty((N_TESTS, JOINTS_NUMBER))
 
-    randomIndices = np.random.permutation(N_LEARNING + N_TESTS)
-    randomIndices = np.arange(N_LEARNING + N_TESTS)
-
     # Randomly shuffle measurements between the learning and testing subsets
+    randomIndices = np.random.permutation(N_LEARNING + N_TESTS)
+    #randomIndices = np.arange(N_LEARNING + N_TESTS)
     indexLear = randomIndices[:N_LEARNING]
-    if len(TToolN) > 1:
-        for i, item in enumerate(EEItemsNames):
-            PijLear[:, i, :] = Items[item][indexLear]
-    else:
-        PijLear[:, :] = Items[EEItemsNames[0]][indexLear]
-    JointiLear = Items["jointsPositions"][indexLear]
+    PijLear = Pij[indexLear]
+    JointiLear = Jointi[indexLear]
 
     if N_TESTS != 0:
         indexTest = randomIndices[-N_TESTS:]
-        if len(TToolN) > 1:
-            for i, item in enumerate(EEItemsNames):
-                PijTest[:, i, :] = Items[item][indexTest]
-        else:
-            PijTest[:, :] = Items[EEItemsNames[0]][indexTest]
-        JointiTest = Items["jointsPositions"][indexTest]
-
-    #Filter outliers (i.e. obviously wrong measurements)
-    Outliers = []
-    if len(TToolN) > 1:     #TODO Full-pose measurements and Test measurements
-        for i,(pij,jointValues) in enumerate(zip(PijLear,JointiLear)):
-            error = computeError(parameters0, pij, [jointValues])
-            if(error > 0.05):
-                print("Outlier detected at index " + str(i) + " : " + str(error))
-                Outliers.append(i)
-    PijLear = np.delete(PijLear,Outliers,axis=0)
-    JointiLear = np.delete(JointiLear,Outliers,axis=0)
-    N_LEARNING = len(PijLear)
-    print("Number of experiments after outlier removal : " + str(N_LEARNING))
+        PijTest = Pij[indexTest]
+        JointiTest = Jointi[indexTest]
 
     # Initial error
     initialError = computeError(
