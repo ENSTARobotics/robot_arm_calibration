@@ -1035,13 +1035,18 @@ if __name__ == "__main__":
     #N_LEARNING = N_MEASUREMENTS
     N_TESTS = 0
 
+    from robot_arm_calibration.TargetConfigurationsGeneration import O1
     if(N_TESTS == 0 and N_MEASUREMENTS > N_LEARNING):
-        from robot_arm_calibration.TargetConfigurationsGeneration import greedy,O1
+        from robot_arm_calibration.TargetConfigurationsGeneration import greedy
         bestConfigurations,_ = greedy(Jointi,2*len(parameters0),maxCallsNumber=500,utilityScore=O1)
         bestConfigurationsIndex = [np.where(np.all(Jointi==configuration,axis=1))[0][0] for configuration in bestConfigurations]
-
+        #bestConfigurationsIndex = np.random.permutation(N_LEARNING)
+        #print(bestConfigurationsIndex)
+        
         Jointi = Jointi[bestConfigurationsIndex]
         Pij = Pij[bestConfigurationsIndex]
+
+    print("Identifiability score : " + str(O1(Jointi)))
 
     print("Number of experiments : " + str(N_LEARNING))
     print("Number of tests : " + str(N_TESTS))
