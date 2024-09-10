@@ -1,21 +1,19 @@
 #!/usr/bin/python3
 
 #System packages
+import os
 import sys
 import yaml
 import glob
+import subprocess
+from copy import deepcopy
 
 #Utility packages
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 #Plot packages
-import subprocess
-import numpy as np
 import trimesh
-
-import rospkg
-rospack = rospkg.RosPack()
 
 ### Import robot and marker parameters
 from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial
@@ -29,7 +27,7 @@ parameters0 = getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN)
 ### Loading calibration poses
 print("Loading configurations...")
 try:
-    fileName = sys.argv[1]
+    fileName = sys.argv[3]
 except:
     try:
         fileName = glob.glob("*Configurations.yaml")[0]
@@ -39,12 +37,14 @@ except:
 
 with open(fileName,"r") as file:
     Configurations = yaml.load(file, Loader=yaml.FullLoader)
-    Configurations = np.array(Configurations[list(Configurations.keys())[0]]).reshape((-1,JOINTS_NUMBER))[:20]
+    Configurations = np.array(Configurations[list(Configurations.keys())[0]]).reshape((-1,JOINTS_NUMBER))
 print("Done !")
 
+Configurations = Configurations[:1]
 print('Number of configurations : ' + str(len(Configurations)))
 
-plotMode = input("Plot mode ? [mesh, axes]")
+#plotMode = input("Plot mode ? [mesh, axes]")
+plotMode = "mesh"
 
 if(plotMode == "axes"):
 
@@ -139,36 +139,42 @@ elif(plotMode == "mesh"):
         border.visual.face_colors = np.array([0, 126, 159])
         return(border)
 
-    import subprocess
-    import numpy as np
-    import trimesh
-
+    from urchin import URDF
     import rospkg
     rospack = rospkg.RosPack()
 
-    xacro = "echo $(xacro $(rospack find robot_arm_tools)/config/tools/" + toolName + "/" + robotName + "/" + robotName + "_" + toolName + ".urdf.xacro)"
-    xacroProcess = subprocess.run(xacro,shell=True,stdout=subprocess.PIPE)
-    XACROOutput = str(xacroProcess.stdout)[2:-3]
+    pkgPath = rospack.get_path("robot_arm_tools")
+
+    command = "bash " + pkgPath + "/scripts/GetRobotDescription.sh 'robot_arm_tools Setup_" + robotName + ".launch' '" + pkgPath + "/config/tools/" + toolName + "/" + toolName + ".urdf.xacro robot_name:=" + robotName + "' ''"
+    print(command)
+    output = subprocess.run(command,capture_output=True, text=True, shell=True)
+    
+    if(output.returncode != 0):
+        print("Error while getting robot description !")
+        sys.exit(-1)
+
+    robotDescription = output.stdout
 
     import re
-    packages = np.unique(np.array([XACROOutput[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', XACROOutput)]))
+
+    packages = np.unique(np.array([robotDescription[int(m.start()):int(m.end())] for m in re.finditer('package://[a-zA-Z_]+/', robotDescription)]))
 
     for package in packages:
-        XACROOutput = XACROOutput.replace(package,rospack.get_path(package.split("/")[-2]) + "/")
+        robotDescription = robotDescription.replace(package,rospack.get_path(package.split("/")[-2]) + "/")
 
-    XACROOutput = XACROOutput.replace("file://","")
+    robotDescription = robotDescription.replace("file://","")
+    #print(robotDescription)
 
-    URDFfile = open("/tmp/tmp.urdf", "w")
-    URDFfile.write(XACROOutput)
-    URDFfile.close()
-
-    from urchin import URDF
-
+    with open("/tmp/tmp.urdf","w") as file:
+        file.write(robotDescription)
     scene = trimesh.Scene()
     cfg = {}
 
+    robot = URDF.load('/tmp/tmp.urdf')
+
     for k,configuration in enumerate(Configurations):
-        robot = URDF.load('/tmp/tmp.urdf')
+
+        print("Configuration " + str(k+1) + "/" + str(len(Configurations)))
 
         for i,joint in enumerate(robot.actuated_joints):
             cfg[joint.name] = configuration[i]
@@ -176,8 +182,7 @@ elif(plotMode == "mesh"):
         axis = trimesh.creation.axis(origin_size=0.01,axis_radius=0.01,axis_length=0.15,transform = robot.link_fk(cfg=cfg)[robot.links[-1]])
         scene.add_geometry(axis)
 
-        meshes = robot.visual_trimesh_fk(cfg=cfg)
-
+        meshes = deepcopy(robot.visual_trimesh_fk(cfg=cfg))
         mesh = trimesh.Trimesh()
 
         for submesh in meshes:
@@ -198,7 +203,7 @@ elif(plotMode == "mesh"):
     #Load environment file if provided
     environmentFileName = ""
     try:
-        environmentFileName = sys.argv[2]
+        environmentFileName = sys.argv[4]
     except:
         pass
 
@@ -221,12 +226,30 @@ elif(plotMode == "mesh"):
             else:
                 continue
 
+    visibilityCone = False
+    visibilityCylinder = True
+
+    if(visibilityCone):
+        cone = trimesh.creation.cone(radius=0.2,height=0.25,transform=np.dot(robot.link_fk(cfg=cfg)[robot.links[-1]],np.array([[-1,0,0,0],[0,1,0,0],[0,0,-1,0.25],[0,0,0,1]])))
+        cone.visual.face_colors = np.array([0, 255, 0, 100])
+        scene.add_geometry(cone)
+
+    elif(visibilityCylinder):
+        cylinder = trimesh.creation.cylinder(radius=0.15,height=0.2,transform=np.dot(robot.link_fk(cfg=cfg)[robot.links[-1]],np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0.2/2],[0,0,0,1]])))
+        cylinder.visual.face_colors = np.array([0, 255, 0, 100])
+        scene.add_geometry(cylinder)
+
+    outputFileName = os.path.basename(fileName).split(".")[0]
+
     scene.set_camera((np.pi/2,0.0,3*np.pi/4),3.5,(0,0,0.1))
     scene.show()
     data = scene.save_image()
     from PIL import Image
     rendered = Image.open(trimesh.util.wrap_as_stream(data))
-    rendered.save("output.png")
+    rendered.save(outputFileName + ".png")
+
+    renderedMesh = scene.to_mesh()
+    renderedMesh.export(outputFileName + ".obj")
 
 else:
     print("Invalid plot mode !")
