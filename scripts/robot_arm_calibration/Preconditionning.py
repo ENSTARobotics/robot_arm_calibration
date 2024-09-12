@@ -25,6 +25,7 @@ jacobian = cs.SX.sym('jacobian',6,PARAMETERS_NUMBER)
 ### SIMPLE PRECONDITIONNING ###
 
 deltaPosition = measuredPose[:3] - computedPose[:3]
+deltaPositionFunction = cs.Function('deltaPositionFunction',[computedPose,measuredPose],[deltaPosition])
 
 measuredOrientation = mrp_to_matrix(measuredPose[3:])
 computedOrientation = mrp_to_matrix(computedPose[3:])
@@ -35,12 +36,15 @@ deltaOrientation = measuredOrientation.T@computedOrientation
 deltaOrientationMRP = quat_to_mrp(SO3.from_matrix(deltaOrientation))
 deltaOrientationEuler = SO3.from_matrix(deltaOrientation).as_euler()
 deltaOrientationLog = SO3.from_matrix(deltaOrientation).log().vec
+deltaOrientationLogFunction = cs.Function('deltaOrientationLogFunction',[computedPose,measuredPose],[deltaOrientationLog])
 
 simplePreconditionning = cs.Function('simplePreconditionning',[computedPose,measuredPose],[cs.vertcat(deltaPosition,L*deltaOrientationLog)])
 JsimplePreconditionning = cs.jacobian(simplePreconditionning(computedPose,measuredPose),computedPose)
 
 simpleEulerPreconditionning = cs.Function('simpleEulerPreconditionning',[computedPose,measuredPose],[cs.vertcat(deltaPosition,L*deltaOrientationEuler)])
 JsimpleEulerPreconditionning = cs.jacobian(simpleEulerPreconditionning(computedPose,measuredPose),computedPose)
+
+eulerPreconditionning = cs.Function('eulerPreconditionning',[computedPose,measuredPose],[cs.vertcat(deltaPosition,deltaOrientationEuler)])
 
 ### SPHERIC PRECONDITIONNING ###
 
@@ -59,7 +63,7 @@ measuredPhi = cs.atan2(deltaMeasuredAimed[1],deltaMeasuredAimed[0])
 computedPhi = cs.atan2(deltaComputedAimed[1],deltaComputedAimed[0])
 deltaPhi = measuredPhi - computedPhi
 
-sphericPreconditionning = cs.Function('sphericPreconditionning',[computedPose,measuredPose,aimedPosition],[cs.vertcat(deltaR,deltaTheta,deltaPhi,L*deltaOrientationEuler)])
+sphericPreconditionning = cs.Function('sphericPreconditionning',[computedPose,measuredPose,aimedPosition],[cs.vertcat(deltaR,measuredR*deltaTheta,measuredR*deltaPhi,measuredR*deltaOrientationEuler)])
 JsphericalPreconditionning = cs.jacobian(sphericPreconditionning(computedPose,measuredPose,aimedPosition),computedPose)
 
 ### JACOBIANS ###
