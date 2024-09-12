@@ -113,6 +113,7 @@ def computeError(
     delta = computeDelta(
         parameters, Pij, Jointi, preconditionning, additionnalParameters
     )
+
     return np.dot(delta.T, delta)
 
 
@@ -834,12 +835,17 @@ if __name__ == "__main__":
 
     ### Filter outliers (i.e. obviously wrong measurements)
     Outliers = []
-    if len(TToolN) > 1:     #TODO Full-pose measurements
-        for i,(pij,jointValues) in enumerate(zip(Pij,Jointi)):
-            error = computeError(parameters0, pij, [jointValues])
-            if(error > 0.05):
-                print("Outlier detected at index " + str(i) + " : " + str(error))
-                Outliers.append(i)
+    for i,(pij,jointValues) in enumerate(zip(Pij,Jointi)):
+
+        error = 0
+        if additionnalParameters is None:
+            error = computeError(parameters0, np.array([pij]), np.array([jointValues]), preconditionning)
+        else:
+            error = computeError(parameters0, np.array([pij]), np.array([jointValues]), preconditionning, additionnalParameters[i])
+
+        if(error > 0.05):
+            print("Outlier detected at index " + str(i) + " : " + str(error))
+            Outliers.append(i)
     Pij = np.delete(Pij,Outliers,axis=0)
     Jointi = np.delete(Jointi,Outliers,axis=0)
 
@@ -1034,12 +1040,12 @@ if __name__ == "__main__":
     N_LEARNING = min(N_MEASUREMENTS, 2 * len(parameters0))
     #N_LEARNING = N_MEASUREMENTS
     N_TESTS = 0
-
-    from robot_arm_calibration.TargetConfigurationsGeneration import O1
+    
     if(N_TESTS == 0 and N_MEASUREMENTS > N_LEARNING):
-        from robot_arm_calibration.TargetConfigurationsGeneration import greedy
+        from robot_arm_calibration.TargetConfigurationsGeneration import O1,greedy
         bestConfigurations,_ = greedy(Jointi,2*len(parameters0),maxCallsNumber=500,utilityScore=O1)
         bestConfigurationsIndex = [np.where(np.all(Jointi==configuration,axis=1))[0][0] for configuration in bestConfigurations]
+
         #bestConfigurationsIndex = np.random.permutation(N_LEARNING)
         #print(bestConfigurationsIndex)
         
@@ -1072,6 +1078,11 @@ if __name__ == "__main__":
         indexTest = randomIndices[-N_TESTS:]
         PijTest = Pij[indexTest]
         JointiTest = Jointi[indexTest]
+
+    from robot_arm_calibration.TargetConfigurationsGeneration import O1
+    print("Learning identifiability index : " + str(O1(JointiLear)))
+    if(N_TESTS != 0):
+        print("Testing identifiability index : " + str(O1(JointiTest)))
 
     # Initial error
     initialError = computeError(
