@@ -12,17 +12,8 @@ from copy import deepcopy
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-#Plot packages
-import trimesh
-
-### Import robot and marker parameters
-from robot_arm_calibration.ParametersTools import getIdentifiableParametersPartial
-
 #Custom packages
-from robot_arm_calibration.NumericGeometricModel import T, TBaseN, TFlangeN, TToolN, piN, JOINTS_NUMBER, toolName, robotName
-
-### Retreive nominal parameters
-parameters0 = getIdentifiableParametersPartial(TBaseN,TFlangeN,TToolN,piN)
+from robot_arm_calibration.NumericGeometricModel import T, piN, JOINTS_NUMBER, toolName, robotName
 
 ### Loading calibration poses
 print("Loading configurations...")
@@ -40,11 +31,10 @@ with open(fileName,"r") as file:
     Configurations = np.array(Configurations[list(Configurations.keys())[0]]).reshape((-1,JOINTS_NUMBER))
 print("Done !")
 
-Configurations = Configurations[:1]
 print('Number of configurations : ' + str(len(Configurations)))
 
-#plotMode = input("Plot mode ? [mesh, axes]")
-plotMode = "mesh"
+#plotMode = input("Plot mode ? [mesh, matplotlib, plotly]")
+plotMode = "plotly"
 
 if(plotMode == "axes"):
 
@@ -90,7 +80,30 @@ if(plotMode == "axes"):
     plt.legend()
     plt.show()
 
-elif(plotMode == "mesh"):
+elif(plotMode in ["mesh","plotly"]):
+
+    import trimesh
+
+    if(plotMode == "plotly"):
+        import plotly.graph_objects as go
+        fig = go.Figure()
+
+        def plotMesh(mesh,fig,**kwargs):
+            I,J,K = mesh.faces.T
+            X,Y,Z = mesh.vertices.T 
+
+            fig.add_trace(go.Mesh3d(
+                x=X,
+                y=Y,
+                z=Z,
+                i=I,
+                j=J,
+                k=K,
+                facecolor=mesh.visual.face_colors,
+                **kwargs
+            ))
+    else:
+        scene = trimesh.Scene()
 
     #Tool functions
     def parsePose(pose):
@@ -101,18 +114,18 @@ elif(plotMode == "mesh"):
 
     def parseBox(box):
         box = trimesh.creation.box(extents=[box["size"]["dx"],box["size"]["dy"],box["size"]["dz"]],transform=parsePose(box["pose"]))
-        box.visual.face_colors = np.array([0, 126, 159])
+        box.visual.face_colors = np.array([31,119,180,150])
         return(box)
 
     def parseCylinder(cylinder):
         cylinder = trimesh.creation.cylinder(radius=cylinder["size"]["radius"],height=cylinder["size"]["height"],transform=parsePose(cylinder["pose"]))
-        cylinder.visual.face_colors = np.array([0, 126, 159])
+        cylinder.visual.face_colors = np.array([31,119,180,150])
         return(cylinder)
     
     def parseSphere(sphere):
         sphere = trimesh.creation.icosphere(subdivisions=3,radius=sphere["size"]["radius"])
         sphere.apply_transform(parsePose(sphere["pose"]))
-        sphere.visual.face_colors = np.array([0, 126, 159])
+        sphere.visual.face_colors = np.array([31,119,180,150])
         return(sphere)
 
     def parseBorder(border):
@@ -136,7 +149,7 @@ elif(plotMode == "mesh"):
         else:
             pass
         border = trimesh.creation.box(extents=extents,transform=transform)
-        border.visual.face_colors = np.array([0, 126, 159])
+        border.visual.face_colors = np.array([31,119,180,150])
         return(border)
 
     from urchin import URDF
@@ -146,7 +159,6 @@ elif(plotMode == "mesh"):
     pkgPath = rospack.get_path("robot_arm_tools")
 
     command = "bash " + pkgPath + "/scripts/GetRobotDescription.sh 'robot_arm_tools Setup_" + robotName + ".launch' '" + pkgPath + "/config/tools/" + toolName + "/" + toolName + ".urdf.xacro robot_name:=" + robotName + "' ''"
-    print(command)
     output = subprocess.run(command,capture_output=True, text=True, shell=True)
     
     if(output.returncode != 0):
@@ -163,12 +175,12 @@ elif(plotMode == "mesh"):
         robotDescription = robotDescription.replace(package,rospack.get_path(package.split("/")[-2]) + "/")
 
     robotDescription = robotDescription.replace("file://","")
-    #print(robotDescription)
 
     with open("/tmp/tmp.urdf","w") as file:
         file.write(robotDescription)
-    scene = trimesh.Scene()
+    
     cfg = {}
+    Meshes = []
 
     robot = URDF.load('/tmp/tmp.urdf')
 
@@ -180,25 +192,37 @@ elif(plotMode == "mesh"):
             cfg[joint.name] = configuration[i]
 
         axis = trimesh.creation.axis(origin_size=0.01,axis_radius=0.01,axis_length=0.15,transform = robot.link_fk(cfg=cfg)[robot.links[-1]])
-        scene.add_geometry(axis)
 
-        meshes = deepcopy(robot.visual_trimesh_fk(cfg=cfg))
+        if(plotMode == "mesh"):
+            scene.add_geometry(axis)
+        # else:
+        #     plotMesh(axis,fig)
+        
         mesh = trimesh.Trimesh()
 
-        for submesh in meshes:
-            pose = meshes[submesh]
-            submesh.apply_transform(pose)
-            mesh = trimesh.util.concatenate([mesh,submesh])
+        for link in robot.links:
+            print("Handling link : " + link.name)
 
-        if(k%3!=3):
-            newColors = np.array(mesh.visual.face_colors)
-            newColors[:,-1] = 150
+            localMesh = trimesh.Trimesh()
+            meshes = deepcopy(robot.visual_trimesh_fk(cfg=cfg,links=[link]))
+
+            if(len(meshes) != 0):
+                for submesh in meshes:
+                    pose = meshes[submesh]
+                    submesh.apply_transform(pose)
+                    localMesh = trimesh.util.concatenate([localMesh,submesh])
+
+                Meshes.append(localMesh)
+                mesh = trimesh.util.concatenate([mesh,localMesh])
+
+        # newColors = np.array(mesh.visual.face_colors)
+        # newColors[:,-1] = 255
+        # mesh.visual = trimesh.visual.create_visual(face_colors=newColors,mesh=mesh)
+       
+        if(plotMode == "mesh"):
+            scene.add_geometry(mesh)
         else:
-            newColors = np.tile(np.array([0, 200, 0, 200]),(len(mesh.visual.face_colors),1))
-        
-        mesh.visual = trimesh.visual.create_visual(face_colors=newColors,mesh=mesh)
-        
-        scene.add_geometry(mesh)
+            plotMesh(mesh,fig)
 
     #Load environment file if provided
     environmentFileName = ""
@@ -214,42 +238,119 @@ elif(plotMode == "mesh"):
         with open(environmentFileName,"r") as file:
             environment = yaml.load(file, Loader=yaml.FullLoader)
 
-        for _,value in environment.items():
+        for key,value in environment.items():
+            print("Handling object : " + key)
+
             if(value["type"] == "box"):
-                scene.add_geometry(parseBox(value))
+                if(plotMode == "mesh"):
+                    scene.add_geometry(parseBox(value))
+                else:
+                    plotMesh(parseBox(value),fig)
             elif(value["type"] == "cylinder"):
-                scene.add_geometry(parseCylinder(value))
+                if(plotMode == "mesh"):
+                    scene.add_geometry(parseCylinder(value))
+                else:
+                    plotMesh(parseCylinder(value),fig)
             elif(value["type"] == "sphere"):
-                scene.add_geometry(parseSphere(value))
+                if(plotMode == "mesh"):
+                    scene.add_geometry(parseSphere(value))
+                else: 
+                    plotMesh(parseSphere(value),fig)
             elif(value["type"] == "border"):
-                scene.add_geometry(parseBorder(value))
+                if(plotMode == "mesh"):    
+                    scene.add_geometry(parseBorder(value))
+                else:
+                    plotMesh(parseBorder(value),fig)
             else:
                 continue
 
-    visibilityCone = False
-    visibilityCylinder = True
+    #Add visibility object if needed
+    visibilityObjectType = ""
+    try:
+        visibilityObjectType = sys.argv[5]
+    except:
+        pass
 
-    if(visibilityCone):
-        cone = trimesh.creation.cone(radius=0.2,height=0.25,transform=np.dot(robot.link_fk(cfg=cfg)[robot.links[-1]],np.array([[-1,0,0,0],[0,1,0,0],[0,0,-1,0.25],[0,0,0,1]])))
-        cone.visual.face_colors = np.array([0, 255, 0, 100])
-        scene.add_geometry(cone)
+    if(visibilityObjectType in ["cone","cylinder"]):
 
-    elif(visibilityCylinder):
-        cylinder = trimesh.creation.cylinder(radius=0.15,height=0.2,transform=np.dot(robot.link_fk(cfg=cfg)[robot.links[-1]],np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0.2/2],[0,0,0,1]])))
-        cylinder.visual.face_colors = np.array([0, 255, 0, 100])
-        scene.add_geometry(cylinder)
+        visibilityObject = trimesh.Trimesh()
+        if(visibilityObjectType == "cone"):
+            visibilityObject = trimesh.creation.cone(radius=0.2,height=0.25,transform=np.dot(robot.link_fk(cfg=cfg)[robot.links[-1]],np.array([[-1,0,0,0],[0,1,0,0],[0,0,-1,0.25],[0,0,0,1]])))
+
+        elif(visibilityObjectType == "cylinder"):
+            visibilityObject = trimesh.creation.cylinder(radius=0.15,height=0.2,transform=np.dot(robot.link_fk(cfg=cfg)[robot.links[-1]],np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0.2/2],[0,0,0,1]])))
+
+        visibilityObject.visual.face_colors = np.array([152,223,138,100])
+        if(plotMode == "mesh"):
+            scene.add_geometry(visibilityObject)
+        else:
+            plotMesh(visibilityObject,fig)
+
+        for i,mesh in enumerate(Meshes):
+            print("Handling mesh : " + str(i+1) + "/" + str(len(Meshes)))
+
+            closest, distance, _ = trimesh.proximity.closest_point(visibilityObject, mesh.vertices)
+            if(i == len(Meshes)-1):
+                pass
+            else:
+                if(min(distance) < 0.001):
+                    newColors = np.array(mesh.visual.face_colors)
+                    newColors = np.array([214,39,40,255])
+                    mesh.visual = trimesh.visual.create_visual(face_colors=newColors,mesh=mesh)
+                    if(plotMode == "mesh"):
+                        scene.add_geometry(mesh)
+                    else:
+                        plotMesh(mesh,fig)
+                else:
+                    meshPoint = mesh.vertices[np.argmin(distance)]
+                    visibilityPoint = closest[np.argmin(distance)] 
+                    segment = trimesh.load_path(np.array([[meshPoint,visibilityPoint]]))
+                    segment.colors = np.array([[44,160,44,255]])
+                    if(plotMode == "mesh"):
+                        scene.add_geometry(segment)
+                    else:
+                        fig.add_trace(go.Scatter3d(
+                            x=[meshPoint[0],visibilityPoint[0]],
+                            y=[meshPoint[1],visibilityPoint[1]],
+                            z=[meshPoint[2],visibilityPoint[2]],
+                            mode='lines',
+                            line=dict(color="rgb(44,160,44)", width=8),
+                            showlegend=False
+                        ))
+                        midPoint = (meshPoint + visibilityPoint)/2
+                        # fig.add_trace(go.Scatter3d(
+                        #     x=[midPoint[0]],
+                        #     y=[midPoint[1]],
+                        #     z=[midPoint[2]],
+                        #     mode='text',
+                        #     text=str(np.round(min(distance),3)),
+                        #     textfont=dict(color=np.array([[44,160,44,255]]),family="Computer Modern",size=16),
+                        #     showlegend=False
+                        # ))
 
     outputFileName = os.path.basename(fileName).split(".")[0]
 
-    scene.set_camera((np.pi/2,0.0,3*np.pi/4),3.5,(0,0,0.1))
-    scene.show()
-    data = scene.save_image()
-    from PIL import Image
-    rendered = Image.open(trimesh.util.wrap_as_stream(data))
-    rendered.save(outputFileName + ".png")
+    if(plotMode == "mesh"):
+        if(visibilityObjectType in ["cone","cylinder"]):
+            scene.set_camera((0,0.0,0),2.0,(0,0,0))
+        else:
+            scene.set_camera((np.pi/2,0.0,3*np.pi/4),3.5,(0,0,0.1))
+        scene.show()
+        data = scene.save_image()
+        from PIL import Image
+        rendered = Image.open(trimesh.util.wrap_as_stream(data))
+        rendered.save(outputFileName + ".png")
 
-    renderedMesh = scene.to_mesh()
-    renderedMesh.export(outputFileName + ".obj")
+        renderedMesh = scene.to_mesh()
+        renderedMesh.export(outputFileName + ".obj")
+    else:
+        #fig.update_scenes(xaxis_visible=False, yaxis_visible=False,zaxis_visible=False)
+        bg = dict(showbackground = False, gridcolor="rgba(0,0,0,0.2)", showticklabels=False, title_text = "")
+        fig.update_scenes(xaxis=bg, yaxis=bg, zaxis=bg)
+
+        fig.update_layout(scene_camera=dict(eye=dict(x=1/0.8,y=-1/0.8,z=0.75/0.8)))
+        fig.write_html(outputFileName + ".html")
+        fig.show()
 
 else:
     print("Invalid plot mode !")
